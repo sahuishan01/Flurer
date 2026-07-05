@@ -101,24 +101,6 @@ export function VolumeIcon(props: IconProps) {
   );
 }
 
-export function ChevronRightIcon(props: IconProps) {
-  return (
-    <svg
-      width={props.size ?? 14}
-      height={props.size ?? 14}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="3"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      classList={{ "chevron-icon": true }}
-    >
-      <polyline points="9 6 15 12 9 18" />
-    </svg>
-  );
-}
-
 export function FolderIcon(props: IconProps) {
   return (
     <svg
