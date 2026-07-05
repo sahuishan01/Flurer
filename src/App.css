@@ -145,6 +145,16 @@ body {
     border-color: var(--border-color);
 }
 
+.sidebar-icon {
+    display: inline-flex;
+}
+
+.sidebar-divider {
+    height: 1px;
+    margin: 0.4em 0.2em;
+    background-color: var(--border-color);
+}
+
 .toolbar {
     display: flex;
     align-items: center;
@@ -609,4 +619,144 @@ button.danger {
 
 button.danger:hover {
     border-color: #a11;
+}
+
+.graph-view {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.2em;
+    background-color: rgba(var(--surface-rgb), var(--surface-opacity));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.graph-title {
+    margin: 0 0 0.8em;
+}
+
+.graph-hint {
+    color: var(--text-color);
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+.graph-error {
+    color: #d33;
+}
+
+.graph-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.graph-node {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.8em 1em;
+    background-color: var(--panel-bg);
+}
+
+.graph-node-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5em;
+}
+
+.graph-node-title {
+    font-weight: 600;
+}
+
+.graph-node-meta {
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+.graph-children {
+    margin-top: 0.8em;
+    margin-left: 1.4em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+}
+
+.graph-node-volume {
+    background-color: rgba(var(--surface-rgb), 0.4);
+}
+
+.graph-usage-bar {
+    margin-top: 0.5em;
+    height: 6px;
+    border-radius: 3px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.graph-usage-fill {
+    height: 100%;
+    background-color: var(--accent);
+}
+
+.folder-tree-root {
+    margin-left: 0;
+}
+
+.folder-tree-node {
+    font-size: 0.9em;
+}
+
+.folder-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    padding: 0.3em 0.4em;
+    color: var(--text-color);
+}
+
+.folder-tree-row:hover {
+    background-color: var(--hover-bg);
+    border-color: transparent;
+}
+
+.chevron-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease;
+}
+
+.chevron-wrap.expanded {
+    transform: rotate(90deg);
+}
+
+.folder-tree-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-tree-hint {
+    margin: 0.2em 0 0.2em 1.8em;
+    font-size: 0.85em;
+    opacity: 0.6;
+}
+
+.folder-tree-error {
+    margin: 0.2em 0 0.2em 1.8em;
+    font-size: 0.85em;
+    color: #d33;
+}
+
+.folder-tree-children {
+    margin-left: 1.4em;
+    border-left: 1px solid var(--border-color);
+    padding-left: 0.6em;
 }

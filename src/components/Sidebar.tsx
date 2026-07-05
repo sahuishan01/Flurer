@@ -1,5 +1,7 @@
 import { createSignal, For, onMount } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { GraphIcon } from "./icons";
+import type { MainView } from "../lib/view";
 
 type QuickAccessEntry = {
   label: string;
@@ -18,6 +20,8 @@ const ICONS: Record<string, string> = {
 type SidebarProps = {
   currentPath: string;
   onNavigate: (path: string) => void;
+  activeView: MainView;
+  onSelectView: (view: MainView) => void;
 };
 
 export function Sidebar(props: SidebarProps) {
@@ -34,13 +38,30 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <nav class="sidebar">
+      <button
+        type="button"
+        class="sidebar-item"
+        classList={{ active: props.activeView === "graph" }}
+        onClick={() => props.onSelectView("graph")}
+      >
+        <span class="sidebar-icon">
+          <GraphIcon size={16} />
+        </span>
+        Graph
+      </button>
+
+      <div class="sidebar-divider" />
+
       <For each={entries()}>
         {(entry) => (
           <button
             type="button"
             class="sidebar-item"
-            classList={{ active: props.currentPath === entry.path }}
-            onClick={() => props.onNavigate(entry.path)}
+            classList={{ active: props.activeView === "explorer" && props.currentPath === entry.path }}
+            onClick={() => {
+              props.onSelectView("explorer");
+              props.onNavigate(entry.path);
+            }}
           >
             <span class="sidebar-icon">{ICONS[entry.label] ?? "📁"}</span>
             {entry.label}

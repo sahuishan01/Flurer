@@ -1,10 +1,15 @@
 mod configs;
+mod disks;
 mod fs;
 mod helpers;
 mod network;
 mod state;
 
-use fs::{copy_items, create_folder, delete_items, get_quick_access, list_directory, move_items, rename_item};
+use disks::get_disk_topology;
+use fs::{
+    copy_items, create_folder, delete_items, get_quick_access, list_directory, list_subfolders, move_items,
+    rename_item,
+};
 use helpers::settings::{get_settings, load_settings, set_settings};
 use network::get_wallpaper;
 use tauri::Manager;
@@ -34,6 +39,8 @@ pub fn run() {
             rename_item,
             create_folder,
             get_quick_access,
+            list_subfolders,
+            get_disk_topology,
             get_settings,
             set_settings
         ])

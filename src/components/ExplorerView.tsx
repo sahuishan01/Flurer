@@ -1,6 +1,5 @@
 import { createSignal } from "solid-js";
 import { FileList } from "./FileList";
-import { Sidebar } from "./Sidebar";
 import { GearIcon } from "./icons";
 import type { ClipboardState, SortDirection, SortKey } from "../lib/fs";
 
@@ -27,40 +26,36 @@ export function ExplorerView(props: ExplorerViewProps) {
   }
 
   return (
-    <div class="explorer-view">
-      <Sidebar currentPath={props.path} onNavigate={props.onNavigate} />
-
-      <div class="explorer-content">
-        <div class="toolbar">
-          <form
-            class="path-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              props.onNavigate(props.pathInput);
-            }}
-          >
-            <input
-              class="path-input"
-              value={props.pathInput}
-              onInput={(e) => props.onPathInputChange(e.currentTarget.value)}
-            />
-            <button type="submit">Go</button>
-          </form>
-          <button type="button" class="icon-btn" aria-label="Open settings" onClick={props.onOpenSettings}>
-            <GearIcon />
-          </button>
-        </div>
-
-        <FileList
-          path={props.path}
-          onNavigate={props.onNavigate}
-          sortKey={sortKey()}
-          sortDirection={sortDirection()}
-          onSortChange={handleSortChange}
-          clipboard={clipboard()}
-          onClipboardChange={setClipboard}
-        />
+    <div class="explorer-content">
+      <div class="toolbar">
+        <form
+          class="path-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            props.onNavigate(props.pathInput);
+          }}
+        >
+          <input
+            class="path-input"
+            value={props.pathInput}
+            onInput={(e) => props.onPathInputChange(e.currentTarget.value)}
+          />
+          <button type="submit">Go</button>
+        </form>
+        <button type="button" class="icon-btn" aria-label="Open settings" onClick={props.onOpenSettings}>
+          <GearIcon />
+        </button>
       </div>
+
+      <FileList
+        path={props.path}
+        onNavigate={props.onNavigate}
+        sortKey={sortKey()}
+        sortDirection={sortDirection()}
+        onSortChange={handleSortChange}
+        clipboard={clipboard()}
+        onClipboardChange={setClipboard}
+      />
     </div>
   );
 }

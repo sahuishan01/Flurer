@@ -2,7 +2,7 @@ import { createEffect, createSignal, For, onCleanup, onMount } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
-import type { BatchResult, ClipboardState, DirEntry, SortDirection, SortKey } from "../lib/fs";
+import { formatBytes, type BatchResult, type ClipboardState, type DirEntry, type SortDirection, type SortKey } from "../lib/fs";
 
 type FileListProps = {
   path: string;
@@ -15,18 +15,6 @@ type FileListProps = {
 };
 
 type ContextMenuState = { x: number; y: number; targetPath: string | null };
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-  return `${value.toFixed(1)} ${units[unitIndex]}`;
-}
 
 function formatModified(modified: number | null): string {
   if (modified === null) return "";
@@ -327,7 +315,7 @@ export function FileList(props: FileListProps) {
                     entry.name
                   )}
                 </td>
-                <td>{entry.isDir ? "" : formatSize(entry.size)}</td>
+                <td>{entry.isDir ? "" : formatBytes(entry.size)}</td>
                 <td>{formatModified(entry.modified)}</td>
               </tr>
             )}

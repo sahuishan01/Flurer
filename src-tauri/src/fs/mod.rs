@@ -80,6 +80,34 @@ pub fn list_directory(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SubfolderEntry {
+    pub name: String,
+    pub path: String,
+}
+
+#[tauri::command]
+pub fn list_subfolders(path: String) -> Result<Vec<SubfolderEntry>, String> {
+    let read_dir = fs::read_dir(&path).map_err(|e| e.to_string())?;
+
+    let mut entries = Vec::new();
+    for entry in read_dir {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        if !metadata.is_dir() {
+            continue;
+        }
+        entries.push(SubfolderEntry {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: entry.path().to_string_lossy().to_string(),
+        });
+    }
+
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(entries)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QuickAccessEntry {
     pub label: String,
     pub path: String,
@@ -110,6 +138,20 @@ pub fn get_quick_access() -> Vec<QuickAccessEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn list_subfolders_returns_only_directories_sorted_by_name() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join("b_folder")).unwrap();
+        fs::create_dir(dir.path().join("a_folder")).unwrap();
+        fs::write(dir.path().join("file.txt"), "not a folder").unwrap();
+
+        let entries = list_subfolders(dir.path().to_string_lossy().to_string()).unwrap();
+
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, vec!["a_folder", "b_folder"]);
+    }
 
     #[test]
     fn quick_access_resolves_known_windows_folders() {

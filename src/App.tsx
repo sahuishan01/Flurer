@@ -2,9 +2,12 @@ import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { ExplorerView } from "./components/ExplorerView";
+import { GraphView } from "./components/GraphView";
+import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { DEFAULT_SETTINGS, type BackgroundSettings, type Settings, type Theme } from "./lib/settings";
 import type { Wallpaper } from "./lib/unsplash";
+import type { MainView } from "./lib/view";
 import "./App.css";
 
 const DEFAULT_PATH = "C:\\";
@@ -13,6 +16,7 @@ const SETTINGS_SAVE_DEBOUNCE_MS = 300;
 function App() {
   const [currentPath, setCurrentPath] = createSignal(DEFAULT_PATH);
   const [pathInput, setPathInput] = createSignal(DEFAULT_PATH);
+  const [mainView, setMainView] = createSignal<MainView>("explorer");
   const [showSettings, setShowSettings] = createSignal(false);
   const [wallpaper, setWallpaper] = createSignal<Wallpaper | null>(null);
   const [wallpaperError, setWallpaperError] = createSignal("");
@@ -135,13 +139,23 @@ function App() {
       <Show
         when={showSettings()}
         fallback={
-          <ExplorerView
-            path={currentPath()}
-            pathInput={pathInput()}
-            onPathInputChange={setPathInput}
-            onNavigate={navigateTo}
-            onOpenSettings={() => setShowSettings(true)}
-          />
+          <div class="explorer-view">
+            <Sidebar
+              currentPath={currentPath()}
+              onNavigate={navigateTo}
+              activeView={mainView()}
+              onSelectView={setMainView}
+            />
+            <Show when={mainView() === "explorer"} fallback={<GraphView />}>
+              <ExplorerView
+                path={currentPath()}
+                pathInput={pathInput()}
+                onPathInputChange={setPathInput}
+                onNavigate={navigateTo}
+                onOpenSettings={() => setShowSettings(true)}
+              />
+            </Show>
+          </div>
         }
       >
         <SettingsPanel
