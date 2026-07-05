@@ -1,5 +1,27 @@
-use serde::{Deserialize, Serialize};
+use serde::{de::Deserializer, Deserialize, Serialize};
 use wmi::{COMLibrary, WMIConnection};
+
+// WMI's uint64 properties are supposed to travel over DCOM as numeric strings
+// (a documented WMI quirk), which is why these fields were originally typed
+// as Option<String> - but some providers/systems hand back a real integer
+// VARIANT instead, which then fails to deserialize into a String. Accept
+// either representation rather than assuming one.
+fn deserialize_flexible_u64<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrNumber {
+        Text(String),
+        Number(u64),
+    }
+
+    Ok(Option::<StringOrNumber>::deserialize(deserializer)?.and_then(|v| match v {
+        StringOrNumber::Text(s) => s.parse().ok(),
+        StringOrNumber::Number(n) => Some(n),
+    }))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,8 +52,8 @@ struct RawDiskDrive {
     index: u32,
     #[serde(rename = "Model")]
     model: Option<String>,
-    #[serde(rename = "Size")]
-    size: Option<String>,
+    #[serde(rename = "Size", default, deserialize_with = "deserialize_flexible_u64")]
+    size: Option<u64>,
     #[serde(rename = "MediaType")]
     media_type: Option<String>,
     #[serde(rename = "InterfaceType")]
@@ -52,14 +74,10 @@ struct RawLogicalDisk {
     volume_name: Option<String>,
     #[serde(rename = "FileSystem")]
     file_system: Option<String>,
-    #[serde(rename = "Size")]
-    size: Option<String>,
-    #[serde(rename = "FreeSpace")]
-    free_space: Option<String>,
-}
-
-fn parse_u64(value: &Option<String>) -> u64 {
-    value.as_deref().and_then(|s| s.parse().ok()).unwrap_or(0)
+    #[serde(rename = "Size", default, deserialize_with = "deserialize_flexible_u64")]
+    size: Option<u64>,
+    #[serde(rename = "FreeSpace", default, deserialize_with = "deserialize_flexible_u64")]
+    free_space: Option<u64>,
 }
 
 // WQL associator paths need embedded backslashes doubled, since the query
@@ -119,8 +137,8 @@ fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
                     drive_letter: logical.device_id,
                     volume_name: logical.volume_name.unwrap_or_default(),
                     file_system: logical.file_system.unwrap_or_default(),
-                    total_space: parse_u64(&logical.size),
-                    free_space: parse_u64(&logical.free_space),
+                    total_space: logical.size.unwrap_or(0),
+                    free_space: logical.free_space.unwrap_or(0),
                 });
             }
         }
@@ -128,7 +146,7 @@ fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
         disks.push(PhysicalDisk {
             index: drive.index,
             model: drive.model.unwrap_or_else(|| "Unknown disk".to_string()),
-            size: parse_u64(&drive.size),
+            size: drive.size.unwrap_or(0),
             media_type: normalize_media_type(&drive.media_type),
             interface_type: drive.interface_type.unwrap_or_default(),
             volumes,
