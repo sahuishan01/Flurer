@@ -61,9 +61,11 @@ struct RawDiskDrive {
 }
 
 #[derive(Deserialize, Debug)]
-struct RawDiskPartition {
-    #[serde(rename = "DeviceID")]
-    device_id: String,
+struct RawAssociation {
+    #[serde(rename = "Antecedent")]
+    antecedent: String,
+    #[serde(rename = "Dependent")]
+    dependent: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -80,10 +82,22 @@ struct RawLogicalDisk {
     free_space: Option<u64>,
 }
 
-// WQL associator paths need embedded backslashes doubled, since the query
-// itself is a string literal that WMI parses a second time.
-fn escape_wql_path(value: &str) -> String {
+// WMI escapes backslashes when it renders an object path as text (e.g. inside
+// an association's Antecedent/Dependent string), so a DeviceID with
+// backslashes - like a physical drive's `\\.\PHYSICALDRIVE0` - shows up there
+// with each backslash doubled. Match that rendering to find it by substring.
+fn escape_backslashes(value: &str) -> String {
     value.replace('\\', "\\\\")
+}
+
+// Pulls the key value out of a quoted `Something.DeviceID="value"` segment of
+// a WMI object path string, e.g. "C:" out of a Win32_LogicalDisk path.
+fn extract_device_id(path: &str) -> Option<String> {
+    let marker = "DeviceID=\"";
+    let start = path.find(marker)? + marker.len();
+    let rest = &path[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
 }
 
 fn normalize_media_type(raw: &Option<String>) -> String {
@@ -106,6 +120,13 @@ pub fn get_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
         .map_err(|_| "Disk query thread panicked".to_string())?
 }
 
+// Rather than building one `ASSOCIATORS OF {Class.Key='...'}` query per disk
+// and per partition (fragile: it depends on hand-escaping each DeviceID
+// exactly right inside a WQL string literal, and a bad escape shows up as an
+// opaque WBEM_E_NOT_FOUND at runtime), pull each association table once with
+// a plain SELECT and join them in Rust. Only the physical drive's DeviceID
+// ever needs matching against WMI's own escaped rendering of it; everything
+// else is a plain string comparison that can't fail a query parse.
 fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
     let com_con = COMLibrary::new().map_err(|e| e.to_string())?;
     let wmi_con = WMIConnection::new(com_con).map_err(|e| e.to_string())?;
@@ -114,25 +135,35 @@ fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
         .raw_query("SELECT DeviceID, Index, Model, Size, MediaType, InterfaceType FROM Win32_DiskDrive")
         .map_err(|e| e.to_string())?;
 
+    let drive_to_partition: Vec<RawAssociation> = wmi_con
+        .raw_query("SELECT Antecedent, Dependent FROM Win32_DiskDriveToDiskPartition")
+        .map_err(|e| e.to_string())?;
+
+    let partition_to_logical: Vec<RawAssociation> = wmi_con
+        .raw_query("SELECT Antecedent, Dependent FROM Win32_LogicalDiskToPartition")
+        .map_err(|e| e.to_string())?;
+
+    let logical_disks: Vec<RawLogicalDisk> = wmi_con
+        .raw_query("SELECT DeviceID, VolumeName, FileSystem, Size, FreeSpace FROM Win32_LogicalDisk")
+        .map_err(|e| e.to_string())?;
+
+    let mut logical_by_id: std::collections::HashMap<String, RawLogicalDisk> =
+        logical_disks.into_iter().map(|d| (d.device_id.clone(), d)).collect();
+
     let mut disks = Vec::with_capacity(drives.len());
     for drive in drives {
-        let partitions: Vec<RawDiskPartition> = wmi_con
-            .raw_query(format!(
-                "ASSOCIATORS OF {{Win32_DiskDrive.DeviceID='{}'}} WHERE AssocClass = Win32_DiskDriveToDiskPartition",
-                escape_wql_path(&drive.device_id)
-            ))
-            .map_err(|e| e.to_string())?;
+        let escaped_id = escape_backslashes(&drive.device_id);
 
         let mut volumes = Vec::new();
-        for partition in partitions {
-            let logical_disks: Vec<RawLogicalDisk> = wmi_con
-                .raw_query(format!(
-                    "ASSOCIATORS OF {{Win32_DiskPartition.DeviceID='{}'}} WHERE AssocClass = Win32_LogicalDiskToPartition",
-                    escape_wql_path(&partition.device_id)
-                ))
-                .map_err(|e| e.to_string())?;
+        for dp in drive_to_partition.iter().filter(|dp| dp.antecedent.contains(&escaped_id)) {
+            for pl in partition_to_logical.iter().filter(|pl| pl.antecedent == dp.dependent) {
+                let Some(drive_letter) = extract_device_id(&pl.dependent) else {
+                    continue;
+                };
+                let Some(logical) = logical_by_id.remove(&drive_letter) else {
+                    continue;
+                };
 
-            for logical in logical_disks {
                 volumes.push(VirtualDisk {
                     drive_letter: logical.device_id,
                     volume_name: logical.volume_name.unwrap_or_default(),
