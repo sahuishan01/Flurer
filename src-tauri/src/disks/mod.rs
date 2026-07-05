@@ -76,8 +76,19 @@ fn normalize_media_type(raw: &Option<String>) -> String {
     }
 }
 
+// Tauri (via WebView2) may already have COM initialized as single-threaded
+// apartment on whatever thread runs this command, and wmi's COMLibrary::new()
+// initializes multi-threaded apartment - mixing the two fails with
+// RPC_E_CHANGED_MODE (0x80010106). Running the query on a brand-new OS thread
+// guarantees no prior CoInitializeEx call to conflict with.
 #[tauri::command]
 pub fn get_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
+    std::thread::spawn(query_disk_topology)
+        .join()
+        .map_err(|_| "Disk query thread panicked".to_string())?
+}
+
+fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
     let com_con = COMLibrary::new().map_err(|e| e.to_string())?;
     let wmi_con = WMIConnection::new(com_con).map_err(|e| e.to_string())?;
 
