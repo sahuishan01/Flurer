@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 
-use crate::state::Settings;
+use crate::state::{AppState, Settings};
 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|err| err.to_string())?;
@@ -24,5 +24,21 @@ pub fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String>
     let data = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     fs::write(&temp, data).map_err(|e| e.to_string())?;
     fs::rename(&temp, path).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
+    Ok(state.settings.lock().await.clone())
+}
+
+#[tauri::command]
+pub async fn set_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: Settings,
+) -> Result<(), String> {
+    save_settings(&app, &settings)?;
+    *state.settings.lock().await = settings;
     Ok(())
 }
