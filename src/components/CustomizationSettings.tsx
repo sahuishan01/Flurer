@@ -1,4 +1,4 @@
-import { For } from "solid-js";
+import { createSignal, For } from "solid-js";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
 import { GRADIENT_DIRECTIONS, GRADIENT_PRESETS, SOLID_COLOR_PRESETS } from "../lib/settings";
 import {
@@ -31,6 +31,10 @@ const BACKGROUND_KEYWORDS = [
   "auto rotate",
   "fixed",
   "category",
+  "api key",
+  "api",
+  "key",
+  "unsplash key",
 ];
 
 const THEME_KEYWORDS = ["theme", "light", "dark", "panel tint", "tint", "opacity", "blur", "panel blur", "blurriness"];
@@ -55,6 +59,9 @@ type CustomizationSettingsProps = {
   onUiBlurPxChange: (blurPx: number) => void;
   persistGraphState: boolean;
   onPersistGraphStateChange: (enabled: boolean) => void;
+  hasUnsplashApiKey: boolean;
+  onSaveUnsplashApiKey: (key: string) => void;
+  apiKeyError: string;
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
@@ -64,6 +71,13 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   const showBackground = () => matchesQuery(props.searchQuery, BACKGROUND_KEYWORDS);
   const showTheme = () => matchesQuery(props.searchQuery, THEME_KEYWORDS);
   const showBehavior = () => matchesQuery(props.searchQuery, BEHAVIOR_KEYWORDS);
+
+  const [apiKeyInput, setApiKeyInput] = createSignal("");
+
+  function handleSaveApiKey() {
+    props.onSaveUnsplashApiKey(apiKeyInput());
+    setApiKeyInput("");
+  }
 
   return (
     <div class="customization-settings">
@@ -196,6 +210,30 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
 
         {props.background.backgroundType === "unsplash" && (
           <div class="unsplash-settings">
+            <div class="api-key-control">
+              <label class="api-key-status" classList={{ configured: props.hasUnsplashApiKey }}>
+                {props.hasUnsplashApiKey ? "Unsplash API key configured" : "No Unsplash API key set"}
+              </label>
+              <div class="api-key-input-row">
+                <input
+                  type="password"
+                  class="api-key-input"
+                  placeholder={props.hasUnsplashApiKey ? "Enter a new key to replace it" : "Unsplash API key"}
+                  value={apiKeyInput()}
+                  onInput={(e) => setApiKeyInput(e.currentTarget.value)}
+                />
+                <button type="button" onClick={handleSaveApiKey} disabled={!apiKeyInput().trim()}>
+                  Save
+                </button>
+                {props.hasUnsplashApiKey && (
+                  <button type="button" class="danger" onClick={() => props.onSaveUnsplashApiKey("")}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              {props.apiKeyError && <p class="settings-error">{props.apiKeyError}</p>}
+            </div>
+
             <div class="option-group">
               <button
                 type="button"

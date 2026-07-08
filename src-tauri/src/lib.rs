@@ -17,6 +17,8 @@ use sizecache::{get_folder_size, recompute_folder_size};
 use tauri::Manager;
 use tokio::sync::Mutex;
 
+use configs::{has_unsplash_api_key, set_unsplash_api_key};
+
 use crate::{configs::Config, state::AppState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -49,7 +51,9 @@ pub fn run() {
             get_folder_size,
             recompute_folder_size,
             get_settings,
-            set_settings
+            set_settings,
+            has_unsplash_api_key,
+            set_unsplash_api_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::state::AppState;
+use crate::{configs::resolve_unsplash_api_key, state::AppState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WallpaperUrls {
@@ -31,7 +31,8 @@ pub async fn get_wallpaper(
     state: State<'_, AppState>,
     query: Option<String>,
 ) -> Result<Wallpaper, String> {
-    let client_id = state.config.unsplash_client_id.clone();
+    let client_id = resolve_unsplash_api_key(&state.config)
+        .ok_or_else(|| "Unsplash isn't configured yet — add an API key in Settings".to_string())?;
     let client = reqwest::Client::new();
 
     let mut request = client

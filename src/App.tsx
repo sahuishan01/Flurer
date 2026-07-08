@@ -26,6 +26,12 @@ function App() {
   const [searchRecursive, setSearchRecursive] = createSignal(false);
   const [wallpaper, setWallpaper] = createSignal<Wallpaper | null>(null);
   const [wallpaperError, setWallpaperError] = createSignal("");
+  // Whether an Unsplash API key is configured — never the key itself. It's
+  // stored via the OS credential store (see src-tauri/src/configs/mod.rs),
+  // deliberately outside of Settings, so it's never round-tripped back to
+  // the renderer in plain text.
+  const [hasUnsplashApiKey, setHasUnsplashApiKey] = createSignal(false);
+  const [apiKeyError, setApiKeyError] = createSignal("");
   const [rotationUrl, setRotationUrl] = createSignal<string | null>(null);
   const [windowSize, setWindowSize] = createSignal(getDisplaySize());
 
@@ -48,6 +54,14 @@ function App() {
       console.error("Failed to load settings", err);
     } finally {
       setSettingsLoaded(true);
+    }
+  });
+
+  onMount(async () => {
+    try {
+      setHasUnsplashApiKey(await invoke<boolean>("has_unsplash_api_key"));
+    } catch (err) {
+      console.error("Failed to check Unsplash API key status", err);
     }
   });
 
@@ -102,6 +116,16 @@ function App() {
   function updateGraphState(state: GraphState) {
     setSettings("graphState", state);
     persistSettings();
+  }
+
+  async function saveUnsplashApiKey(key: string) {
+    setApiKeyError("");
+    try {
+      await invoke("set_unsplash_api_key", { key });
+      setHasUnsplashApiKey(key.trim().length > 0);
+    } catch (err) {
+      setApiKeyError(String(err));
+    }
   }
 
   async function getWallpaper(query: string) {
@@ -311,6 +335,9 @@ function App() {
                 onUiBlurPxChange={updateUiBlurPx}
                 persistGraphState={settings.persistGraphState}
                 onPersistGraphStateChange={updatePersistGraphState}
+                hasUnsplashApiKey={hasUnsplashApiKey()}
+                onSaveUnsplashApiKey={saveUnsplashApiKey}
+                apiKeyError={apiKeyError()}
                 wallpaper={wallpaper()}
                 wallpaperError={wallpaperError()}
                 onFetchWallpaper={getWallpaper}

@@ -21,6 +21,9 @@ type SettingsPanelProps = {
   onUiBlurPxChange: (blurPx: number) => void;
   persistGraphState: boolean;
   onPersistGraphStateChange: (enabled: boolean) => void;
+  hasUnsplashApiKey: boolean;
+  onSaveUnsplashApiKey: (key: string) => void;
+  apiKeyError: string;
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
@@ -67,6 +70,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onUiBlurPxChange={props.onUiBlurPxChange}
               persistGraphState={props.persistGraphState}
               onPersistGraphStateChange={props.onPersistGraphStateChange}
+              hasUnsplashApiKey={props.hasUnsplashApiKey}
+              onSaveUnsplashApiKey={props.onSaveUnsplashApiKey}
+              apiKeyError={props.apiKeyError}
               wallpaper={props.wallpaper}
               wallpaperError={props.wallpaperError}
               onFetchWallpaper={props.onFetchWallpaper}
