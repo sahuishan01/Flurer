@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, ArrowRightIcon, SearchIcon } from "./icons";
+import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
 
 type TopBarProps = {
   canGoBack: boolean;
@@ -40,14 +40,17 @@ export function TopBar(props: TopBarProps) {
         />
       </div>
 
-      <label class="search-recursive">
-        <input
-          type="checkbox"
-          checked={props.searchRecursive}
-          onChange={(e) => props.onSearchRecursiveChange(e.currentTarget.checked)}
-        />
-        Include subfolders
-      </label>
+      <button
+        type="button"
+        class="icon-btn"
+        classList={{ active: props.searchRecursive }}
+        title="Include subfolders"
+        aria-label="Include subfolders"
+        aria-pressed={props.searchRecursive}
+        onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
+      >
+        <LayersIcon size={16} />
+      </button>
     </div>
   );
 }

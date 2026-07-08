@@ -1,7 +1,8 @@
-import { For, onCleanup, onMount } from "solid-js";
+import { For, onCleanup, onMount, type JSX } from "solid-js";
 
 export type ContextMenuItem = {
   label: string;
+  icon?: JSX.Element;
   onSelect: () => void;
   disabled?: boolean;
   danger?: boolean;
@@ -12,6 +13,12 @@ type ContextMenuProps = {
   y: number;
   items: ContextMenuItem[];
   onDismiss: () => void;
+  // Opt-in only — a plain right-click menu (e.g. in the file list) should
+  // stay open until an explicit click-away/Escape/selection, matching normal
+  // OS context-menu behavior. Callers that want hover-to-dismiss (the graph's
+  // node menu) pass these; others just leave them out.
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 };
 
 export function ContextMenu(props: ContextMenuProps) {
@@ -36,7 +43,13 @@ export function ContextMenu(props: ContextMenuProps) {
   });
 
   return (
-    <div ref={ref} class="context-menu" style={{ left: `${props.x}px`, top: `${props.y}px` }}>
+    <div
+      ref={ref}
+      class="context-menu"
+      style={{ left: `${props.x}px`, top: `${props.y}px` }}
+      onMouseEnter={() => props.onMouseEnter?.()}
+      onMouseLeave={() => props.onMouseLeave?.()}
+    >
       <For each={props.items}>
         {(item) => (
           <button
@@ -49,6 +62,7 @@ export function ContextMenu(props: ContextMenuProps) {
               props.onDismiss();
             }}
           >
+            {item.icon && <span class="context-menu-item-icon">{item.icon}</span>}
             {item.label}
           </button>
         )}

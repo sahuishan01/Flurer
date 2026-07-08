@@ -20,6 +20,7 @@
     --accent: #396cd8;
     --surface-rgb: 255, 255, 255;
     --surface-opacity: 0.35;
+    --surface-blur: 12px;
     --scrollbar-thumb: rgba(0, 0, 0, 0.25);
     --scrollbar-thumb-hover: rgba(0, 0, 0, 0.4);
 }
@@ -109,8 +110,8 @@ body {
     gap: 0.8em;
     padding: 0.6em 1em;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -139,14 +140,6 @@ body {
     color: inherit;
 }
 
-.search-recursive {
-    display: flex;
-    align-items: center;
-    gap: 0.4em;
-    font-size: 0.85em;
-    white-space: nowrap;
-}
-
 .explorer-view {
     display: flex;
     flex: 1;
@@ -162,6 +155,19 @@ body {
     overflow: hidden;
 }
 
+.view-stack {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.view-pane {
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 .sidebar {
     width: 180px;
     flex-shrink: 0;
@@ -170,8 +176,8 @@ body {
     padding: 1em;
     overflow: hidden;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     border-right: 1px solid var(--border-color);
 }
 
@@ -222,14 +228,83 @@ body {
     background-color: var(--border-color);
 }
 
+.sidebar-section-label {
+    padding: 0.3em 0.6em 0.2em;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.5;
+}
+
+.sidebar-drive {
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+}
+
+/* Hovering or selecting a disk highlights its whole row as one unit,
+   storage bar included, rather than just the button — the button's own
+   :hover/.active background is neutralized so the two don't visibly
+   double up (both draw from the same translucent color). */
+.sidebar-drive:hover {
+    background-color: var(--hover-bg);
+}
+
+.sidebar-drive:hover .sidebar-item:hover {
+    background-color: transparent;
+    border-color: transparent;
+}
+
+.sidebar-drive.active {
+    background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.sidebar-drive.active .sidebar-item.active {
+    background-color: transparent;
+    border-color: transparent;
+}
+
+.sidebar-drive-usage {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    padding: 0 0.6em 0.5em 2.3em;
+}
+
+.sidebar-drive-usage-bar {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.sidebar-drive-usage-fill {
+    height: 100%;
+    border-radius: 2px;
+    background-color: var(--accent);
+}
+
+.sidebar-drive-usage-fill.low {
+    background-color: #d33;
+}
+
+.sidebar-drive-usage-text {
+    font-size: 0.7em;
+    opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .toolbar {
     display: flex;
     align-items: center;
     gap: 0.5em;
     padding: 0.6em 1em;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -268,6 +343,12 @@ body {
     background-color: transparent;
 }
 
+.icon-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
 .settings-error {
     color: #d33;
 }
@@ -277,6 +358,12 @@ body {
     align-items: center;
     gap: 0.5em;
     margin-top: 0.6em;
+}
+
+.checkbox-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
 }
 
 .frequency-control {
@@ -294,8 +381,8 @@ body {
     overflow: auto;
     padding: 0 1em 1em;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
 }
 
 .file-list-error {
@@ -344,6 +431,17 @@ body {
     font-size: 1em;
 }
 
+.file-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.file-name-cell svg {
+    flex-shrink: 0;
+    opacity: 0.75;
+}
+
 .file-location {
     opacity: 0.7;
     font-size: 0.9em;
@@ -365,8 +463,8 @@ body {
     justify-content: space-between;
     padding: 0.8em 1.2em;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -389,8 +487,8 @@ body {
     gap: 0.2em;
     padding: 1em;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     border-right: 1px solid var(--border-color);
 }
 
@@ -418,8 +516,8 @@ body {
     padding: 1em 1.2em;
     border-radius: 10px;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
 }
 
 .settings-section h3 {
@@ -628,6 +726,9 @@ input[type="color"] {
 }
 
 .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
     text-align: left;
     background: transparent;
     border: 1px solid transparent;
@@ -635,6 +736,12 @@ input[type="color"] {
     padding: 0.5em 0.8em;
     color: var(--text-color);
     border-radius: 6px;
+}
+
+.context-menu-item-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    opacity: 0.75;
 }
 
 .context-menu-item:hover:not(:disabled) {
@@ -668,8 +775,8 @@ input[type="color"] {
     max-width: 90vw;
     border-radius: 10px;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     color: var(--text-color);
 }
@@ -691,6 +798,12 @@ input[type="color"] {
     justify-content: flex-end;
     gap: 0.6em;
     margin-top: 1em;
+}
+
+.modal-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
 }
 
 button.danger {
@@ -717,8 +830,8 @@ button.danger:hover {
     gap: 0.8em;
     padding: 0.6em 1em;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -744,6 +857,11 @@ button.danger:hover {
     width: 100%;
     cursor: grab;
     touch-action: none;
+    /* Panning the canvas or dragging a node is a click-and-drag gesture over
+       text (node labels) — without this the browser treats it as a text
+       selection instead. */
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .graph-canvas:active {
@@ -752,12 +870,22 @@ button.danger:hover {
 
 .graph-edge {
     fill: none;
-    stroke: var(--border-color);
-    stroke-width: 1.5;
+    stroke: var(--accent);
+    stroke-width: 1.6;
+    opacity: 0.8;
+    /* The canvas sits directly over the user's chosen background (photo,
+       gradient, or solid), which --border-color's low-alpha gray was never
+       designed to contrast against. A dual light+dark halo keeps the line
+       readable regardless of what's behind it at any given point. */
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.55));
 }
 
 .graph-node {
     cursor: pointer;
+}
+
+.graph-node.dragging {
+    cursor: grabbing;
 }
 
 .graph-node rect {
@@ -775,6 +903,23 @@ button.danger:hover {
     stroke: #d33;
 }
 
+.graph-node-match rect {
+    animation: graph-node-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes graph-node-pulse {
+    0%, 100% {
+        stroke: var(--accent);
+        stroke-width: 1;
+        filter: none;
+    }
+    50% {
+        stroke: var(--accent);
+        stroke-width: 3;
+        filter: drop-shadow(0 0 5px var(--accent));
+    }
+}
+
 .graph-node-body {
     display: flex;
     align-items: center;
@@ -785,6 +930,8 @@ button.danger:hover {
     color: var(--text-color);
     font-size: 0.85em;
     font-family: inherit;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .graph-node-label {
@@ -860,9 +1007,12 @@ button.danger:hover {
     /* The tooltip itself is pointer-events: none so it never steals hover
        tracking from the node underneath; this button opts back in. */
     pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
     margin-top: 0.3em;
-    padding: 0.3em 0.6em;
-    font-size: 0.85em;
+    padding: 0.35em;
     box-shadow: none;
 }
 

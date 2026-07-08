@@ -32,6 +32,14 @@ pub enum UnsplashMode {
     AutoRotateList,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum LastMainView {
+    #[default]
+    Explorer,
+    Graph,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BackgroundSettings {
@@ -64,6 +72,24 @@ impl Default for BackgroundSettings {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphNodePosition {
+    pub node_id: String,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct GraphState {
+    pub expanded_node_ids: Vec<String>,
+    pub pan_x: f64,
+    pub pan_y: f64,
+    pub zoom: f64,
+    pub node_positions: Vec<GraphNodePosition>,
+}
+
 #[derive(Serialize, Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
@@ -71,6 +97,10 @@ pub struct Settings {
     pub background: BackgroundSettings,
     pub theme: Theme,
     pub ui_tint_opacity: f32,
+    pub ui_blur_px: f32,
+    pub last_main_view: LastMainView,
+    pub persist_graph_state: bool,
+    pub graph_state: Option<GraphState>,
 }
 
 impl Default for Settings {
@@ -80,6 +110,10 @@ impl Default for Settings {
             background: BackgroundSettings::default(),
             theme: Theme::default(),
             ui_tint_opacity: 0.35,
+            ui_blur_px: 12.0,
+            last_main_view: LastMainView::default(),
+            persist_graph_state: true,
+            graph_state: None,
         }
     }
 }

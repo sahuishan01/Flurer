@@ -17,6 +17,10 @@ type SettingsPanelProps = {
   onThemeChange: (theme: Theme) => void;
   uiTintOpacity: number;
   onUiTintOpacityChange: (opacity: number) => void;
+  uiBlurPx: number;
+  onUiBlurPxChange: (blurPx: number) => void;
+  persistGraphState: boolean;
+  onPersistGraphStateChange: (enabled: boolean) => void;
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
@@ -59,6 +63,10 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onThemeChange={props.onThemeChange}
               uiTintOpacity={props.uiTintOpacity}
               onUiTintOpacityChange={props.onUiTintOpacityChange}
+              uiBlurPx={props.uiBlurPx}
+              onUiBlurPxChange={props.onUiBlurPxChange}
+              persistGraphState={props.persistGraphState}
+              onPersistGraphStateChange={props.onPersistGraphStateChange}
               wallpaper={props.wallpaper}
               wallpaperError={props.wallpaperError}
               onFetchWallpaper={props.onFetchWallpaper}

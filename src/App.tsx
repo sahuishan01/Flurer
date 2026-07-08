@@ -6,7 +6,7 @@ import { GraphView } from "./components/GraphView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { TopBar } from "./components/TopBar";
-import { DEFAULT_SETTINGS, type BackgroundSettings, type Settings, type Theme } from "./lib/settings";
+import { DEFAULT_SETTINGS, type BackgroundSettings, type GraphState, type Settings, type Theme } from "./lib/settings";
 import { getDisplaySize, sizedUnsplashUrl, type Wallpaper } from "./lib/unsplash";
 import type { MainView } from "./lib/view";
 import "./App.css";
@@ -30,13 +30,24 @@ function App() {
   const [windowSize, setWindowSize] = createSignal(getDisplaySize());
 
   const [settings, setSettings] = createStore<Settings>(DEFAULT_SETTINGS);
+  // GraphView is always mounted (see the view-stack below) and needs to know
+  // once settings have actually finished loading before it can trust
+  // settings.graphState — otherwise it can't tell "nothing saved yet" apart
+  // from "hasn't arrived from disk yet", since both look like `null`.
+  const [settingsLoaded, setSettingsLoaded] = createSignal(false);
 
   onMount(async () => {
     try {
       const loaded = await invoke<Settings>("get_settings");
       setSettings(loaded);
+      if (loaded.lastMainView === "graph") {
+        setMainView("graph");
+        setHistory([{ view: "graph", path: currentPath() }]);
+      }
     } catch (err) {
       console.error("Failed to load settings", err);
+    } finally {
+      setSettingsLoaded(true);
     }
   });
 
@@ -75,6 +86,21 @@ function App() {
 
   function updateUiTintOpacity(opacity: number) {
     setSettings("uiTintOpacity", opacity);
+    persistSettings();
+  }
+
+  function updateUiBlurPx(blurPx: number) {
+    setSettings("uiBlurPx", blurPx);
+    persistSettings();
+  }
+
+  function updatePersistGraphState(enabled: boolean) {
+    setSettings("persistGraphState", enabled);
+    persistSettings();
+  }
+
+  function updateGraphState(state: GraphState) {
+    setSettings("graphState", state);
     persistSettings();
   }
 
@@ -152,6 +178,22 @@ function App() {
   });
 
   createEffect(() => {
+    document.documentElement.style.setProperty("--surface-blur", `${settings.uiBlurPx}px`);
+  });
+
+  // Settings has no "settings" view value of its own — only remember whether
+  // the user was last looking at the explorer or the graph, so relaunching
+  // the app doesn't strand them on the settings page.
+  createEffect(() => {
+    const view = mainView();
+    if (view === "settings") return;
+    if (settings.lastMainView !== view) {
+      setSettings("lastMainView", view);
+      persistSettings();
+    }
+  });
+
+  createEffect(() => {
     const bg = settings.background;
     if (bg.backgroundType !== "unsplash") return;
 
@@ -221,43 +263,61 @@ function App() {
           onSearchRecursiveChange={setSearchRecursive}
         />
 
-        <Show
-          when={mainView() === "settings"}
-          fallback={
-            <div class="explorer-view">
-              <Sidebar
-                currentPath={currentPath()}
-                onNavigate={navigateTo}
-                activeView={mainView()}
-                onSelectView={selectView}
-              />
-              <Show when={mainView() === "explorer"} fallback={<GraphView />}>
-                <ExplorerView
-                  path={currentPath()}
-                  pathInput={pathInput()}
-                  onPathInputChange={setPathInput}
-                  onNavigate={navigateTo}
-                  searchQuery={searchQuery()}
-                  searchRecursive={searchRecursive()}
-                />
-              </Show>
-            </div>
-          }
-        >
-          <SettingsPanel
-            onClose={closeSettings}
-            searchQuery={searchQuery()}
-            background={settings.background}
-            onBackgroundChange={updateBackground}
-            theme={settings.theme}
-            onThemeChange={updateTheme}
-            uiTintOpacity={settings.uiTintOpacity}
-            onUiTintOpacityChange={updateUiTintOpacity}
-            wallpaper={wallpaper()}
-            wallpaperError={wallpaperError()}
-            onFetchWallpaper={getWallpaper}
+        <div class="explorer-view">
+          <Sidebar
+            currentPath={currentPath()}
+            onNavigate={navigateTo}
+            activeView={mainView()}
+            onSelectView={selectView}
           />
-        </Show>
+          {/* All three views stay mounted and are just hidden/shown, rather
+              than torn down and rebuilt on every toggle — otherwise switching
+              away and back would silently reset the graph's expanded folders,
+              pan, and zoom, and settings would take over the whole window
+              instead of living in this same content area next to the
+              sidebar. */}
+          <div class="view-stack">
+            <div class="view-pane" style={{ display: mainView() === "explorer" ? "flex" : "none" }}>
+              <ExplorerView
+                path={currentPath()}
+                pathInput={pathInput()}
+                onPathInputChange={setPathInput}
+                onNavigate={navigateTo}
+                searchQuery={searchQuery()}
+                searchRecursive={searchRecursive()}
+              />
+            </div>
+            <div class="view-pane" style={{ display: mainView() === "graph" ? "flex" : "none" }}>
+              <GraphView
+                searchQuery={searchQuery()}
+                onOpenInExplorer={navigateTo}
+                settingsLoaded={settingsLoaded()}
+                persistState={settings.persistGraphState}
+                initialState={settings.graphState}
+                onStateChange={updateGraphState}
+              />
+            </div>
+            <div class="view-pane" style={{ display: mainView() === "settings" ? "flex" : "none" }}>
+              <SettingsPanel
+                onClose={closeSettings}
+                searchQuery={searchQuery()}
+                background={settings.background}
+                onBackgroundChange={updateBackground}
+                theme={settings.theme}
+                onThemeChange={updateTheme}
+                uiTintOpacity={settings.uiTintOpacity}
+                onUiTintOpacityChange={updateUiTintOpacity}
+                uiBlurPx={settings.uiBlurPx}
+                onUiBlurPxChange={updateUiBlurPx}
+                persistGraphState={settings.persistGraphState}
+                onPersistGraphStateChange={updatePersistGraphState}
+                wallpaper={wallpaper()}
+                wallpaperError={wallpaperError()}
+                onFetchWallpaper={getWallpaper}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );

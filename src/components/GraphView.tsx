@@ -1,8 +1,9 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { formatBytes, type DirEntry, type FolderSizeResponse } from "../lib/fs";
+import { formatBytes, parentDir, type DirEntry, type FolderSizeResponse } from "../lib/fs";
 import type { PhysicalDisk } from "../lib/graph";
+import type { GraphState } from "../lib/settings";
 import {
   buildDiskTree,
   canExpand,
@@ -12,8 +13,10 @@ import {
   NODE_HEIGHT,
   NODE_WIDTH,
   type GraphNode,
+  type PositionedNode,
 } from "../lib/graphTree";
-import { DiskIcon, FileIcon, FolderIcon, VolumeIcon } from "./icons";
+import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { DiskIcon, ExternalLinkIcon, FileIcon, FolderIcon, RefreshIcon, VolumeIcon } from "./icons";
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 2;
@@ -45,13 +48,42 @@ function tooltipLines(node: GraphNode): TooltipLine[] {
   return lines;
 }
 
-export function GraphView() {
+type ContextMenuState = {
+  x: number;
+  y: number;
+  nodeId: string;
+};
+
+type GraphViewProps = {
+  searchQuery: string;
+  onOpenInExplorer: (path: string) => void;
+  // GraphView is always mounted (see App.tsx's view-stack), so it can't just
+  // check initialState once in onMount — settings load asynchronously and
+  // may still be the untouched default at that point. settingsLoaded tells
+  // it when initialState (whether null or populated) is actually trustworthy.
+  settingsLoaded: boolean;
+  persistState: boolean;
+  initialState: GraphState | null;
+  onStateChange: (state: GraphState) => void;
+};
+
+export function GraphView(props: GraphViewProps) {
   const [roots, setRoots] = createSignal<GraphNode[]>([]);
   const [error, setError] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [pan, setPan] = createSignal({ x: 60, y: 40 });
   const [zoom, setZoom] = createSignal(1);
   const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
+  const [contextMenu, setContextMenu] = createSignal<ContextMenuState | null>(null);
+  // Manual positions the user has dragged a node to, overriding the computed
+  // tree layout for just that node. Keyed by node id so it survives re-runs
+  // of layoutTree() (e.g. expanding a sibling) untouched.
+  const [nodeOverrides, setNodeOverrides] = createSignal<Map<string, { x: number; y: number }>>(new Map());
+  const [draggingNodeId, setDraggingNodeId] = createSignal<string | null>(null);
+  // Guards the one-time restore-on-mount attempt below from re-firing once
+  // it's already run (the effect it lives in also depends on roots()/etc.,
+  // which change constantly afterward).
+  const [restored, setRestored] = createSignal(false);
 
   onMount(async () => {
     try {
@@ -86,6 +118,7 @@ export function GraphView() {
   onMount(() => {
     function clearTooltip() {
       setTooltip(null);
+      setContextMenu(null);
     }
     window.addEventListener("blur", clearTooltip);
     document.addEventListener("mouseleave", clearTooltip);
@@ -98,32 +131,59 @@ export function GraphView() {
   const layout = createMemo(() => layoutTree(roots()));
   const nodeById = createMemo(() => new Map(layout().positioned.map((p) => [p.node.id, p])));
 
+  // Only nodes already visible (i.e. inside an expanded/opened branch) can
+  // match — layout().positioned excludes anything under a collapsed node, so
+  // this never reaches into subtrees the user hasn't opened yet.
+  const matchedIds = createMemo(() => {
+    const query = props.searchQuery.trim().toLowerCase();
+    if (!query) return new Set<string>();
+    const ids = new Set<string>();
+    for (const p of layout().positioned) {
+      if (p.node.label.toLowerCase().includes(query)) ids.add(p.node.id);
+    }
+    return ids;
+  });
+
+  // Shared by the click-to-expand path and restoring a persisted expanded
+  // node on mount — fetches this node's children and marks it expanded.
+  async function fetchAndExpand(node: GraphNode) {
+    setRoots((prev) => updateNodeById(prev, node.id, (n) => ({ ...n, loading: true, error: "" })));
+    try {
+      const entries = await invoke<DirEntry[]>("list_graph_children", { path: node.path });
+      const children = entries.map((entry) => childNode(entry));
+      setRoots((prev) =>
+        updateNodeById(prev, node.id, (n) => ({
+          ...n,
+          children,
+          loaded: true,
+          loading: false,
+          expanded: true,
+        })),
+      );
+      for (const child of children) {
+        if (child.kind === "folder" && child.path) fetchFolderSize(child.path);
+      }
+    } catch (err) {
+      setRoots((prev) => updateNodeById(prev, node.id, (n) => ({ ...n, loading: false, error: String(err) })));
+    }
+  }
+
   async function toggleNode(node: GraphNode) {
+    // A drag still ends in a click event — swallow the one right after a
+    // real drag so dropping a node doesn't also toggle it.
+    if (nodeDragMoved) {
+      nodeDragMoved = false;
+      return;
+    }
+
     // Expanding/collapsing reflows every node below this one via SVG
     // transforms, not real pointer movement, so any tooltip shown for a node
     // that's about to shift position would otherwise be left stale.
     setTooltip(null);
+    setContextMenu(null);
 
     if (!node.expanded && !node.loaded) {
-      setRoots((prev) => updateNodeById(prev, node.id, (n) => ({ ...n, loading: true, error: "" })));
-      try {
-        const entries = await invoke<DirEntry[]>("list_graph_children", { path: node.path });
-        const children = entries.map((entry) => childNode(entry));
-        setRoots((prev) =>
-          updateNodeById(prev, node.id, (n) => ({
-            ...n,
-            children,
-            loaded: true,
-            loading: false,
-            expanded: true,
-          })),
-        );
-        for (const child of children) {
-          if (child.kind === "folder" && child.path) fetchFolderSize(child.path);
-        }
-      } catch (err) {
-        setRoots((prev) => updateNodeById(prev, node.id, (n) => ({ ...n, loading: false, error: String(err) })));
-      }
+      await fetchAndExpand(node);
       return;
     }
     setRoots((prev) => updateNodeById(prev, node.id, (n) => ({ ...n, expanded: !n.expanded })));
@@ -158,6 +218,74 @@ export function GraphView() {
     setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, size, sizePending: false })));
   }
 
+  // Node ids embed their full path (e.g. "folder:C:\Users\me"), so counting
+  // separators is a cheap stand-in for tree depth — good enough to expand
+  // parents before the children a persisted id depends on being able to find.
+  function idDepth(id: string): number {
+    return (id.match(/\\/g) ?? []).length;
+  }
+
+  function collectExpandedIds(nodes: GraphNode[]): string[] {
+    const ids: string[] = [];
+    for (const node of nodes) {
+      if (node.expanded) ids.push(node.id);
+      if (node.children.length > 0) ids.push(...collectExpandedIds(node.children));
+    }
+    return ids;
+  }
+
+  async function restoreGraphState(state: GraphState) {
+    setPan({ x: state.panX, y: state.panY });
+    setZoom(state.zoom);
+    setNodeOverrides(new Map(state.nodePositions.map((p) => [p.nodeId, { x: p.x, y: p.y }])));
+
+    // Shallowest first — a nested folder's id can't be found via nodeById()
+    // until its parent has actually been expanded and fetched.
+    const ids = [...state.expandedNodeIds].sort((a, b) => idDepth(a) - idDepth(b));
+    for (const id of ids) {
+      const node = nodeById().get(id)?.node;
+      // A path that no longer exists (deleted/renamed since last session) or
+      // whose parent failed to expand just gets skipped, not retried.
+      if (!node) continue;
+      if (node.kind === "disk" || node.loaded) {
+        setRoots((prev) => updateNodeById(prev, id, (n) => ({ ...n, expanded: true })));
+        continue;
+      }
+      await fetchAndExpand(node);
+    }
+  }
+
+  // Runs exactly once, as soon as both the disk tree exists (so nodeById()
+  // has something to look up) and settings have actually finished loading
+  // (so initialState is trustworthy — see the settingsLoaded prop comment).
+  createEffect(() => {
+    if (restored()) return;
+    if (!props.settingsLoaded) return;
+    if (roots().length === 0) return;
+    setRestored(true);
+    if (props.persistState && props.initialState) {
+      restoreGraphState(props.initialState);
+    }
+  });
+
+  // Persists pan/zoom/expanded-folders/node-positions as they change, so the
+  // graph looks the same next time the app opens. Debounced the same way
+  // App.tsx debounces its own settings writes.
+  let saveGraphStateTimeout: ReturnType<typeof setTimeout> | undefined;
+  createEffect(() => {
+    if (!restored() || !props.persistState) return;
+    const state: GraphState = {
+      expandedNodeIds: collectExpandedIds(roots()),
+      panX: pan().x,
+      panY: pan().y,
+      zoom: zoom(),
+      nodePositions: [...nodeOverrides().entries()].map(([nodeId, { x, y }]) => ({ nodeId, x, y })),
+    };
+    clearTimeout(saveGraphStateTimeout);
+    saveGraphStateTimeout = setTimeout(() => props.onStateChange(state), 400);
+  });
+  onCleanup(() => clearTimeout(saveGraphStateTimeout));
+
   function nodeIcon(kind: GraphNode["kind"]) {
     if (kind === "disk") return <DiskIcon size={16} />;
     if (kind === "volume") return <VolumeIcon size={16} />;
@@ -176,6 +304,11 @@ export function GraphView() {
   });
 
   function handleNodeEnter(e: MouseEvent, node: GraphNode) {
+    // Re-entering the node that opened the menu cancels its pending close.
+    if (contextMenu()?.nodeId === node.id) cancelCloseContextMenu();
+    // Don't pop up a tooltip while a context menu is open — showing both at
+    // once for the same (or a different) node is just visual clutter.
+    if (contextMenu()) return;
     setTooltip({ nodeId: node.id, x: e.clientX, y: e.clientY });
   }
 
@@ -183,8 +316,58 @@ export function GraphView() {
     if (tooltip()) setTooltip((t) => (t ? { ...t, x: e.clientX, y: e.clientY } : t));
   }
 
-  function handleNodeLeave() {
+  function handleNodeLeave(node: GraphNode) {
     setTooltip(null);
+    // The menu should only stay open while the cursor is over the node that
+    // opened it or the menu itself — scheduleCloseContextMenu (below) gives
+    // the cursor a brief window to travel from one to the other; entering
+    // either cancels it.
+    if (contextMenu()?.nodeId === node.id) scheduleCloseContextMenu();
+  }
+
+  let closeMenuTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  function cancelCloseContextMenu() {
+    clearTimeout(closeMenuTimeout);
+  }
+
+  function scheduleCloseContextMenu() {
+    clearTimeout(closeMenuTimeout);
+    closeMenuTimeout = setTimeout(() => setContextMenu(null), 200);
+  }
+
+  onCleanup(() => clearTimeout(closeMenuTimeout));
+
+  function handleNodeContextMenu(e: MouseEvent, node: GraphNode) {
+    // A right-button drag can still end in a native contextmenu event on
+    // release — don't pop the menu up as a side effect of dropping a node.
+    if (nodeDragMoved) {
+      nodeDragMoved = false;
+      e.preventDefault();
+      return;
+    }
+    if (!node.path) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cancelCloseContextMenu();
+    setTooltip(null);
+    setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
+  }
+
+  function contextMenuItems(): ContextMenuItem[] {
+    const menu = contextMenu();
+    const node = menu ? nodeById().get(menu.nodeId)?.node : undefined;
+    if (!node?.path) return [];
+    // A file itself can't be "opened" in the folder listing — land on the
+    // folder that contains it so the file is visible there.
+    const targetPath = node.kind === "file" ? parentDir(node.path) : node.path;
+    return [
+      {
+        label: "Open in Explorer",
+        icon: <ExternalLinkIcon size={15} />,
+        onSelect: () => props.onOpenInExplorer(targetPath),
+      },
+    ];
   }
 
   let dragging = false;
@@ -204,6 +387,7 @@ export function GraphView() {
     // Panning moves every node under a stationary cursor via the same
     // transform-only reflow as expand/collapse — clear any stale tooltip.
     setTooltip(null);
+    setContextMenu(null);
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;
@@ -219,8 +403,64 @@ export function GraphView() {
     e.preventDefault();
     // Zooming rescales node positions under a stationary cursor the same way.
     setTooltip(null);
+    setContextMenu(null);
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta)));
+  }
+
+  function effectiveX(p: PositionedNode): number {
+    return nodeOverrides().get(p.node.id)?.x ?? p.x;
+  }
+
+  function effectiveY(p: PositionedNode): number {
+    return nodeOverrides().get(p.node.id)?.y ?? p.y;
+  }
+
+  // Bookkeeping for a node drag, mirroring the plain-variable pattern used
+  // for canvas panning below — only nodeOverrides (what actually renders)
+  // needs to be a signal.
+  let dragNodeStartClientX = 0;
+  let dragNodeStartClientY = 0;
+  let dragNodeStartX = 0;
+  let dragNodeStartY = 0;
+  let nodeDragMoved = false;
+
+  function onNodePointerDown(e: PointerEvent, p: PositionedNode) {
+    // Only the left/primary button repositions a node — a right-button press
+    // is headed for the context menu, not a drag.
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    setDraggingNodeId(p.node.id);
+    dragNodeStartClientX = e.clientX;
+    dragNodeStartClientY = e.clientY;
+    dragNodeStartX = effectiveX(p);
+    dragNodeStartY = effectiveY(p);
+    nodeDragMoved = false;
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+
+  function onNodePointerMove(e: PointerEvent) {
+    const id = draggingNodeId();
+    if (!id) return;
+    // Divide by zoom to convert a screen-space pointer delta into the SVG's
+    // local coordinate space, which the enclosing <g> scales by zoom().
+    const dx = (e.clientX - dragNodeStartClientX) / zoom();
+    const dy = (e.clientY - dragNodeStartClientY) / zoom();
+    if (!nodeDragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      nodeDragMoved = true;
+      setTooltip(null);
+      setContextMenu(null);
+    }
+    if (!nodeDragMoved) return;
+    setNodeOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(id, { x: dragNodeStartX + dx, y: dragNodeStartY + dy });
+      return next;
+    });
+  }
+
+  function onNodePointerUp() {
+    setDraggingNodeId(null);
   }
 
   function edgePath(fromX: number, fromY: number, toX: number, toY: number): string {
@@ -235,7 +475,7 @@ export function GraphView() {
     <div class="graph-view">
       <div class="graph-toolbar">
         <h2 class="graph-title">Storage graph</h2>
-        <span class="graph-hint">Drag to pan · scroll to zoom · click a node to expand</span>
+        <span class="graph-hint">Drag canvas to pan · drag a node to reposition · scroll to zoom · click to expand</span>
         <Show when={loading()}>
           <span class="graph-hint">Reading disk layout…</span>
         </Show>
@@ -259,7 +499,10 @@ export function GraphView() {
               return (
                 <Show when={parent()}>
                   {(parentNode) => (
-                    <path class="graph-edge" d={edgePath(parentNode().x, parentNode().y, p.x, p.y)} />
+                    <path
+                      class="graph-edge"
+                      d={edgePath(effectiveX(parentNode()), effectiveY(parentNode()), effectiveX(p), effectiveY(p))}
+                    />
                   )}
                 </Show>
               );
@@ -275,12 +518,18 @@ export function GraphView() {
                   loading: p.node.loading,
                   "has-error": !!p.node.error,
                   expandable: canExpand(p.node),
+                  "graph-node-match": matchedIds().has(p.node.id),
+                  dragging: draggingNodeId() === p.node.id,
                 }}
-                transform={`translate(${p.x}, ${p.y})`}
+                transform={`translate(${effectiveX(p)}, ${effectiveY(p)})`}
                 onClick={() => toggleNode(p.node)}
+                onContextMenu={(e) => handleNodeContextMenu(e, p.node)}
                 onMouseEnter={(e) => handleNodeEnter(e, p.node)}
                 onMouseMove={handleNodeMove}
-                onMouseLeave={handleNodeLeave}
+                onMouseLeave={() => handleNodeLeave(p.node)}
+                onPointerDown={(e) => onNodePointerDown(e, p)}
+                onPointerMove={onNodePointerMove}
+                onPointerUp={onNodePointerUp}
               >
                 <rect width={NODE_WIDTH} height={NODE_HEIGHT} rx={8} />
                 <foreignObject width={NODE_WIDTH} height={NODE_HEIGHT}>
@@ -316,15 +565,28 @@ export function GraphView() {
               <button
                 type="button"
                 class="graph-tooltip-recalculate"
+                title="Recalculate size"
+                aria-label="Recalculate size"
                 disabled={t().node.sizePending}
                 onClick={() => recalculateFolderSize(t().node.path!)}
               >
-                Recalculate size
+                <RefreshIcon size={13} />
               </button>
             </Show>
           </div>
         )}
       </Show>
+
+      {contextMenu() && (
+        <ContextMenu
+          x={contextMenu()!.x}
+          y={contextMenu()!.y}
+          items={contextMenuItems()}
+          onDismiss={() => setContextMenu(null)}
+          onMouseEnter={cancelCloseContextMenu}
+          onMouseLeave={scheduleCloseContextMenu}
+        />
+      )}
     </div>
   );
 }

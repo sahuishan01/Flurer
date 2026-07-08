@@ -33,7 +33,9 @@ const BACKGROUND_KEYWORDS = [
   "category",
 ];
 
-const THEME_KEYWORDS = ["theme", "light", "dark", "panel tint", "tint", "opacity"];
+const THEME_KEYWORDS = ["theme", "light", "dark", "panel tint", "tint", "opacity", "blur", "panel blur", "blurriness"];
+
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -49,6 +51,10 @@ type CustomizationSettingsProps = {
   onThemeChange: (theme: Theme) => void;
   uiTintOpacity: number;
   onUiTintOpacityChange: (opacity: number) => void;
+  uiBlurPx: number;
+  onUiBlurPxChange: (blurPx: number) => void;
+  persistGraphState: boolean;
+  onPersistGraphStateChange: (enabled: boolean) => void;
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
@@ -57,10 +63,11 @@ type CustomizationSettingsProps = {
 export function CustomizationSettings(props: CustomizationSettingsProps) {
   const showBackground = () => matchesQuery(props.searchQuery, BACKGROUND_KEYWORDS);
   const showTheme = () => matchesQuery(props.searchQuery, THEME_KEYWORDS);
+  const showBehavior = () => matchesQuery(props.searchQuery, BEHAVIOR_KEYWORDS);
 
   return (
     <div class="customization-settings">
-      {!showBackground() && !showTheme() && <p class="settings-empty">No matching settings.</p>}
+      {!showBackground() && !showTheme() && !showBehavior() && <p class="settings-empty">No matching settings.</p>}
 
       {showBackground() && (
       <section class="settings-section">
@@ -336,6 +343,32 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
             value={props.uiTintOpacity}
             onInput={(e) => props.onUiTintOpacityChange(e.currentTarget.valueAsNumber)}
           />
+        </label>
+
+        <label class="opacity-control">
+          Panel Blur: {props.uiBlurPx.toFixed(0)}px
+          <input
+            type="range"
+            min="0"
+            max="32"
+            step="1"
+            value={props.uiBlurPx}
+            onInput={(e) => props.onUiBlurPxChange(e.currentTarget.valueAsNumber)}
+          />
+        </label>
+      </section>
+      )}
+
+      {showBehavior() && (
+      <section class="settings-section">
+        <h3>Behavior</h3>
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.persistGraphState}
+            onChange={(e) => props.onPersistGraphStateChange(e.currentTarget.checked)}
+          />
+          Remember graph layout between sessions
         </label>
       </section>
       )}

@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { FileList } from "./FileList";
+import { EnterIcon } from "./icons";
 import type { ClipboardState, SortDirection, SortKey } from "../lib/fs";
 
 type ExplorerViewProps = {
@@ -40,7 +41,9 @@ export function ExplorerView(props: ExplorerViewProps) {
             value={props.pathInput}
             onInput={(e) => props.onPathInputChange(e.currentTarget.value)}
           />
-          <button type="submit">Go</button>
+          <button type="submit" class="icon-btn" title="Go" aria-label="Go">
+            <EnterIcon size={16} />
+          </button>
         </form>
       </div>
 

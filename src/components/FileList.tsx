@@ -1,10 +1,12 @@
-import { createEffect, createSignal, For, onCleanup, onMount, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
+import { ClipboardIcon, CopyIcon, FileIcon, FolderIcon, FolderPlusIcon, PencilIcon, RefreshIcon, ScissorsIcon, TrashIcon } from "./icons";
 import {
   formatBytes,
+  parentDir,
   type BatchResult,
   type ClipboardState,
   type DirEntry,
@@ -35,12 +37,6 @@ function formatModified(modified: number | null): string {
 function sortIndicator(active: boolean, direction: SortDirection): string {
   if (!active) return "";
   return direction === "ascending" ? " ▲" : " ▼";
-}
-
-function parentDir(path: string): string {
-  const normalized = path.replace(/[/\\]+$/, "");
-  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
-  return idx > 0 ? normalized.slice(0, idx) : normalized;
 }
 
 export function FileList(props: FileListProps) {
@@ -158,11 +154,47 @@ export function FileList(props: FileListProps) {
     return "";
   }
 
+  // A directory's raw filesystem size (what the backend sorts by) is
+  // meaningless on NTFS — every folder reports roughly the same tiny value,
+  // so sorting by it does nothing. Re-sort here using the real recursive
+  // sizes this component already computes in the background, keeping
+  // folders before files and leaving still-unresolved folders in place
+  // (stable) until their size arrives.
+  function sortBySize(list: DirEntry[], sizeOf: (entry: DirEntry) => number | undefined): DirEntry[] {
+    return list
+      .map((entry, index) => ({ entry, index, size: sizeOf(entry) }))
+      .sort((a, b) => {
+        if (a.size === undefined || b.size === undefined) return a.index - b.index;
+        const diff = a.size - b.size;
+        return props.sortDirection === "ascending" ? diff : -diff;
+      })
+      .map((e) => e.entry);
+  }
+
+  const sortedEntries = createMemo(() => {
+    const list = entries();
+    if (props.sortKey !== "size") return list;
+
+    const sizes = folderSizes();
+    const dirs = sortBySize(
+      list.filter((e) => e.isDir),
+      (entry) => {
+        const state = sizes.get(entry.path);
+        return typeof state === "number" ? state : undefined;
+      },
+    );
+    const files = sortBySize(
+      list.filter((e) => !e.isDir),
+      (entry) => entry.size,
+    );
+    return [...dirs, ...files];
+  });
+
   function handleRowClick(e: MouseEvent, entry: DirEntry, index: number) {
     if (e.shiftKey && lastClickedIndex() !== null) {
       const start = Math.min(lastClickedIndex()!, index);
       const end = Math.max(lastClickedIndex()!, index);
-      const range = entries()
+      const range = sortedEntries()
         .slice(start, end + 1)
         .map((en) => en.path);
       setSelected(new Set(range));
@@ -296,8 +328,8 @@ export function FileList(props: FileListProps) {
 
     if (menu.targetPath === null) {
       return [
-        { label: "New Folder", onSelect: startNewFolder },
-        { label: "Paste", onSelect: pasteClipboard, disabled: !canPaste },
+        { label: "New folder", icon: <FolderPlusIcon size={15} />, onSelect: startNewFolder },
+        { label: "Paste", icon: <ClipboardIcon size={15} />, onSelect: pasteClipboard, disabled: !canPaste },
       ];
     }
 
@@ -306,20 +338,39 @@ export function FileList(props: FileListProps) {
     return [
       {
         label: "Copy",
+        icon: <CopyIcon size={15} />,
         onSelect: () => props.onClipboardChange({ mode: "copy", paths: [...selected()] }),
         disabled: !hasSelection,
       },
       {
         label: "Cut",
+        icon: <ScissorsIcon size={15} />,
         onSelect: () => props.onClipboardChange({ mode: "cut", paths: [...selected()] }),
         disabled: !hasSelection,
       },
-      { label: "Paste", onSelect: pasteClipboard, disabled: !canPaste },
-      { label: "Rename", onSelect: () => startRename(menu.targetPath!), disabled: selected().size !== 1 },
+      { label: "Paste", icon: <ClipboardIcon size={15} />, onSelect: pasteClipboard, disabled: !canPaste },
+      {
+        label: "Rename",
+        icon: <PencilIcon size={15} />,
+        onSelect: () => startRename(menu.targetPath!),
+        disabled: selected().size !== 1,
+      },
       ...(targetEntry?.isDir
-        ? [{ label: "Recalculate size", onSelect: () => recalculateFolderSize(menu.targetPath!) }]
+        ? [
+            {
+              label: "Recalculate",
+              icon: <RefreshIcon size={15} />,
+              onSelect: () => recalculateFolderSize(menu.targetPath!),
+            },
+          ]
         : []),
-      { label: "Delete", onSelect: () => requestDelete([...selected()]), disabled: !hasSelection, danger: true },
+      {
+        label: "Delete",
+        icon: <TrashIcon size={15} />,
+        onSelect: () => requestDelete([...selected()]),
+        disabled: !hasSelection,
+        danger: true,
+      },
     ];
   }
 
@@ -375,7 +426,7 @@ export function FileList(props: FileListProps) {
           </tr>
         </thead>
         <tbody>
-          <For each={entries()}>
+          <For each={sortedEntries()}>
             {(entry, index) => (
               <tr
                 class="file-row"
@@ -392,8 +443,8 @@ export function FileList(props: FileListProps) {
                   handleRowContextMenu(e, entry);
                 }}
               >
-                <td>
-                  {entry.isDir ? "📁" : "📄"}{" "}
+                <td class="file-name-cell">
+                  {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
                   {renamingPath() === entry.path ? (
                     <input
                       class="rename-input"
@@ -440,7 +491,7 @@ export function FileList(props: FileListProps) {
               Cancel
             </button>
             <button type="button" class="danger" onClick={confirmDelete}>
-              Delete
+              <TrashIcon size={14} /> Delete
             </button>
           </div>
         </Modal>

@@ -31,6 +31,17 @@ export type ClipboardState = {
 // value following later via a "folder-size-updated" event.
 export type FolderSizeResponse = { status: "ready"; size: number } | { status: "pending" };
 
+export function parentDir(path: string): string {
+  const normalized = path.replace(/[/\\]+$/, "");
+  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
+  if (idx < 0) return normalized;
+  // A file directly at a drive root ("C:\notes.txt") must keep the trailing
+  // separator ("C:\") — "C:" without it means "current directory on C:" to
+  // Windows, not the drive root, which is a different location entirely.
+  if (idx === 2 && normalized[1] === ":") return normalized.slice(0, idx + 1);
+  return normalized.slice(0, idx);
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];

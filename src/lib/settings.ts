@@ -3,6 +3,7 @@ import { DEFAULT_UNSPLASH_FREQUENCY_MS } from "./unsplash";
 export type Theme = "light" | "dark";
 export type BackgroundType = "none" | "gradient" | "solid" | "unsplash";
 export type UnsplashMode = "fixed" | "autoRotateCategory" | "autoRotateList";
+export type LastMainView = "explorer" | "graph";
 
 export type BackgroundSettings = {
   backgroundType: BackgroundType;
@@ -17,11 +18,25 @@ export type BackgroundSettings = {
   unsplashChangeFrequencyMs: number;
 };
 
+export type GraphNodePosition = { nodeId: string; x: number; y: number };
+
+export type GraphState = {
+  expandedNodeIds: string[];
+  panX: number;
+  panY: number;
+  zoom: number;
+  nodePositions: GraphNodePosition[];
+};
+
 export type Settings = {
   wallpaper: string | null;
   background: BackgroundSettings;
   theme: Theme;
   uiTintOpacity: number;
+  uiBlurPx: number;
+  lastMainView: LastMainView;
+  persistGraphState: boolean;
+  graphState: GraphState | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -40,6 +55,10 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   theme: "light",
   uiTintOpacity: 0.35,
+  uiBlurPx: 12,
+  lastMainView: "explorer",
+  persistGraphState: true,
+  graphState: null,
 };
 
 export const GRADIENT_DIRECTIONS = [
