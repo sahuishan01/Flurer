@@ -91,8 +91,60 @@ body {
     z-index: -1;
     background-position: center;
     background-repeat: no-repeat;
-    background-size: auto;
+    background-size: cover;
     transition: background-image 0.3s ease-in-out;
+}
+
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+    padding: 0.6em 1em;
+    background-color: rgba(var(--surface-rgb), var(--surface-opacity));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.top-bar-nav {
+    display: flex;
+    gap: 0.2em;
+}
+
+.search-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.4em 0.8em;
+    border-radius: 8px;
+    background-color: var(--input-bg);
+    color: var(--input-color);
+}
+
+.search-input {
+    flex: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+}
+
+.search-recursive {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    font-size: 0.85em;
+    white-space: nowrap;
 }
 
 .explorer-view {
@@ -115,13 +167,28 @@ body {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.2em;
     padding: 1em;
-    overflow-y: auto;
+    overflow: hidden;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-right: 1px solid var(--border-color);
+}
+
+.sidebar-top {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+}
+
+.sidebar-bottom {
+    flex-shrink: 0;
+    margin-top: 0.6em;
+    padding-top: 0.6em;
+    border-top: 1px solid var(--border-color);
 }
 
 .sidebar-item {
@@ -190,6 +257,15 @@ body {
 .icon-btn:hover {
     background-color: var(--hover-bg);
     border-color: transparent;
+}
+
+.icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.icon-btn:disabled:hover {
+    background-color: transparent;
 }
 
 .settings-error {
@@ -266,6 +342,11 @@ body {
 .rename-input {
     padding: 0.1em 0.4em;
     font-size: 1em;
+}
+
+.file-location {
+    opacity: 0.7;
+    font-size: 0.9em;
 }
 
 /* Settings panel */
@@ -737,4 +818,55 @@ button.danger:hover {
     to {
         transform: rotate(360deg);
     }
+}
+
+.graph-node-file rect {
+    stroke-dasharray: 3 2;
+}
+
+.graph-tooltip {
+    position: fixed;
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    max-width: 320px;
+    padding: 0.6em 0.8em;
+    border-radius: 8px;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    color: var(--text-color);
+    font-size: 0.85em;
+    pointer-events: none;
+}
+
+.graph-tooltip-row {
+    display: flex;
+    gap: 0.6em;
+}
+
+.graph-tooltip-label {
+    flex-shrink: 0;
+    width: 4.5em;
+    opacity: 0.6;
+}
+
+.graph-tooltip-value {
+    overflow-wrap: anywhere;
+}
+
+.graph-tooltip-recalculate {
+    /* The tooltip itself is pointer-events: none so it never steals hover
+       tracking from the node underneath; this button opts back in. */
+    pointer-events: auto;
+    margin-top: 0.3em;
+    padding: 0.3em 0.6em;
+    font-size: 0.85em;
+    box-shadow: none;
+}
+
+.settings-empty {
+    opacity: 0.6;
+    padding: 1em 0;
 }

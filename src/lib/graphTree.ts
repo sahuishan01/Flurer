@@ -1,6 +1,7 @@
-import type { PhysicalDisk, SubfolderEntry } from "./graph";
+import type { DirEntry } from "./fs";
+import type { PhysicalDisk } from "./graph";
 
-export type GraphNodeKind = "disk" | "volume" | "folder";
+export type GraphNodeKind = "disk" | "volume" | "folder" | "file";
 
 export type GraphNode = {
   id: string;
@@ -8,6 +9,9 @@ export type GraphNode = {
   label: string;
   meta: string;
   path?: string;
+  size?: number;
+  sizePending?: boolean;
+  modifiedAt?: number | null;
   children: GraphNode[];
   expanded: boolean;
   loaded: boolean;
@@ -42,16 +46,23 @@ export function buildDiskTree(disks: PhysicalDisk[], formatBytes: (bytes: number
   }));
 }
 
-export function folderNode(entry: SubfolderEntry): GraphNode {
+export function childNode(entry: DirEntry): GraphNode {
   return {
-    id: `folder:${entry.path}`,
-    kind: "folder",
+    id: `${entry.isDir ? "folder" : "file"}:${entry.path}`,
+    kind: entry.isDir ? "folder" : "file",
     label: entry.name,
     meta: "",
     path: entry.path,
+    // A directory's own filesystem size is meaningless (always ~0 — it's not
+    // a data stream). Leave it undefined until a real recursive size arrives
+    // via get_folder_size, rather than showing a bogus "0 B".
+    size: entry.isDir ? undefined : entry.size,
+    modifiedAt: entry.modified,
     children: [],
     expanded: false,
-    loaded: false,
+    // Files have no children, so there's nothing to fetch — treat as
+    // already-loaded so canExpand() correctly hides the expand affordance.
+    loaded: !entry.isDir,
     loading: false,
     error: "",
   };

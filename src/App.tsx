@@ -5,22 +5,29 @@ import { ExplorerView } from "./components/ExplorerView";
 import { GraphView } from "./components/GraphView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { TopBar } from "./components/TopBar";
 import { DEFAULT_SETTINGS, type BackgroundSettings, type Settings, type Theme } from "./lib/settings";
-import type { Wallpaper } from "./lib/unsplash";
+import { getDisplaySize, sizedUnsplashUrl, type Wallpaper } from "./lib/unsplash";
 import type { MainView } from "./lib/view";
 import "./App.css";
 
 const DEFAULT_PATH = "C:\\";
 const SETTINGS_SAVE_DEBOUNCE_MS = 300;
 
+type HistoryEntry = { view: MainView; path: string };
+
 function App() {
   const [currentPath, setCurrentPath] = createSignal(DEFAULT_PATH);
   const [pathInput, setPathInput] = createSignal(DEFAULT_PATH);
   const [mainView, setMainView] = createSignal<MainView>("explorer");
-  const [showSettings, setShowSettings] = createSignal(false);
+  const [history, setHistory] = createSignal<HistoryEntry[]>([{ view: "explorer", path: DEFAULT_PATH }]);
+  const [historyIndex, setHistoryIndex] = createSignal(0);
+  const [searchQuery, setSearchQuery] = createSignal("");
+  const [searchRecursive, setSearchRecursive] = createSignal(false);
   const [wallpaper, setWallpaper] = createSignal<Wallpaper | null>(null);
   const [wallpaperError, setWallpaperError] = createSignal("");
   const [rotationUrl, setRotationUrl] = createSignal<string | null>(null);
+  const [windowSize, setWindowSize] = createSignal(getDisplaySize());
 
   const [settings, setSettings] = createStore<Settings>(DEFAULT_SETTINGS);
 
@@ -31,6 +38,19 @@ function App() {
     } catch (err) {
       console.error("Failed to load settings", err);
     }
+  });
+
+  onMount(() => {
+    let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+    function handleResize() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => setWindowSize(getDisplaySize()), 400);
+    }
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => {
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(resizeTimeout);
+    });
   });
 
   let saveTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -68,9 +88,59 @@ function App() {
     }
   }
 
+  let suppressHistoryPush = false;
+
+  function pushHistory(entry: HistoryEntry) {
+    if (suppressHistoryPush) return;
+    const h = history();
+    const current = h[historyIndex()];
+    if (current && current.view === entry.view && current.path === entry.path) return;
+    const truncated = h.slice(0, historyIndex() + 1);
+    const next = [...truncated, entry];
+    setHistory(next);
+    setHistoryIndex(next.length - 1);
+  }
+
+  function applyHistoryEntry(entry: HistoryEntry, index: number) {
+    suppressHistoryPush = true;
+    setHistoryIndex(index);
+    setMainView(entry.view);
+    setCurrentPath(entry.path);
+    setPathInput(entry.path);
+    suppressHistoryPush = false;
+  }
+
+  function goBack() {
+    const index = historyIndex();
+    if (index <= 0) return;
+    applyHistoryEntry(history()[index - 1], index - 1);
+  }
+
+  function goForward() {
+    const h = history();
+    const index = historyIndex();
+    if (index >= h.length - 1) return;
+    applyHistoryEntry(h[index + 1], index + 1);
+  }
+
   function navigateTo(path: string) {
     setCurrentPath(path);
     setPathInput(path);
+    setMainView("explorer");
+    pushHistory({ view: "explorer", path });
+  }
+
+  function selectView(view: MainView) {
+    setMainView(view);
+    pushHistory({ view, path: currentPath() });
+  }
+
+  function closeSettings() {
+    if (historyIndex() > 0) {
+      goBack();
+    } else {
+      selectView("explorer");
+    }
   }
 
   createEffect(() => {
@@ -125,7 +195,10 @@ function App() {
       style["background-color"] = bg.solidColor;
     } else if (bg.backgroundType === "unsplash") {
       const url = bg.unsplashMode === "autoRotateList" ? rotationUrl() : wallpaper()?.urls.full;
-      if (url) style["background-image"] = `url(${url})`;
+      if (url) {
+        const { width, height } = windowSize();
+        style["background-image"] = `url(${sizedUnsplashUrl(url, width, height)})`;
+      }
     }
     return style;
   }
@@ -136,41 +209,56 @@ function App() {
         <div class="wallpaper-bg" style={backgroundStyle()} />
       </Show>
 
-      <Show
-        when={showSettings()}
-        fallback={
-          <div class="explorer-view">
-            <Sidebar
-              currentPath={currentPath()}
-              onNavigate={navigateTo}
-              activeView={mainView()}
-              onSelectView={setMainView}
-            />
-            <Show when={mainView() === "explorer"} fallback={<GraphView />}>
-              <ExplorerView
-                path={currentPath()}
-                pathInput={pathInput()}
-                onPathInputChange={setPathInput}
-                onNavigate={navigateTo}
-                onOpenSettings={() => setShowSettings(true)}
-              />
-            </Show>
-          </div>
-        }
-      >
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          background={settings.background}
-          onBackgroundChange={updateBackground}
-          theme={settings.theme}
-          onThemeChange={updateTheme}
-          uiTintOpacity={settings.uiTintOpacity}
-          onUiTintOpacityChange={updateUiTintOpacity}
-          wallpaper={wallpaper()}
-          wallpaperError={wallpaperError()}
-          onFetchWallpaper={getWallpaper}
+      <div class="app-shell">
+        <TopBar
+          canGoBack={historyIndex() > 0}
+          canGoForward={historyIndex() < history().length - 1}
+          onBack={goBack}
+          onForward={goForward}
+          searchQuery={searchQuery()}
+          onSearchQueryChange={setSearchQuery}
+          searchRecursive={searchRecursive()}
+          onSearchRecursiveChange={setSearchRecursive}
         />
-      </Show>
+
+        <Show
+          when={mainView() === "settings"}
+          fallback={
+            <div class="explorer-view">
+              <Sidebar
+                currentPath={currentPath()}
+                onNavigate={navigateTo}
+                activeView={mainView()}
+                onSelectView={selectView}
+              />
+              <Show when={mainView() === "explorer"} fallback={<GraphView />}>
+                <ExplorerView
+                  path={currentPath()}
+                  pathInput={pathInput()}
+                  onPathInputChange={setPathInput}
+                  onNavigate={navigateTo}
+                  searchQuery={searchQuery()}
+                  searchRecursive={searchRecursive()}
+                />
+              </Show>
+            </div>
+          }
+        >
+          <SettingsPanel
+            onClose={closeSettings}
+            searchQuery={searchQuery()}
+            background={settings.background}
+            onBackgroundChange={updateBackground}
+            theme={settings.theme}
+            onThemeChange={updateTheme}
+            uiTintOpacity={settings.uiTintOpacity}
+            onUiTintOpacityChange={updateUiTintOpacity}
+            wallpaper={wallpaper()}
+            wallpaperError={wallpaperError()}
+            onFetchWallpaper={getWallpaper}
+          />
+        </Show>
+      </div>
     </main>
   );
 }

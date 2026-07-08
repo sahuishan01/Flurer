@@ -1,1 +1,1 @@
-export type MainView = "explorer" | "graph";
+export type MainView = "explorer" | "graph" | "settings";

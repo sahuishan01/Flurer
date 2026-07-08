@@ -1,6 +1,5 @@
 import { createSignal } from "solid-js";
 import { FileList } from "./FileList";
-import { GearIcon } from "./icons";
 import type { ClipboardState, SortDirection, SortKey } from "../lib/fs";
 
 type ExplorerViewProps = {
@@ -8,7 +7,8 @@ type ExplorerViewProps = {
   pathInput: string;
   onPathInputChange: (value: string) => void;
   onNavigate: (path: string) => void;
-  onOpenSettings: () => void;
+  searchQuery: string;
+  searchRecursive: boolean;
 };
 
 export function ExplorerView(props: ExplorerViewProps) {
@@ -42,9 +42,6 @@ export function ExplorerView(props: ExplorerViewProps) {
           />
           <button type="submit">Go</button>
         </form>
-        <button type="button" class="icon-btn" aria-label="Open settings" onClick={props.onOpenSettings}>
-          <GearIcon />
-        </button>
       </div>
 
       <FileList
@@ -55,6 +52,8 @@ export function ExplorerView(props: ExplorerViewProps) {
         onSortChange={handleSortChange}
         clipboard={clipboard()}
         onClipboardChange={setClipboard}
+        searchQuery={props.searchQuery}
+        searchRecursive={props.searchRecursive}
       />
     </div>
   );

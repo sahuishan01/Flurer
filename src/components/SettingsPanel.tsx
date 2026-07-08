@@ -10,6 +10,7 @@ const CATEGORIES: { id: SettingsCategory; label: string }[] = [{ id: "customizat
 
 type SettingsPanelProps = {
   onClose: () => void;
+  searchQuery: string;
   background: BackgroundSettings;
   onBackgroundChange: (patch: Partial<BackgroundSettings>) => void;
   theme: Theme;
@@ -51,6 +52,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         <div class="settings-content">
           <Show when={category() === "customization"}>
             <CustomizationSettings
+              searchQuery={props.searchQuery}
               background={props.background}
               onBackgroundChange={props.onBackgroundChange}
               theme={props.theme}

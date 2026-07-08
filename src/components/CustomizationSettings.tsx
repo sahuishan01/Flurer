@@ -2,11 +2,14 @@ import { For } from "solid-js";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
 import { GRADIENT_DIRECTIONS, GRADIENT_PRESETS, SOLID_COLOR_PRESETS } from "../lib/settings";
 import {
+  sizedUnsplashUrl,
   UNSPLASH_FIXED_IMAGES,
   UNSPLASH_FREQUENCY_OPTIONS,
   UNSPLASH_ROTATE_CATEGORIES,
   type Wallpaper,
 } from "../lib/unsplash";
+
+const THUMBNAIL_SIZE = 160;
 
 const BACKGROUND_TYPE_LABELS: Record<BackgroundType, string> = {
   none: "No Background",
@@ -15,7 +18,31 @@ const BACKGROUND_TYPE_LABELS: Record<BackgroundType, string> = {
   unsplash: "Unsplash",
 };
 
+const BACKGROUND_KEYWORDS = [
+  "background",
+  "wallpaper",
+  "no background",
+  "gradient",
+  "solid color",
+  "unsplash",
+  "opacity",
+  "photo",
+  "image",
+  "auto rotate",
+  "fixed",
+  "category",
+];
+
+const THEME_KEYWORDS = ["theme", "light", "dark", "panel tint", "tint", "opacity"];
+
+function matchesQuery(query: string, keywords: string[]): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return keywords.some((keyword) => keyword.toLowerCase().includes(q));
+}
+
 type CustomizationSettingsProps = {
+  searchQuery: string;
   background: BackgroundSettings;
   onBackgroundChange: (patch: Partial<BackgroundSettings>) => void;
   theme: Theme;
@@ -28,8 +55,14 @@ type CustomizationSettingsProps = {
 };
 
 export function CustomizationSettings(props: CustomizationSettingsProps) {
+  const showBackground = () => matchesQuery(props.searchQuery, BACKGROUND_KEYWORDS);
+  const showTheme = () => matchesQuery(props.searchQuery, THEME_KEYWORDS);
+
   return (
     <div class="customization-settings">
+      {!showBackground() && !showTheme() && <p class="settings-empty">No matching settings.</p>}
+
+      {showBackground() && (
       <section class="settings-section">
         <h3>Background</h3>
         <div class="option-group">
@@ -248,7 +281,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                               props.onBackgroundChange({ unsplashFixedList: next });
                             }}
                           />
-                          <img src={img.url} alt={img.label} />
+                          <img src={sizedUnsplashUrl(img.url, THUMBNAIL_SIZE, THUMBNAIL_SIZE)} alt={img.label} />
                           <span>{img.label}</span>
                         </label>
                       )}
@@ -271,7 +304,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           </div>
         )}
       </section>
+      )}
 
+      {showTheme() && (
       <section class="settings-section">
         <h3>Theme</h3>
         <div class="option-group">
@@ -303,6 +338,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           />
         </label>
       </section>
+      )}
     </div>
   );
 }

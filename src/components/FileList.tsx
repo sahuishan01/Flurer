@@ -1,8 +1,17 @@
-import { createEffect, createSignal, For, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
-import { formatBytes, type BatchResult, type ClipboardState, type DirEntry, type SortDirection, type SortKey } from "../lib/fs";
+import {
+  formatBytes,
+  type BatchResult,
+  type ClipboardState,
+  type DirEntry,
+  type FolderSizeResponse,
+  type SortDirection,
+  type SortKey,
+} from "../lib/fs";
 
 type FileListProps = {
   path: string;
@@ -12,6 +21,8 @@ type FileListProps = {
   onSortChange: (key: SortKey) => void;
   clipboard: ClipboardState;
   onClipboardChange: (clipboard: ClipboardState) => void;
+  searchQuery: string;
+  searchRecursive: boolean;
 };
 
 type ContextMenuState = { x: number; y: number; targetPath: string | null };
@@ -24,6 +35,12 @@ function formatModified(modified: number | null): string {
 function sortIndicator(active: boolean, direction: SortDirection): string {
   if (!active) return "";
   return direction === "ascending" ? " ▲" : " ▼";
+}
+
+function parentDir(path: string): string {
+  const normalized = path.replace(/[/\\]+$/, "");
+  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
+  return idx > 0 ? normalized.slice(0, idx) : normalized;
 }
 
 export function FileList(props: FileListProps) {
@@ -39,13 +56,29 @@ export function FileList(props: FileListProps) {
   const [renameValue, setRenameValue] = createSignal("");
   const [deleteTargets, setDeleteTargets] = createSignal<string[] | null>(null);
 
+  // Folder sizes are computed lazily in the background by the Rust size
+  // cache (never blocking the listing itself) and pushed here as they
+  // resolve, keyed by absolute path so entries from different folders
+  // (e.g. search results) don't collide.
+  const [folderSizes, setFolderSizes] = createSignal<Map<string, number | "pending">>(new Map());
+
+  function isSearching(): boolean {
+    return props.searchQuery.trim().length > 0;
+  }
+
   async function refresh() {
     try {
-      const result = await invoke<DirEntry[]>("list_directory", {
-        path: props.path,
-        sortKey: props.sortKey,
-        sortDirection: props.sortDirection,
-      });
+      const result = isSearching()
+        ? await invoke<DirEntry[]>("search_directory", {
+            root: props.path,
+            query: props.searchQuery.trim(),
+            recursive: props.searchRecursive,
+          })
+        : await invoke<DirEntry[]>("list_directory", {
+            path: props.path,
+            sortKey: props.sortKey,
+            sortDirection: props.sortDirection,
+          });
       setError("");
       setEntries(result);
     } catch (err) {
@@ -57,6 +90,8 @@ export function FileList(props: FileListProps) {
     props.path;
     props.sortKey;
     props.sortDirection;
+    props.searchQuery;
+    props.searchRecursive;
     refresh();
   });
 
@@ -65,6 +100,63 @@ export function FileList(props: FileListProps) {
     setSelected(new Set<string>());
     setLastClickedIndex(null);
   });
+
+  // Kick off (or resume) background size computation for every folder row as
+  // soon as it's listed, rather than waiting for the user to hover/select it.
+  createEffect(() => {
+    const list = entries();
+    const known = untrack(folderSizes);
+    for (const entry of list) {
+      if (entry.isDir && !known.has(entry.path)) fetchFolderSize(entry.path);
+    }
+  });
+
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    listen<{ path: string; size: number }>("folder-size-updated", (event) => {
+      applyFolderSize(event.payload.path, event.payload.size);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    onCleanup(() => unlisten?.());
+  });
+
+  async function fetchFolderSize(path: string) {
+    try {
+      const response = await invoke<FolderSizeResponse>("get_folder_size", { path });
+      if (response.status === "ready") applyFolderSize(path, response.size);
+      else markFolderPending(path);
+    } catch (err) {
+      console.error("Failed to compute folder size for", path, err);
+    }
+  }
+
+  // Bypasses the cache and forces a fresh recursive walk; the resolved size
+  // arrives the same way as any other computation, via folder-size-updated.
+  async function recalculateFolderSize(path: string) {
+    markFolderPending(path);
+    try {
+      await invoke<FolderSizeResponse>("recompute_folder_size", { path });
+    } catch (err) {
+      console.error("Failed to recompute folder size for", path, err);
+    }
+  }
+
+  function markFolderPending(path: string) {
+    setFolderSizes((prev) => new Map(prev).set(path, "pending"));
+  }
+
+  function applyFolderSize(path: string, size: number) {
+    setFolderSizes((prev) => new Map(prev).set(path, size));
+  }
+
+  function sizeCellText(entry: DirEntry): string {
+    if (!entry.isDir) return formatBytes(entry.size);
+    const state = folderSizes().get(entry.path);
+    if (state === "pending") return "Calculating…";
+    if (typeof state === "number") return formatBytes(state);
+    return "";
+  }
 
   function handleRowClick(e: MouseEvent, entry: DirEntry, index: number) {
     if (e.shiftKey && lastClickedIndex() !== null) {
@@ -210,6 +302,7 @@ export function FileList(props: FileListProps) {
     }
 
     const hasSelection = selected().size > 0;
+    const targetEntry = entries().find((e) => e.path === menu.targetPath);
     return [
       {
         label: "Copy",
@@ -223,6 +316,9 @@ export function FileList(props: FileListProps) {
       },
       { label: "Paste", onSelect: pasteClipboard, disabled: !canPaste },
       { label: "Rename", onSelect: () => startRename(menu.targetPath!), disabled: selected().size !== 1 },
+      ...(targetEntry?.isDir
+        ? [{ label: "Recalculate size", onSelect: () => recalculateFolderSize(menu.targetPath!) }]
+        : []),
       { label: "Delete", onSelect: () => requestDelete([...selected()]), disabled: !hasSelection, danger: true },
     ];
   }
@@ -275,6 +371,7 @@ export function FileList(props: FileListProps) {
             <th class="sortable" onClick={() => props.onSortChange("modified")}>
               Modified{sortIndicator(props.sortKey === "modified", props.sortDirection)}
             </th>
+            {isSearching() && <th>Location</th>}
           </tr>
         </thead>
         <tbody>
@@ -315,8 +412,9 @@ export function FileList(props: FileListProps) {
                     entry.name
                   )}
                 </td>
-                <td>{entry.isDir ? "" : formatBytes(entry.size)}</td>
+                <td>{sizeCellText(entry)}</td>
                 <td>{formatModified(entry.modified)}</td>
+                {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
               </tr>
             )}
           </For>

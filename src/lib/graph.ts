@@ -14,8 +14,3 @@ export type PhysicalDisk = {
   interfaceType: string;
   volumes: VirtualDisk[];
 };
-
-export type SubfolderEntry = {
-  name: string;
-  path: string;
-};

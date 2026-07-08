@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::configs::Config;
+use crate::{configs::Config, sizecache::SizeCacheState};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
@@ -87,4 +87,5 @@ impl Default for Settings {
 pub struct AppState {
     pub settings: Mutex<Settings>,
     pub config: Config,
+    pub size_cache: SizeCacheState,
 }

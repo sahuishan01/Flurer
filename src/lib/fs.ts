@@ -26,6 +26,11 @@ export type ClipboardState = {
   paths: string[];
 } | null;
 
+// get_folder_size / recompute_folder_size never block on the recursive walk:
+// they return Ready immediately if cached, otherwise Pending, with the real
+// value following later via a "folder-size-updated" event.
+export type FolderSizeResponse = { status: "ready"; size: number } | { status: "pending" };
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
