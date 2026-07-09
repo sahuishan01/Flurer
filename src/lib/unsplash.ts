@@ -70,13 +70,18 @@ export const UNSPLASH_FIXED_IMAGES = [
   },
 ];
 
-// Actual pixel resolution of the current window, so we ask Unsplash for an
-// image large enough to cover the real display instead of a fixed guess.
+// The monitor's resolution, not the app window's current size — sizing the
+// Unsplash request off window.innerWidth/innerHeight meant every resize
+// asked for a differently-sized image and had to refetch it from scratch,
+// flashing the background back to bare/transparent until it arrived.
+// Screen resolution doesn't change when the window is resized, so fetching
+// against it once means the image never needs to be re-requested just
+// because the window did; background-size: cover handles the rest.
 export function getDisplaySize(): { width: number; height: number } {
   const ratio = window.devicePixelRatio || 1;
   return {
-    width: Math.round(window.innerWidth * ratio),
-    height: Math.round(window.innerHeight * ratio),
+    width: Math.round(window.screen.width * ratio),
+    height: Math.round(window.screen.height * ratio),
   };
 }
 

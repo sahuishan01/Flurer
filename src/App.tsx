@@ -33,7 +33,9 @@ function App() {
   const [hasUnsplashApiKey, setHasUnsplashApiKey] = createSignal(false);
   const [apiKeyError, setApiKeyError] = createSignal("");
   const [rotationUrl, setRotationUrl] = createSignal<string | null>(null);
-  const [windowSize, setWindowSize] = createSignal(getDisplaySize());
+  // A plain value, not a signal — screen resolution doesn't change when the
+  // window is resized, so there's nothing to react to (see getDisplaySize).
+  const windowSize = getDisplaySize();
 
   const [settings, setSettings] = createStore<Settings>(DEFAULT_SETTINGS);
   // GraphView is always mounted (see the view-stack below) and needs to know
@@ -63,19 +65,6 @@ function App() {
     } catch (err) {
       console.error("Failed to check Unsplash API key status", err);
     }
-  });
-
-  onMount(() => {
-    let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
-    function handleResize() {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => setWindowSize(getDisplaySize()), 400);
-    }
-    window.addEventListener("resize", handleResize);
-    onCleanup(() => {
-      window.removeEventListener("resize", handleResize);
-      clearTimeout(resizeTimeout);
-    });
   });
 
   let saveTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -262,11 +251,24 @@ function App() {
     } else if (bg.backgroundType === "unsplash") {
       const url = bg.unsplashMode === "autoRotateList" ? rotationUrl() : wallpaper()?.urls.full;
       if (url) {
-        const { width, height } = windowSize();
-        style["background-image"] = `url(${sizedUnsplashUrl(url, width, height)})`;
+        style["background-image"] = `url(${sizedUnsplashUrl(url, windowSize.width, windowSize.height)})`;
       }
     }
     return style;
+  }
+
+  // A fixed/rotating-category Unsplash background needs a network fetch
+  // before there's anything to show — until it resolves (or fails), the app
+  // would otherwise flash through with no background at all. autoRotateList
+  // just cycles a fixed local list, so there's no fetch to wait on.
+  function wallpaperPending(): boolean {
+    const bg = settings.background;
+    if (bg.backgroundType !== "unsplash" || bg.unsplashMode === "autoRotateList") return false;
+    return !wallpaper() && !wallpaperError();
+  }
+
+  function appReady(): boolean {
+    return settingsLoaded() && !wallpaperPending();
   }
 
   return (
@@ -275,6 +277,14 @@ function App() {
         <div class="wallpaper-bg" style={backgroundStyle()} />
       </Show>
 
+      <Show
+        when={appReady()}
+        fallback={
+          <div class="app-loading">
+            <span class="app-loading-spinner" />
+          </div>
+        }
+      >
       <div class="app-shell">
         <TopBar
           canGoBack={historyIndex() > 0}
@@ -319,6 +329,7 @@ function App() {
                 persistState={settings.persistGraphState}
                 initialState={settings.graphState}
                 onStateChange={updateGraphState}
+                active={mainView() === "graph"}
               />
             </div>
             <div class="view-pane" style={{ display: mainView() === "settings" ? "flex" : "none" }}>
@@ -346,6 +357,7 @@ function App() {
           </div>
         </div>
       </div>
+      </Show>
     </main>
   );
 }

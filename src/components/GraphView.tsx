@@ -16,7 +16,17 @@ import {
   type PositionedNode,
 } from "../lib/graphTree";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
-import { DiskIcon, ExternalLinkIcon, FileIcon, FolderIcon, RefreshIcon, VolumeIcon } from "./icons";
+import {
+  DiskIcon,
+  ExternalLinkIcon,
+  FileIcon,
+  FitToViewIcon,
+  FolderIcon,
+  RedoIcon,
+  RefreshIcon,
+  UndoIcon,
+  VolumeIcon,
+} from "./icons";
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 2;
@@ -65,6 +75,21 @@ type GraphViewProps = {
   persistState: boolean;
   initialState: GraphState | null;
   onStateChange: (state: GraphState) => void;
+  // Scopes the Ctrl+Z/Ctrl+Y keyboard shortcuts to when this view is the one
+  // actually on screen — it's always mounted, so without this a shortcut
+  // pressed while looking at Explorer or Settings would still fire here.
+  active: boolean;
+};
+
+// Everything an undoable action can change. roots/nodeOverrides are always
+// replaced wholesale rather than mutated (see updateNodeById), so archiving a
+// snapshot is just holding onto a reference — no deep clone needed, and old
+// snapshots can never be corrupted by later updates.
+type GraphSnapshot = {
+  roots: GraphNode[];
+  pan: { x: number; y: number };
+  zoom: number;
+  nodeOverrides: Map<string, { x: number; y: number }>;
 };
 
 export function GraphView(props: GraphViewProps) {
@@ -80,10 +105,82 @@ export function GraphView(props: GraphViewProps) {
   // of layoutTree() (e.g. expanding a sibling) untouched.
   const [nodeOverrides, setNodeOverrides] = createSignal<Map<string, { x: number; y: number }>>(new Map());
   const [draggingNodeId, setDraggingNodeId] = createSignal<string | null>(null);
+  let canvasRef: SVGSVGElement | undefined;
   // Guards the one-time restore-on-mount attempt below from re-firing once
   // it's already run (the effect it lives in also depends on roots()/etc.,
   // which change constantly afterward).
   const [restored, setRestored] = createSignal(false);
+
+  // Undo/redo history — covers every arrangement action the user takes
+  // (expand/collapse, drag a node, pan, zoom). Deliberately excludes size
+  // computations/recalculation (they reflect actual disk state, not a user
+  // choice, so "undoing" one doesn't mean anything) and navigating away via
+  // the context menu (that's an Explorer action, not a graph one).
+  const [undoStack, setUndoStack] = createSignal<GraphSnapshot[]>([]);
+  const [redoStack, setRedoStack] = createSignal<GraphSnapshot[]>([]);
+
+  function currentSnapshot(): GraphSnapshot {
+    return { roots: roots(), pan: pan(), zoom: zoom(), nodeOverrides: nodeOverrides() };
+  }
+
+  function applySnapshot(snap: GraphSnapshot) {
+    setTooltip(null);
+    setContextMenu(null);
+    setRoots(snap.roots);
+    setPan(snap.pan);
+    setZoom(snap.zoom);
+    setNodeOverrides(snap.nodeOverrides);
+  }
+
+  // Call before applying an undoable mutation, with the state as it stood
+  // just before that mutation. A fresh action always invalidates redo — once
+  // you branch off in a new direction, the old "future" isn't reachable
+  // anymore.
+  function pushHistory() {
+    setUndoStack((prev) => [...prev, currentSnapshot()]);
+    setRedoStack([]);
+  }
+
+  function undo() {
+    const stack = undoStack();
+    if (stack.length === 0) return;
+    const previous = stack[stack.length - 1];
+    setUndoStack(stack.slice(0, -1));
+    setRedoStack((prev) => [...prev, currentSnapshot()]);
+    applySnapshot(previous);
+  }
+
+  function redo() {
+    const stack = redoStack();
+    if (stack.length === 0) return;
+    const next = stack[stack.length - 1];
+    setRedoStack(stack.slice(0, -1));
+    setUndoStack((prev) => [...prev, currentSnapshot()]);
+    applySnapshot(next);
+  }
+
+  function isTypingTarget(target: EventTarget | null): boolean {
+    return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+  }
+
+  onMount(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!props.active) return;
+      if (isTypingTarget(document.activeElement)) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    onCleanup(() => document.removeEventListener("keydown", handleKeyDown));
+  });
 
   onMount(async () => {
     try {
@@ -181,6 +278,7 @@ export function GraphView(props: GraphViewProps) {
     // that's about to shift position would otherwise be left stale.
     setTooltip(null);
     setContextMenu(null);
+    pushHistory();
 
     if (!node.expanded && !node.loaded) {
       await fetchAndExpand(node);
@@ -371,12 +469,14 @@ export function GraphView(props: GraphViewProps) {
   }
 
   let dragging = false;
+  let panMoved = false;
   let lastX = 0;
   let lastY = 0;
 
   function onPointerDown(e: PointerEvent) {
     if ((e.target as Element).closest(".graph-node")) return;
     dragging = true;
+    panMoved = false;
     lastX = e.clientX;
     lastY = e.clientY;
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
@@ -388,6 +488,11 @@ export function GraphView(props: GraphViewProps) {
     // transform-only reflow as expand/collapse — clear any stale tooltip.
     setTooltip(null);
     setContextMenu(null);
+    // The whole drag gesture is one undo step, not one per pixel of movement.
+    if (!panMoved) {
+      panMoved = true;
+      pushHistory();
+    }
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;
@@ -399,11 +504,26 @@ export function GraphView(props: GraphViewProps) {
     dragging = false;
   }
 
+  // A burst of wheel notches (one scroll gesture) counts as one undo step —
+  // only the first tick in a session pushes history; further ticks within
+  // this window are treated as part of the same zoom.
+  let zoomSessionActive = false;
+  let zoomSessionTimeout: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(zoomSessionTimeout));
+
   function onWheel(e: WheelEvent) {
     e.preventDefault();
     // Zooming rescales node positions under a stationary cursor the same way.
     setTooltip(null);
     setContextMenu(null);
+    if (!zoomSessionActive) {
+      zoomSessionActive = true;
+      pushHistory();
+    }
+    clearTimeout(zoomSessionTimeout);
+    zoomSessionTimeout = setTimeout(() => {
+      zoomSessionActive = false;
+    }, 500);
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta)));
   }
@@ -450,6 +570,9 @@ export function GraphView(props: GraphViewProps) {
       nodeDragMoved = true;
       setTooltip(null);
       setContextMenu(null);
+      // Captures state from just before this drag — the whole gesture is one
+      // undo step, not one per pixel of movement.
+      pushHistory();
     }
     if (!nodeDragMoved) return;
     setNodeOverrides((prev) => {
@@ -461,6 +584,49 @@ export function GraphView(props: GraphViewProps) {
 
   function onNodePointerUp() {
     setDraggingNodeId(null);
+  }
+
+  // Re-fits pan/zoom so every currently visible node (i.e. inside an
+  // expanded branch — same set layoutTree already restricts to) is on
+  // screen at once, honoring any dragged-node overrides.
+  function fitToView() {
+    const positioned = layout().positioned;
+    if (positioned.length === 0 || !canvasRef) return;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const p of positioned) {
+      const x = effectiveX(p);
+      const y = effectiveY(p);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + NODE_WIDTH);
+      maxY = Math.max(maxY, y + NODE_HEIGHT);
+    }
+
+    const viewportWidth = canvasRef.clientWidth;
+    const viewportHeight = canvasRef.clientHeight;
+    if (viewportWidth === 0 || viewportHeight === 0) return;
+
+    const PADDING = 60;
+    const contentWidth = Math.max(maxX - minX, 1);
+    const contentHeight = Math.max(maxY - minY, 1);
+    const newZoom = Math.min(
+      MAX_ZOOM,
+      Math.max(MIN_ZOOM, Math.min((viewportWidth - PADDING * 2) / contentWidth, (viewportHeight - PADDING * 2) / contentHeight)),
+    );
+
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
+
+    pushHistory();
+    setZoom(newZoom);
+    setPan({
+      x: viewportWidth / 2 - contentCenterX * newZoom,
+      y: viewportHeight / 2 - contentCenterY * newZoom,
+    });
   }
 
   function edgePath(fromX: number, fromY: number, toX: number, toY: number): string {
@@ -475,6 +641,26 @@ export function GraphView(props: GraphViewProps) {
     <div class="graph-view">
       <div class="graph-toolbar">
         <h2 class="graph-title">Storage graph</h2>
+        <button
+          type="button"
+          class="icon-btn"
+          title="Undo"
+          aria-label="Undo"
+          disabled={undoStack().length === 0}
+          onClick={undo}
+        >
+          <UndoIcon size={16} />
+        </button>
+        <button
+          type="button"
+          class="icon-btn"
+          title="Redo"
+          aria-label="Redo"
+          disabled={redoStack().length === 0}
+          onClick={redo}
+        >
+          <RedoIcon size={16} />
+        </button>
         <span class="graph-hint">Drag canvas to pan · drag a node to reposition · scroll to zoom · click to expand</span>
         <Show when={loading()}>
           <span class="graph-hint">Reading disk layout…</span>
@@ -485,6 +671,7 @@ export function GraphView(props: GraphViewProps) {
       </div>
 
       <svg
+        ref={canvasRef}
         class="graph-canvas"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -587,6 +774,16 @@ export function GraphView(props: GraphViewProps) {
           onMouseLeave={scheduleCloseContextMenu}
         />
       )}
+
+      <button
+        type="button"
+        class="icon-btn graph-fit-view"
+        title="Fit all visible nodes in view"
+        aria-label="Fit all visible nodes in view"
+        onClick={fitToView}
+      >
+        <FitToViewIcon size={18} />
+      </button>
     </div>
   );
 }
