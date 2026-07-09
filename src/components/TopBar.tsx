@@ -1,4 +1,5 @@
 import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
+import { ProgressIndicator } from "./ProgressIndicator";
 
 type TopBarProps = {
   canGoBack: boolean;
@@ -51,6 +52,8 @@ export function TopBar(props: TopBarProps) {
       >
         <LayersIcon size={16} />
       </button>
+
+      <ProgressIndicator />
     </div>
   );
 }

@@ -7,12 +7,14 @@ import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { TopBar } from "./components/TopBar";
 import { DEFAULT_SETTINGS, type BackgroundSettings, type GraphState, type Settings, type Theme } from "./lib/settings";
-import { getDisplaySize, sizedUnsplashUrl, type Wallpaper } from "./lib/unsplash";
+import type { SortKey } from "./lib/fs";
+import { getDisplaySize, type Wallpaper } from "./lib/unsplash";
 import type { MainView } from "./lib/view";
 import "./App.css";
 
 const DEFAULT_PATH = "C:\\";
 const SETTINGS_SAVE_DEBOUNCE_MS = 300;
+const RECENTS_LIMIT = 15;
 
 type HistoryEntry = { view: MainView; path: string };
 
@@ -32,7 +34,15 @@ function App() {
   // the renderer in plain text.
   const [hasUnsplashApiKey, setHasUnsplashApiKey] = createSignal(false);
   const [apiKeyError, setApiKeyError] = createSignal("");
-  const [rotationUrl, setRotationUrl] = createSignal<string | null>(null);
+  // The current rotation-list image, already downloaded and re-encoded as a
+  // data: URL — never a hotlinked Unsplash URL (see fetchRotationImage).
+  const [rotationImage, setRotationImage] = createSignal<string | null>(null);
+  const [rotationError, setRotationError] = createSignal("");
+  // Last session's wallpaper, read straight off disk (no network) so startup
+  // never has to wait on Unsplash — the real fetch below still runs, and
+  // silently replaces this once it resolves.
+  const [cachedWallpaperImage, setCachedWallpaperImage] = createSignal<string | null>(null);
+  const [wallpaperCacheChecked, setWallpaperCacheChecked] = createSignal(false);
   // A plain value, not a signal — screen resolution doesn't change when the
   // window is resized, so there's nothing to react to (see getDisplaySize).
   const windowSize = getDisplaySize();
@@ -67,6 +77,16 @@ function App() {
     }
   });
 
+  onMount(async () => {
+    try {
+      setCachedWallpaperImage(await invoke<string | null>("get_cached_wallpaper_image"));
+    } catch (err) {
+      console.error("Failed to read cached wallpaper", err);
+    } finally {
+      setWallpaperCacheChecked(true);
+    }
+  });
+
   let saveTimeout: ReturnType<typeof setTimeout> | undefined;
   function persistSettings() {
     clearTimeout(saveTimeout);
@@ -97,6 +117,16 @@ function App() {
     persistSettings();
   }
 
+  function updateFontFamily(fontFamily: string) {
+    setSettings("fontFamily", fontFamily);
+    persistSettings();
+  }
+
+  function updateFontSizePx(fontSizePx: number) {
+    setSettings("fontSizePx", fontSizePx);
+    persistSettings();
+  }
+
   function updatePersistGraphState(enabled: boolean) {
     setSettings("persistGraphState", enabled);
     persistSettings();
@@ -104,6 +134,45 @@ function App() {
 
   function updateGraphState(state: GraphState) {
     setSettings("graphState", state);
+    persistSettings();
+  }
+
+  function toggleFavourite(path: string) {
+    const isFavourite = settings.favouritePaths.includes(path);
+    setSettings(
+      "favouritePaths",
+      isFavourite ? settings.favouritePaths.filter((p) => p !== path) : [...settings.favouritePaths, path],
+    );
+    persistSettings();
+  }
+
+  // Most-recent-first, deduped (revisiting a path just moves it back to the
+  // front rather than adding a second entry), capped so the list can't grow
+  // forever.
+  function recordRecent(path: string) {
+    const next = [path, ...settings.recentPaths.filter((p) => p !== path)].slice(0, RECENTS_LIMIT);
+    setSettings("recentPaths", next);
+    persistSettings();
+  }
+
+  function removeRecent(path: string) {
+    setSettings(
+      "recentPaths",
+      settings.recentPaths.filter((p) => p !== path),
+    );
+    persistSettings();
+  }
+
+  // Clicking the same column again flips direction; clicking a different one
+  // switches to it starting ascending — same behavior ExplorerView used to
+  // handle locally, just persisted now so it survives a restart.
+  function updateSort(key: SortKey) {
+    if (key === settings.sortKey) {
+      setSettings("sortDirection", settings.sortDirection === "ascending" ? "descending" : "ascending");
+    } else {
+      setSettings("sortKey", key);
+      setSettings("sortDirection", "ascending");
+    }
     persistSettings();
   }
 
@@ -120,10 +189,31 @@ function App() {
   async function getWallpaper(query: string) {
     setWallpaperError("");
     try {
-      const result = await invoke<Wallpaper>("get_wallpaper", { query });
+      const result = await invoke<Wallpaper>("get_wallpaper", {
+        query,
+        width: windowSize.width,
+        height: windowSize.height,
+      });
       setWallpaper(result);
     } catch (err) {
       setWallpaperError(String(err));
+    }
+  }
+
+  // Downloads and caches (server-side) the image at `url`, returning a
+  // data: URL — used for the fixed rotation list, where the image URL is
+  // already known and doesn't need an Unsplash API lookup first.
+  async function fetchRotationImage(url: string) {
+    setRotationError("");
+    try {
+      const dataUrl = await invoke<string>("fetch_wallpaper_image", {
+        url,
+        width: windowSize.width,
+        height: windowSize.height,
+      });
+      setRotationImage(dataUrl);
+    } catch (err) {
+      setRotationError(String(err));
     }
   }
 
@@ -167,6 +257,7 @@ function App() {
     setPathInput(path);
     setMainView("explorer");
     pushHistory({ view: "explorer", path });
+    recordRecent(path);
   }
 
   function selectView(view: MainView) {
@@ -194,6 +285,14 @@ function App() {
     document.documentElement.style.setProperty("--surface-blur", `${settings.uiBlurPx}px`);
   });
 
+  createEffect(() => {
+    document.documentElement.style.setProperty("--font-family", settings.fontFamily);
+  });
+
+  createEffect(() => {
+    document.documentElement.style.setProperty("--font-size", `${settings.fontSizePx}px`);
+  });
+
   // Settings has no "settings" view value of its own — only remember whether
   // the user was last looking at the explorer or the graph, so relaunching
   // the app doesn't strand them on the settings page.
@@ -206,36 +305,92 @@ function App() {
     }
   });
 
+  // Reads the shared "wallpaper last updated" timestamp (written by whichever
+  // instance actually downloads an image) so a scheduled refresh only
+  // happens once it's genuinely due, rather than every window/process
+  // fetching independently on its own timer — this is what keeps multiple
+  // open instances showing the same background.
+  async function getWallpaperUpdatedAt(): Promise<number | null> {
+    try {
+      return await invoke<number | null>("get_wallpaper_updated_at");
+    } catch (err) {
+      console.error("Failed to read wallpaper metadata", err);
+      return null;
+    }
+  }
+
+  // Drives both auto-rotate modes: on `forceImmediate` (the user just
+  // changed the relevant setting) it fetches right away; otherwise it checks
+  // the shared timestamp and either fetches now (if due) or schedules a
+  // check for exactly when it becomes due — self-correcting if another
+  // instance updates it in the meantime.
+  function scheduleWallpaperRefresh(frequencyMs: number, forceImmediate: boolean, fetchOne: () => Promise<void>) {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    async function tick(force: boolean) {
+      if (cancelled) return;
+      const updatedAt = force ? null : await getWallpaperUpdatedAt();
+      if (cancelled) return;
+      const elapsed = updatedAt ? Date.now() - updatedAt : Infinity;
+      if (force || elapsed >= frequencyMs) {
+        await fetchOne();
+        if (cancelled) return;
+        timeoutId = setTimeout(() => tick(false), frequencyMs);
+      } else {
+        timeoutId = setTimeout(() => tick(false), frequencyMs - elapsed);
+      }
+    }
+
+    tick(forceImmediate);
+    onCleanup(() => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    });
+  }
+
+  // Only the very first pass (once the disk cache has been checked) should
+  // respect the "is it due yet" gate — every later pass is only reached
+  // because the user explicitly changed a background setting, which should
+  // always take effect immediately.
+  let initialWallpaperCheckDone = false;
+
   createEffect(() => {
     const bg = settings.background;
     if (bg.backgroundType !== "unsplash") return;
+    if (!wallpaperCacheChecked()) return;
+
+    const isExplicitChange = initialWallpaperCheckDone;
+    initialWallpaperCheckDone = true;
 
     if (bg.unsplashMode === "fixed") {
-      if (!wallpaper()) getWallpaper(bg.unsplashCategory || "nature");
+      // "Fixed" has no refresh schedule (see the Settings UI) — only fetch
+      // when there's truly nothing to show yet; otherwise it stays put until
+      // the user clicks "Get new wallpaper".
+      if (!wallpaper() && !cachedWallpaperImage()) {
+        getWallpaper(bg.unsplashCategory || "nature");
+      }
       return;
     }
 
     if (bg.unsplashMode === "autoRotateCategory") {
       const category = bg.unsplashCategory || "nature";
-      getWallpaper(category);
-      const id = setInterval(() => getWallpaper(category), bg.unsplashChangeFrequencyMs);
-      onCleanup(() => clearInterval(id));
+      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, () => getWallpaper(category));
       return;
     }
 
     if (bg.unsplashMode === "autoRotateList") {
       const list = bg.unsplashFixedList;
       if (list.length === 0) {
-        setRotationUrl(null);
+        setRotationImage(null);
         return;
       }
       let index = 0;
-      setRotationUrl(list[index]);
-      const id = setInterval(() => {
-        index = (index + 1) % list.length;
-        setRotationUrl(list[index]);
-      }, bg.unsplashChangeFrequencyMs);
-      onCleanup(() => clearInterval(id));
+      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, () => {
+        const url = list[index % list.length];
+        index += 1;
+        return fetchRotationImage(url);
+      });
     }
   });
 
@@ -249,21 +404,28 @@ function App() {
     } else if (bg.backgroundType === "solid") {
       style["background-color"] = bg.solidColor;
     } else if (bg.backgroundType === "unsplash") {
-      const url = bg.unsplashMode === "autoRotateList" ? rotationUrl() : wallpaper()?.urls.full;
-      if (url) {
-        style["background-image"] = `url(${sizedUnsplashUrl(url, windowSize.width, windowSize.height)})`;
+      const liveUrl = bg.unsplashMode === "autoRotateList" ? rotationImage() : wallpaper()?.localDataUrl;
+      const dataUrl = liveUrl ?? cachedWallpaperImage();
+      if (dataUrl) {
+        style["background-image"] = `url(${dataUrl})`;
       }
     }
     return style;
   }
 
-  // A fixed/rotating-category Unsplash background needs a network fetch
-  // before there's anything to show — until it resolves (or fails), the app
-  // would otherwise flash through with no background at all. autoRotateList
-  // just cycles a fixed local list, so there's no fetch to wait on.
+  // Startup shows last session's cached wallpaper immediately (a local disk
+  // read, no network) rather than blocking on a fresh Unsplash fetch — the
+  // fetch below still runs and swaps the image in once it resolves. This
+  // only gates the very first paint: once anything (cached or fresh) is on
+  // screen, later refreshes never re-block the UI.
   function wallpaperPending(): boolean {
     const bg = settings.background;
-    if (bg.backgroundType !== "unsplash" || bg.unsplashMode === "autoRotateList") return false;
+    if (bg.backgroundType !== "unsplash") return false;
+    if (!wallpaperCacheChecked()) return true;
+    if (cachedWallpaperImage()) return false;
+    if (bg.unsplashMode === "autoRotateList") {
+      return bg.unsplashFixedList.length > 0 && !rotationImage() && !rotationError();
+    }
     return !wallpaper() && !wallpaperError();
   }
 
@@ -303,6 +465,10 @@ function App() {
             onNavigate={navigateTo}
             activeView={mainView()}
             onSelectView={selectView}
+            favouritePaths={settings.favouritePaths}
+            onToggleFavourite={toggleFavourite}
+            recentPaths={settings.recentPaths}
+            onRemoveRecent={removeRecent}
           />
           {/* All three views stay mounted and are just hidden/shown, rather
               than torn down and rebuilt on every toggle — otherwise switching
@@ -319,6 +485,11 @@ function App() {
                 onNavigate={navigateTo}
                 searchQuery={searchQuery()}
                 searchRecursive={searchRecursive()}
+                favouritePaths={settings.favouritePaths}
+                onToggleFavourite={toggleFavourite}
+                sortKey={settings.sortKey}
+                sortDirection={settings.sortDirection}
+                onSortChange={updateSort}
               />
             </div>
             <div class="view-pane" style={{ display: mainView() === "graph" ? "flex" : "none" }}>
@@ -344,6 +515,10 @@ function App() {
                 onUiTintOpacityChange={updateUiTintOpacity}
                 uiBlurPx={settings.uiBlurPx}
                 onUiBlurPxChange={updateUiBlurPx}
+                fontFamily={settings.fontFamily}
+                onFontFamilyChange={updateFontFamily}
+                fontSizePx={settings.fontSizePx}
+                onFontSizePxChange={updateFontSizePx}
                 persistGraphState={settings.persistGraphState}
                 onPersistGraphStateChange={updatePersistGraphState}
                 hasUnsplashApiKey={hasUnsplashApiKey()}

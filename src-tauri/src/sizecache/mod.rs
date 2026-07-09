@@ -11,13 +11,17 @@ use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode, Debouncer};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::state::AppState;
+use crate::{helpers::settings::size_cache_path, state::AppState};
 
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(800);
 // Recursive folder walks are disk/CPU heavy; capping how many run at once
 // keeps expanding a folder with many large children from saturating disk I/O
 // and slowing the whole app down.
 const WORKER_COUNT: usize = 2;
+// How often the background autosave thread checks whether the in-memory
+// cache has changed and, if so, writes it to disk — bounds worst-case data
+// loss on a forced close without persisting on every single computed size.
+const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +52,49 @@ pub struct SizeCacheState {
     // Holding the debouncer keeps its background thread and OS watch handles
     // alive; dropping it silently stops all watching.
     debouncer: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
+    // Set whenever `sizes` changes; the autosave thread clears it after
+    // persisting, so an idle app doesn't rewrite the cache file every tick.
+    dirty: Mutex<bool>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct PersistedSizeCache {
+    sizes: HashMap<String, u64>,
+}
+
+fn load_persisted_sizes() -> HashMap<PathBuf, u64> {
+    let Ok(path) = size_cache_path() else {
+        return HashMap::new();
+    };
+    let Ok(data) = fs::read_to_string(&path) else {
+        return HashMap::new();
+    };
+    let Ok(persisted) = serde_json::from_str::<PersistedSizeCache>(&data) else {
+        return HashMap::new();
+    };
+    persisted.sizes.into_iter().map(|(path, size)| (PathBuf::from(path), size)).collect()
+}
+
+// Drops entries for folders that no longer exist so the cache file doesn't
+// grow forever with paths the user deleted long ago.
+fn save_persisted_sizes(sizes: &HashMap<PathBuf, u64>) {
+    let Ok(path) = size_cache_path() else {
+        return;
+    };
+    let persisted = PersistedSizeCache {
+        sizes: sizes
+            .iter()
+            .filter(|(path, _)| path.is_dir())
+            .map(|(path, &size)| (path.to_string_lossy().to_string(), size))
+            .collect(),
+    };
+    let Ok(data) = serde_json::to_string(&persisted) else {
+        return;
+    };
+    let temp = path.with_extension("json.tmp");
+    if fs::write(&temp, data).is_ok() {
+        let _ = fs::rename(&temp, &path);
+    }
 }
 
 pub fn compute_dir_size(path: &Path) -> u64 {
@@ -114,6 +161,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<PathBuf>>>, 
             let state = app.state::<AppState>();
             state.size_cache.sizes.lock().unwrap().insert(path.clone(), size);
             state.size_cache.pending.lock().unwrap().remove(&path);
+            *state.size_cache.dirty.lock().unwrap() = true;
             start_watching(&state, &path);
 
             let _ = app.emit(
@@ -133,10 +181,12 @@ pub fn init(app: &AppHandle) {
 
     {
         let state = app.state::<AppState>();
+        *state.size_cache.sizes.lock().unwrap() = load_persisted_sizes();
         *state.size_cache.job_sender.lock().unwrap() = Some(tx);
     }
 
     spawn_workers(app.clone(), receiver, WORKER_COUNT);
+    spawn_autosave(app.clone());
 
     let app_handle = app.clone();
     let result = new_debouncer(DEBOUNCE_WINDOW, move |result: notify_debouncer_mini::DebounceEventResult| {
@@ -152,6 +202,21 @@ pub fn init(app: &AppHandle) {
 
     let state = app.state::<AppState>();
     *state.size_cache.debouncer.lock().unwrap() = Some(debouncer);
+}
+
+fn spawn_autosave(app: AppHandle) {
+    thread::spawn(move || loop {
+        thread::sleep(AUTOSAVE_INTERVAL);
+        let state = app.state::<AppState>();
+        let mut dirty = state.size_cache.dirty.lock().unwrap();
+        if !*dirty {
+            continue;
+        }
+        *dirty = false;
+        drop(dirty);
+        let snapshot = state.size_cache.sizes.lock().unwrap().clone();
+        save_persisted_sizes(&snapshot);
+    });
 }
 
 fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::DebouncedEvent>) {
@@ -186,6 +251,16 @@ pub fn get_folder_size(state: tauri::State<'_, AppState>, path: String) -> Resul
     }
 
     if let Some(&cached) = state.size_cache.sizes.lock().unwrap().get(&path_buf) {
+        // A value loaded from the persisted cache — or computed earlier this
+        // session but never watched — may be stale if the folder changed
+        // while the app was closed. Return it immediately for a fast/instant
+        // result, but silently revalidate in the background; once that
+        // finishes the path is watched, so this only ever fires once per
+        // path per app run.
+        let already_watching = state.size_cache.watched_roots.lock().unwrap().iter().any(|p| p == &path_buf);
+        if !already_watching {
+            enqueue(&state, path_buf.clone());
+        }
         return Ok(FolderSizeResponse::Ready { size: cached });
     }
 
@@ -203,6 +278,13 @@ pub fn recompute_folder_size(state: tauri::State<'_, AppState>, path: String) ->
         return Err(format!("{} is not a directory", path));
     }
 
+    // Drop the stale value now, not just when the recompute finishes — while
+    // the old size is still cached, any other get_folder_size call for this
+    // same path (e.g. the frontend's own initial-load fetch, or another
+    // window) would read it back as an already-"Ready" result and clobber
+    // the "Calculating…" state the frontend just set, before the real
+    // recomputation ever finishes.
+    state.size_cache.sizes.lock().unwrap().remove(&path_buf);
     enqueue(&state, path_buf);
     Ok(FolderSizeResponse::Pending)
 }

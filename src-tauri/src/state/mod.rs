@@ -3,7 +3,11 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{configs::Config, sizecache::SizeCacheState};
+use crate::{
+    configs::Config,
+    fs::{SortDirection, SortKey},
+    sizecache::SizeCacheState,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
@@ -101,6 +105,15 @@ pub struct Settings {
     pub last_main_view: LastMainView,
     pub persist_graph_state: bool,
     pub graph_state: Option<GraphState>,
+    pub favourite_paths: Vec<String>,
+    // Most-recently-visited first; the frontend caps and dedupes this list
+    // (see recordRecent in App.tsx) rather than the backend, since it's just
+    // opaque persisted state from Rust's point of view.
+    pub recent_paths: Vec<String>,
+    pub sort_key: SortKey,
+    pub sort_direction: SortDirection,
+    pub font_family: String,
+    pub font_size_px: f32,
 }
 
 impl Default for Settings {
@@ -114,6 +127,12 @@ impl Default for Settings {
             last_main_view: LastMainView::default(),
             persist_graph_state: true,
             graph_state: None,
+            favourite_paths: Vec::new(),
+            recent_paths: Vec::new(),
+            sort_key: SortKey::default(),
+            sort_direction: SortDirection::default(),
+            font_family: "Inter, Avenir, Helvetica, Arial, sans-serif".to_string(),
+            font_size_px: 16.0,
         }
     }
 }

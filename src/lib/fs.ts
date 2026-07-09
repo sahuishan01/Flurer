@@ -42,6 +42,12 @@ export function parentDir(path: string): string {
   return normalized.slice(0, idx);
 }
 
+export function baseName(path: string): string {
+  const normalized = path.replace(/[/\\]+$/, "");
+  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
+  return idx < 0 ? normalized : normalized.slice(idx + 1);
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];

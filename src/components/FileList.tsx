@@ -3,7 +3,18 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
-import { ClipboardIcon, CopyIcon, FileIcon, FolderIcon, FolderPlusIcon, PencilIcon, RefreshIcon, ScissorsIcon, TrashIcon } from "./icons";
+import {
+  ClipboardIcon,
+  CopyIcon,
+  FileIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  PencilIcon,
+  RefreshIcon,
+  ScissorsIcon,
+  StarIcon,
+  TrashIcon,
+} from "./icons";
 import {
   formatBytes,
   parentDir,
@@ -25,6 +36,8 @@ type FileListProps = {
   onClipboardChange: (clipboard: ClipboardState) => void;
   searchQuery: string;
   searchRecursive: boolean;
+  favouritePaths: string[];
+  onToggleFavourite: (path: string) => void;
 };
 
 type ContextMenuState = { x: number; y: number; targetPath: string | null };
@@ -321,6 +334,16 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  // All currently-selected directories (files in the selection are just
+  // skipped) — lets Recalculate act on the whole multi-selection in one
+  // click instead of only the single row that was right-clicked.
+  function selectedDirPaths(): string[] {
+    const selectedSet = selected();
+    return entries()
+      .filter((e) => e.isDir && selectedSet.has(e.path))
+      .map((e) => e.path);
+  }
+
   function contextMenuItems(): ContextMenuItem[] {
     const menu = contextMenu();
     if (!menu) return [];
@@ -335,6 +358,7 @@ export function FileList(props: FileListProps) {
 
     const hasSelection = selected().size > 0;
     const targetEntry = entries().find((e) => e.path === menu.targetPath);
+    const dirPaths = selectedDirPaths();
     return [
       {
         label: "Copy",
@@ -355,12 +379,22 @@ export function FileList(props: FileListProps) {
         onSelect: () => startRename(menu.targetPath!),
         disabled: selected().size !== 1,
       },
+      ...(dirPaths.length > 0
+        ? [
+            {
+              label: dirPaths.length > 1 ? `Recalculate (${dirPaths.length})` : "Recalculate",
+              icon: <RefreshIcon size={15} />,
+              onSelect: () => dirPaths.forEach((path) => recalculateFolderSize(path)),
+            },
+          ]
+        : []),
       ...(targetEntry?.isDir
         ? [
             {
-              label: "Recalculate",
-              icon: <RefreshIcon size={15} />,
-              onSelect: () => recalculateFolderSize(menu.targetPath!),
+              label: props.favouritePaths.includes(menu.targetPath) ? "Remove from Favourites" : "Add to Favourites",
+              icon: <StarIcon size={15} filled={props.favouritePaths.includes(menu.targetPath)} />,
+              onSelect: () => props.onToggleFavourite(menu.targetPath!),
+              disabled: selected().size !== 1,
             },
           ]
         : []),
@@ -407,71 +441,79 @@ export function FileList(props: FileListProps) {
   onCleanup(() => document.removeEventListener("keydown", handleKeyDown));
 
   return (
-    <div class="file-list" onContextMenu={handleBackgroundContextMenu}>
-      {error() && <p class="file-list-error">{error()}</p>}
-      {opError() && <p class="file-list-error">{opError()}</p>}
-      <table class="file-table">
-        <thead>
-          <tr>
-            <th class="sortable" onClick={() => props.onSortChange("name")}>
-              Name{sortIndicator(props.sortKey === "name", props.sortDirection)}
-            </th>
-            <th class="sortable" onClick={() => props.onSortChange("size")}>
-              Size{sortIndicator(props.sortKey === "size", props.sortDirection)}
-            </th>
-            <th class="sortable" onClick={() => props.onSortChange("modified")}>
-              Modified{sortIndicator(props.sortKey === "modified", props.sortDirection)}
-            </th>
-            {isSearching() && <th>Location</th>}
-          </tr>
-        </thead>
-        <tbody>
-          <For each={sortedEntries()}>
-            {(entry, index) => (
-              <tr
-                class="file-row"
-                classList={{
-                  "file-row-dir": entry.isDir,
-                  "file-row-selected": selected().has(entry.path),
-                  "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
-                }}
-                onClick={(e) => handleRowClick(e, entry, index())}
-                onDblClick={() => entry.isDir && props.onNavigate(entry.path)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleRowContextMenu(e, entry);
-                }}
-              >
-                <td class="file-name-cell">
-                  {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
-                  {renamingPath() === entry.path ? (
-                    <input
-                      class="rename-input"
-                      value={renameValue()}
-                      autofocus
-                      onInput={(e) => setRenameValue(e.currentTarget.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                        if (e.key === "Enter") commitRename();
-                        else if (e.key === "Escape") cancelRename();
-                      }}
-                      onBlur={() => commitRename()}
-                    />
-                  ) : (
-                    entry.name
-                  )}
-                </td>
-                <td>{sizeCellText(entry)}</td>
-                <td>{formatModified(entry.modified)}</td>
-                {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
+    <>
+      <div class="file-list" onContextMenu={handleBackgroundContextMenu}>
+        {error() && <p class="file-list-error">{error()}</p>}
+        {opError() && <p class="file-list-error">{opError()}</p>}
+        <table class="file-table">
+          <thead>
+            <tr>
+              <th class="sortable" onClick={() => props.onSortChange("name")}>
+                Name{sortIndicator(props.sortKey === "name", props.sortDirection)}
+              </th>
+              <th class="sortable" onClick={() => props.onSortChange("size")}>
+                Size{sortIndicator(props.sortKey === "size", props.sortDirection)}
+              </th>
+              <th class="sortable" onClick={() => props.onSortChange("modified")}>
+                Modified{sortIndicator(props.sortKey === "modified", props.sortDirection)}
+              </th>
+              {isSearching() && <th>Location</th>}
+            </tr>
+          </thead>
+          <tbody>
+            <For each={sortedEntries()}>
+              {(entry, index) => (
+                <tr
+                  class="file-row"
+                  classList={{
+                    "file-row-dir": entry.isDir,
+                    "file-row-selected": selected().has(entry.path),
+                    "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
+                  }}
+                  onClick={(e) => handleRowClick(e, entry, index())}
+                  onDblClick={() => entry.isDir && props.onNavigate(entry.path)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRowContextMenu(e, entry);
+                  }}
+                >
+                  <td class="file-name-cell">
+                    {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
+                    {renamingPath() === entry.path ? (
+                      <input
+                        class="rename-input"
+                        value={renameValue()}
+                        autofocus
+                        onInput={(e) => setRenameValue(e.currentTarget.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter") commitRename();
+                          else if (e.key === "Escape") cancelRename();
+                        }}
+                        onBlur={() => commitRename()}
+                      />
+                    ) : (
+                      entry.name
+                    )}
+                  </td>
+                  <td>{sizeCellText(entry)}</td>
+                  <td>{formatModified(entry.modified)}</td>
+                  {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </div>
 
+      {/* Rendered outside .file-list on purpose: that container has its own
+          backdrop-filter (for the glass surface look), which — like
+          transform/filter — creates a new containing block for
+          position:fixed descendants. Nested inside it, these would be
+          positioned relative to .file-list's box instead of the viewport,
+          landing away from the actual cursor/screen center. */}
       {contextMenu() && (
         <ContextMenu
           x={contextMenu()!.x}
@@ -496,6 +538,6 @@ export function FileList(props: FileListProps) {
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 }

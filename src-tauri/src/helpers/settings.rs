@@ -20,6 +20,34 @@ fn version_dir(root: &Path, version: &str) -> PathBuf {
     root.join(version)
 }
 
+// Shared across versions (not namespaced like settings.json) since it's just
+// a cache of the last-shown background image, not a preference that needs
+// migration — every download overwrites this same file.
+pub fn wallpaper_cache_path() -> Result<PathBuf, String> {
+    let root = config_root()?;
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    Ok(root.join("wallpaper.jpg"))
+}
+
+// Tracks when wallpaper.jpg was last replaced, shared by every running
+// instance of the app — lets each instance decide whether a scheduled
+// refresh is actually due instead of always fetching on its own timer, so
+// multiple windows/processes converge on the same background.
+pub fn wallpaper_metadata_path() -> Result<PathBuf, String> {
+    let root = config_root()?;
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    Ok(root.join("wallpaper_meta.json"))
+}
+
+// Same reasoning as wallpaper_cache_path — a cache of computed folder sizes,
+// not a versioned preference, so it survives version upgrades unmigrated
+// and is just overwritten in place as it's updated.
+pub fn size_cache_path() -> Result<PathBuf, String> {
+    let root = config_root()?;
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    Ok(root.join("size_cache.json"))
+}
+
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     let root = config_root()?;
     let dir = version_dir(&root, &app.package_info().version.to_string());

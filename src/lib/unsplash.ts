@@ -12,6 +12,9 @@ export type Wallpaper = {
     name: string;
     username: string;
   };
+  // A data: URL of the image bytes, downloaded and cached by the Rust side —
+  // the live background is never set from a hotlinked Unsplash URL.
+  localDataUrl: string;
 };
 
 export const UNSPLASH_FREQUENCY_OPTIONS: { label: string; ms: number }[] = [

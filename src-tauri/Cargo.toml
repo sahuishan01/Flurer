@@ -32,6 +32,7 @@ wmi = "0.13"
 notify = "8.2.0"
 notify-debouncer-mini = "0.7.0"
 keyring = "4.1.4"
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3.27.0"

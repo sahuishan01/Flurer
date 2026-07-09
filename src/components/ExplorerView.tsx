@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import { FileList } from "./FileList";
-import { EnterIcon } from "./icons";
+import { EnterIcon, StarIcon } from "./icons";
 import type { ClipboardState, SortDirection, SortKey } from "../lib/fs";
 
 type ExplorerViewProps = {
@@ -10,21 +10,15 @@ type ExplorerViewProps = {
   onNavigate: (path: string) => void;
   searchQuery: string;
   searchRecursive: boolean;
+  favouritePaths: string[];
+  onToggleFavourite: (path: string) => void;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSortChange: (key: SortKey) => void;
 };
 
 export function ExplorerView(props: ExplorerViewProps) {
-  const [sortKey, setSortKey] = createSignal<SortKey>("name");
-  const [sortDirection, setSortDirection] = createSignal<SortDirection>("ascending");
   const [clipboard, setClipboard] = createSignal<ClipboardState>(null);
-
-  function handleSortChange(key: SortKey) {
-    if (key === sortKey()) {
-      setSortDirection((d) => (d === "ascending" ? "descending" : "ascending"));
-    } else {
-      setSortKey(key);
-      setSortDirection("ascending");
-    }
-  }
 
   return (
     <div class="explorer-content">
@@ -45,18 +39,30 @@ export function ExplorerView(props: ExplorerViewProps) {
             <EnterIcon size={16} />
           </button>
         </form>
+        <button
+          type="button"
+          class="icon-btn"
+          classList={{ active: props.favouritePaths.includes(props.path) }}
+          title={props.favouritePaths.includes(props.path) ? "Remove from Favourites" : "Add to Favourites"}
+          aria-label={props.favouritePaths.includes(props.path) ? "Remove from Favourites" : "Add to Favourites"}
+          onClick={() => props.onToggleFavourite(props.path)}
+        >
+          <StarIcon size={16} filled={props.favouritePaths.includes(props.path)} />
+        </button>
       </div>
 
       <FileList
         path={props.path}
         onNavigate={props.onNavigate}
-        sortKey={sortKey()}
-        sortDirection={sortDirection()}
-        onSortChange={handleSortChange}
+        sortKey={props.sortKey}
+        sortDirection={props.sortDirection}
+        onSortChange={props.onSortChange}
         clipboard={clipboard()}
         onClipboardChange={setClipboard}
         searchQuery={props.searchQuery}
         searchRecursive={props.searchRecursive}
+        favouritePaths={props.favouritePaths}
+        onToggleFavourite={props.onToggleFavourite}
       />
     </div>
   );

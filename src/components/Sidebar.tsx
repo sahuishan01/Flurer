@@ -1,9 +1,23 @@
-import { createSignal, For, onMount, type JSX } from "solid-js";
+import { createSignal, For, onMount, Show, type JSX } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import { DownloadIcon, FileIcon, FilmIcon, FolderIcon, GearIcon, GraphIcon, ImageIcon, MonitorIcon, MusicIcon, VolumeIcon } from "./icons";
+import {
+  ClockIcon,
+  CloseIcon,
+  DownloadIcon,
+  FileIcon,
+  FilmIcon,
+  FolderIcon,
+  GearIcon,
+  GraphIcon,
+  ImageIcon,
+  MonitorIcon,
+  MusicIcon,
+  StarIcon,
+  VolumeIcon,
+} from "./icons";
 import type { MainView } from "../lib/view";
 import type { PhysicalDisk, VirtualDisk } from "../lib/graph";
-import { formatBytes } from "../lib/fs";
+import { baseName, formatBytes } from "../lib/fs";
 
 type QuickAccessEntry = {
   label: string;
@@ -33,7 +47,49 @@ type SidebarProps = {
   onNavigate: (path: string) => void;
   activeView: MainView;
   onSelectView: (view: MainView) => void;
+  favouritePaths: string[];
+  onToggleFavourite: (path: string) => void;
+  recentPaths: string[];
+  onRemoveRecent: (path: string) => void;
 };
+
+type SidebarEntryProps = {
+  path: string;
+  icon: JSX.Element;
+  active: boolean;
+  onNavigate: (path: string) => void;
+  onRemove: () => void;
+  removeLabel: string;
+};
+
+function SidebarEntry(props: SidebarEntryProps) {
+  return (
+    <div class="sidebar-entry">
+      <button
+        type="button"
+        class="sidebar-item"
+        classList={{ active: props.active }}
+        title={props.path}
+        onClick={() => props.onNavigate(props.path)}
+      >
+        <span class="sidebar-icon">{props.icon}</span>
+        <span class="sidebar-entry-label">{baseName(props.path)}</span>
+      </button>
+      <button
+        type="button"
+        class="sidebar-entry-remove"
+        title={props.removeLabel}
+        aria-label={props.removeLabel}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onRemove();
+        }}
+      >
+        <CloseIcon size={12} />
+      </button>
+    </div>
+  );
+}
 
 export function Sidebar(props: SidebarProps) {
   const [entries, setEntries] = createSignal<QuickAccessEntry[]>([]);
@@ -113,6 +169,40 @@ export function Sidebar(props: SidebarProps) {
         </For>
 
         <div class="sidebar-divider" />
+
+        <Show when={props.recentPaths.length > 0}>
+          <span class="sidebar-section-label">Recents</span>
+          <For each={props.recentPaths}>
+            {(path) => (
+              <SidebarEntry
+                path={path}
+                icon={<ClockIcon size={15} />}
+                active={props.activeView === "explorer" && props.currentPath === path}
+                onNavigate={props.onNavigate}
+                onRemove={() => props.onRemoveRecent(path)}
+                removeLabel="Remove from Recents"
+              />
+            )}
+          </For>
+          <div class="sidebar-divider" />
+        </Show>
+
+        <Show when={props.favouritePaths.length > 0}>
+          <span class="sidebar-section-label">Favourites</span>
+          <For each={props.favouritePaths}>
+            {(path) => (
+              <SidebarEntry
+                path={path}
+                icon={<StarIcon size={15} filled />}
+                active={props.activeView === "explorer" && props.currentPath === path}
+                onNavigate={props.onNavigate}
+                onRemove={() => props.onToggleFavourite(path)}
+                removeLabel="Remove from Favourites"
+              />
+            )}
+          </For>
+          <div class="sidebar-divider" />
+        </Show>
 
         <For each={entries()}>
           {(entry) => (

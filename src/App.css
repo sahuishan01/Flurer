@@ -1,7 +1,12 @@
 :root {
-    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 24px;
+    --font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    --font-size: 16px;
+    font-family: var(--font-family);
+    font-size: var(--font-size);
+    /* Was a fixed 24px (i.e. 1.5x the old fixed 16px size) — kept as a
+       ratio instead so it scales proportionally once font size becomes
+       user-adjustable, rather than getting cramped at larger sizes. */
+    line-height: 1.5;
     font-weight: 400;
 
     font-synthesis: none;
@@ -263,6 +268,61 @@ body {
     opacity: 0.5;
 }
 
+/* Recents/Favourites rows: same hover-scoping trick as .sidebar-drive below
+   (the row itself owns the hover highlight, the nested button's own hover
+   is neutralized) so the trailing remove button doesn't visibly double up
+   the background when hovered. */
+.sidebar-entry {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border-radius: 8px;
+}
+
+.sidebar-entry:hover {
+    background-color: var(--hover-bg);
+}
+
+.sidebar-entry .sidebar-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar-entry:hover .sidebar-item:hover {
+    background-color: transparent;
+    border-color: transparent;
+}
+
+.sidebar-entry-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sidebar-entry-remove {
+    flex-shrink: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3em;
+    margin-right: 0.4em;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--text-color);
+    opacity: 0.6;
+}
+
+.sidebar-entry-remove:hover {
+    opacity: 1;
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+.sidebar-entry:hover .sidebar-entry-remove {
+    display: inline-flex;
+}
+
 .sidebar-drive {
     display: flex;
     flex-direction: column;
@@ -376,6 +436,91 @@ body {
 }
 
 .settings-error {
+    color: #d33;
+}
+
+.progress-indicator {
+    position: relative;
+}
+
+.progress-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background-color: var(--accent);
+    color: #fff;
+    font-size: 0.65em;
+    font-weight: 600;
+    line-height: 14px;
+    text-align: center;
+}
+
+.progress-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+    width: 260px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 0.7em;
+    border-radius: 10px;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.progress-task {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+}
+
+.progress-task-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6em;
+    font-size: 0.85em;
+}
+
+.progress-task-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.progress-task-percent {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.progress-bar {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background-color: var(--accent);
+    transition: width 0.2s ease;
+}
+
+.progress-bar-fill.error {
+    background-color: #d33;
+}
+
+.progress-task-error {
+    font-size: 0.75em;
     color: #d33;
 }
 
@@ -808,8 +953,13 @@ input[type="color"] {
     cursor: default;
 }
 
+/* Just tinted text, like every other menu item's plain look — no solid
+   fill, so this stays visually consistent with the rest of the menu instead
+   of picking up the confirmation modal's solid-block danger button below
+   (which is scoped away from .context-menu-item for that reason). */
 .context-menu-item.danger {
     color: #d33;
+    background-color: transparent;
 }
 
 /* Modal */
@@ -860,13 +1010,29 @@ input[type="color"] {
     gap: 0.4em;
 }
 
-button.danger {
+/* :not(.context-menu-item) keeps this scoped to standalone danger buttons
+   (the delete-confirmation modal, the API key "Clear" button) — the context
+   menu's Delete item also carries a "danger" class, but wants the plain
+   tinted-text look above, not a solid fill. */
+button.danger:not(.context-menu-item) {
     color: #fff;
     background-color: #d33;
 }
 
-button.danger:hover {
+button.danger:not(.context-menu-item):hover {
     border-color: #a11;
+}
+
+/* White text reads poorly on the red danger button against the dark theme's
+   overall palette — swap to black text at rest, and swap the two colors on
+   hover instead of just darkening the border like the light theme does. */
+[data-theme="dark"] button.danger:not(.context-menu-item) {
+    color: #000;
+}
+
+[data-theme="dark"] button.danger:not(.context-menu-item):hover {
+    color: #d33;
+    background-color: #000;
 }
 
 .graph-view {

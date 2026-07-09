@@ -1,6 +1,13 @@
 import { createSignal, For } from "solid-js";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
-import { GRADIENT_DIRECTIONS, GRADIENT_PRESETS, SOLID_COLOR_PRESETS } from "../lib/settings";
+import {
+  FONT_FAMILY_PRESETS,
+  GRADIENT_DIRECTIONS,
+  GRADIENT_PRESETS,
+  MAX_FONT_SIZE_PX,
+  MIN_FONT_SIZE_PX,
+  SOLID_COLOR_PRESETS,
+} from "../lib/settings";
 import {
   sizedUnsplashUrl,
   UNSPLASH_FIXED_IMAGES,
@@ -37,7 +44,23 @@ const BACKGROUND_KEYWORDS = [
   "unsplash key",
 ];
 
-const THEME_KEYWORDS = ["theme", "light", "dark", "panel tint", "tint", "opacity", "blur", "panel blur", "blurriness"];
+const THEME_KEYWORDS = [
+  "theme",
+  "light",
+  "dark",
+  "panel tint",
+  "tint",
+  "opacity",
+  "blur",
+  "panel blur",
+  "blurriness",
+  "font",
+  "fonts",
+  "font size",
+  "font family",
+  "typeface",
+  "text size",
+];
 
 const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session"];
 
@@ -57,6 +80,10 @@ type CustomizationSettingsProps = {
   onUiTintOpacityChange: (opacity: number) => void;
   uiBlurPx: number;
   onUiBlurPxChange: (blurPx: number) => void;
+  fontFamily: string;
+  onFontFamilyChange: (fontFamily: string) => void;
+  fontSizePx: number;
+  onFontSizePxChange: (fontSizePx: number) => void;
   persistGraphState: boolean;
   onPersistGraphStateChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -392,6 +419,40 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
             step="1"
             value={props.uiBlurPx}
             onInput={(e) => props.onUiBlurPxChange(e.currentTarget.valueAsNumber)}
+          />
+        </label>
+
+        <div class="option-group">
+          <For each={FONT_FAMILY_PRESETS}>
+            {(preset) => (
+              <button
+                type="button"
+                classList={{ "option-btn": true, active: props.fontFamily === preset.value }}
+                style={{ "font-family": preset.value }}
+                onClick={() => props.onFontFamilyChange(preset.value)}
+              >
+                {preset.label}
+              </button>
+            )}
+          </For>
+        </div>
+        <input
+          type="text"
+          class="color-text-input"
+          placeholder="Custom font-family value"
+          value={props.fontFamily}
+          onChange={(e) => props.onFontFamilyChange(e.currentTarget.value)}
+        />
+
+        <label class="opacity-control">
+          Font Size: {props.fontSizePx.toFixed(0)}px
+          <input
+            type="range"
+            min={MIN_FONT_SIZE_PX}
+            max={MAX_FONT_SIZE_PX}
+            step="1"
+            value={props.fontSizePx}
+            onInput={(e) => props.onFontSizePxChange(e.currentTarget.valueAsNumber)}
           />
         </label>
       </section>

@@ -1,3 +1,4 @@
+import type { SortDirection, SortKey } from "./fs";
 import { DEFAULT_UNSPLASH_FREQUENCY_MS } from "./unsplash";
 
 export type Theme = "light" | "dark";
@@ -37,6 +38,12 @@ export type Settings = {
   lastMainView: LastMainView;
   persistGraphState: boolean;
   graphState: GraphState | null;
+  favouritePaths: string[];
+  recentPaths: string[];
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  fontFamily: string;
+  fontSizePx: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -59,7 +66,24 @@ export const DEFAULT_SETTINGS: Settings = {
   lastMainView: "explorer",
   persistGraphState: true,
   graphState: null,
+  favouritePaths: [],
+  recentPaths: [],
+  sortKey: "name",
+  sortDirection: "ascending",
+  fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
+  fontSizePx: 16,
 };
+
+export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [
+  { label: "Inter", value: "Inter, Avenir, Helvetica, Arial, sans-serif" },
+  { label: "System UI", value: "system-ui, -apple-system, 'Segoe UI', sans-serif" },
+  { label: "Segoe UI", value: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" },
+  { label: "Georgia", value: "Georgia, Cambria, 'Times New Roman', Times, serif" },
+  { label: "Consolas", value: "Consolas, Monaco, 'Courier New', monospace" },
+];
+
+export const MIN_FONT_SIZE_PX = 12;
+export const MAX_FONT_SIZE_PX = 22;
 
 export const GRADIENT_DIRECTIONS = [
   "to top",

@@ -19,6 +19,10 @@ type SettingsPanelProps = {
   onUiTintOpacityChange: (opacity: number) => void;
   uiBlurPx: number;
   onUiBlurPxChange: (blurPx: number) => void;
+  fontFamily: string;
+  onFontFamilyChange: (fontFamily: string) => void;
+  fontSizePx: number;
+  onFontSizePxChange: (fontSizePx: number) => void;
   persistGraphState: boolean;
   onPersistGraphStateChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -68,6 +72,10 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onUiTintOpacityChange={props.onUiTintOpacityChange}
               uiBlurPx={props.uiBlurPx}
               onUiBlurPxChange={props.onUiBlurPxChange}
+              fontFamily={props.fontFamily}
+              onFontFamilyChange={props.onFontFamilyChange}
+              fontSizePx={props.fontSizePx}
+              onFontSizePxChange={props.onFontSizePxChange}
               persistGraphState={props.persistGraphState}
               onPersistGraphStateChange={props.onPersistGraphStateChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}
