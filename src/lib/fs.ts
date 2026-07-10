@@ -44,6 +44,10 @@ export function parentDir(path: string): string {
 
 export function baseName(path: string): string {
   const normalized = path.replace(/[/\\]+$/, "");
+  // A bare drive letter ("C:") reads as truncated — show it as a proper
+  // drive root instead, the same distinction parentDir already makes for
+  // drive roots vs. an ordinary trailing-separator strip.
+  if (/^[a-zA-Z]:$/.test(normalized)) return `${normalized}\\`;
   const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
   return idx < 0 ? normalized : normalized.slice(idx + 1);
 }

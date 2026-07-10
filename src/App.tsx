@@ -8,7 +8,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { TopBar } from "./components/TopBar";
 import { DEFAULT_SETTINGS, type BackgroundSettings, type GraphState, type Settings, type Theme } from "./lib/settings";
 import type { SortKey } from "./lib/fs";
-import { getDisplaySize, type Wallpaper } from "./lib/unsplash";
+import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { MainView } from "./lib/view";
 import "./App.css";
 
@@ -41,8 +41,9 @@ function App() {
   // Last session's wallpaper, read straight off disk (no network) so startup
   // never has to wait on Unsplash — the real fetch below still runs, and
   // silently replaces this once it resolves.
-  const [cachedWallpaperImage, setCachedWallpaperImage] = createSignal<string | null>(null);
+  const [cachedWallpaper, setCachedWallpaper] = createSignal<CachedWallpaper | null>(null);
   const [wallpaperCacheChecked, setWallpaperCacheChecked] = createSignal(false);
+  const cachedWallpaperImage = () => cachedWallpaper()?.dataUrl ?? null;
   // A plain value, not a signal — screen resolution doesn't change when the
   // window is resized, so there's nothing to react to (see getDisplaySize).
   const windowSize = getDisplaySize();
@@ -79,7 +80,7 @@ function App() {
 
   onMount(async () => {
     try {
-      setCachedWallpaperImage(await invoke<string | null>("get_cached_wallpaper_image"));
+      setCachedWallpaper(await invoke<CachedWallpaper | null>("get_cached_wallpaper_image"));
     } catch (err) {
       console.error("Failed to read cached wallpaper", err);
     } finally {
@@ -319,21 +320,44 @@ function App() {
     }
   }
 
+  // Whether the on-disk cache's recorded source (a category, or a fixed-list
+  // URL) is one `expectedKeys` would consider correct for the current mode.
+  // A cache with no recorded key (nothing ever cached, or a file predating
+  // this field) counts as "unknown", not a match.
+  function cachedWallpaperMatches(expectedKeys: string[]): boolean {
+    const key = cachedWallpaper()?.sourceKey;
+    return !!key && expectedKeys.includes(key);
+  }
+
   // Drives both auto-rotate modes: on `forceImmediate` (the user just
   // changed the relevant setting) it fetches right away; otherwise it checks
   // the shared timestamp and either fetches now (if due) or schedules a
   // check for exactly when it becomes due — self-correcting if another
-  // instance updates it in the meantime.
-  function scheduleWallpaperRefresh(frequencyMs: number, forceImmediate: boolean, fetchOne: () => Promise<void>) {
+  // instance updates it in the meantime. Also fetches immediately, skipping
+  // the staleness check, whenever nothing already fetched this session is
+  // showing AND the on-disk cache doesn't match `expectedKeys` — covers both
+  // "nothing cached at all" and "the cache is a photo left over from a mode
+  // the user switched away from since it was written", either of which the
+  // shared timestamp alone can't distinguish from a genuine fresh match and
+  // would otherwise leave stuck (or showing the wrong photo) for the rest of
+  // the refresh interval.
+  function scheduleWallpaperRefresh(
+    frequencyMs: number,
+    forceImmediate: boolean,
+    expectedKeys: string[],
+    fetchOne: () => Promise<void>,
+  ) {
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     async function tick(force: boolean) {
       if (cancelled) return;
-      const updatedAt = force ? null : await getWallpaperUpdatedAt();
+      const hasLiveImage = !!wallpaper() || !!rotationImage();
+      const needsFetch = force || (!hasLiveImage && !cachedWallpaperMatches(expectedKeys));
+      const updatedAt = needsFetch ? null : await getWallpaperUpdatedAt();
       if (cancelled) return;
-      const elapsed = updatedAt ? Date.now() - updatedAt : Infinity;
-      if (force || elapsed >= frequencyMs) {
+      const elapsed = updatedAt !== null ? Date.now() - updatedAt : Infinity;
+      if (needsFetch || elapsed >= frequencyMs) {
         await fetchOne();
         if (cancelled) return;
         timeoutId = setTimeout(() => tick(false), frequencyMs);
@@ -375,7 +399,7 @@ function App() {
 
     if (bg.unsplashMode === "autoRotateCategory") {
       const category = bg.unsplashCategory || "nature";
-      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, () => getWallpaper(category));
+      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, [category], () => getWallpaper(category));
       return;
     }
 
@@ -386,7 +410,7 @@ function App() {
         return;
       }
       let index = 0;
-      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, () => {
+      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, list, () => {
         const url = list[index % list.length];
         index += 1;
         return fetchRotationImage(url);

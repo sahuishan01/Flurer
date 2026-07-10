@@ -1,4 +1,5 @@
 import { For, onCleanup, onMount, type JSX } from "solid-js";
+import { Portal } from "solid-js/web";
 
 export type ContextMenuItem = {
   label: string;
@@ -43,30 +44,37 @@ export function ContextMenu(props: ContextMenuProps) {
   });
 
   return (
-    <div
-      ref={ref}
-      class="context-menu"
-      style={{ left: `${props.x}px`, top: `${props.y}px` }}
-      onMouseEnter={() => props.onMouseEnter?.()}
-      onMouseLeave={() => props.onMouseLeave?.()}
-    >
-      <For each={props.items}>
-        {(item) => (
-          <button
-            type="button"
-            class="context-menu-item"
-            classList={{ danger: item.danger }}
-            disabled={item.disabled}
-            onClick={() => {
-              item.onSelect();
-              props.onDismiss();
-            }}
-          >
-            {item.icon && <span class="context-menu-item-icon">{item.icon}</span>}
-            {item.label}
-          </button>
-        )}
-      </For>
-    </div>
+    // Rendered into document.body rather than in place: a position:fixed
+    // element nested inside any backdrop-filter (or transform/filter)
+    // ancestor gets positioned relative to that ancestor's box instead of
+    // the viewport, landing away from the cursor. Portaling here means no
+    // caller has to know about or work around that — it can't recur.
+    <Portal>
+      <div
+        ref={ref}
+        class="context-menu"
+        style={{ left: `${props.x}px`, top: `${props.y}px` }}
+        onMouseEnter={() => props.onMouseEnter?.()}
+        onMouseLeave={() => props.onMouseLeave?.()}
+      >
+        <For each={props.items}>
+          {(item) => (
+            <button
+              type="button"
+              class="context-menu-item"
+              classList={{ danger: item.danger }}
+              disabled={item.disabled}
+              onClick={() => {
+                item.onSelect();
+                props.onDismiss();
+              }}
+            >
+              {item.icon && <span class="context-menu-item-icon">{item.icon}</span>}
+              {item.label}
+            </button>
+          )}
+        </For>
+      </div>
+    </Portal>
   );
 }

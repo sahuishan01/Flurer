@@ -17,6 +17,13 @@ export type Wallpaper = {
   localDataUrl: string;
 };
 
+export type CachedWallpaper = {
+  dataUrl: string;
+  // What the cache actually holds: a category, or a fixed-list URL. Empty
+  // for cache files written before this field existed.
+  sourceKey: string;
+};
+
 export const UNSPLASH_FREQUENCY_OPTIONS: { label: string; ms: number }[] = [
   { label: "1 minute", ms: 60_000 },
   { label: "5 minutes", ms: 5 * 60_000 },

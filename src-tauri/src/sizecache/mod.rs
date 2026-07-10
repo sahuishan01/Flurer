@@ -11,7 +11,10 @@ use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode, Debouncer};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{helpers::settings::size_cache_path, state::AppState};
+use crate::{
+    helpers::settings::{atomic_write, size_cache_path},
+    state::AppState,
+};
 
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(800);
 // Recursive folder walks are disk/CPU heavy; capping how many run at once
@@ -91,10 +94,7 @@ fn save_persisted_sizes(sizes: &HashMap<PathBuf, u64>) {
     let Ok(data) = serde_json::to_string(&persisted) else {
         return;
     };
-    let temp = path.with_extension("json.tmp");
-    if fs::write(&temp, data).is_ok() {
-        let _ = fs::rename(&temp, &path);
-    }
+    let _ = atomic_write(&path, data.as_bytes());
 }
 
 pub fn compute_dir_size(path: &Path) -> u64 {
@@ -250,7 +250,20 @@ pub fn get_folder_size(state: tauri::State<'_, AppState>, path: String) -> Resul
         return Err(format!("{} is not a directory", path));
     }
 
-    if let Some(&cached) = state.size_cache.sizes.lock().unwrap().get(&path_buf) {
+    // A recompute (manual or silent revalidation, below) already has this
+    // path in `pending` — report Pending instead of the cached value that's
+    // about to be replaced. Checking `pending` rather than removing the
+    // entry from `sizes` (as an earlier version of this did) keeps
+    // `handle_debounced_events`' contains_key-based dirty-detection intact
+    // for any filesystem change that lands while the recompute is in flight.
+    if state.size_cache.pending.lock().unwrap().contains(&path_buf) {
+        return Ok(FolderSizeResponse::Pending);
+    }
+
+    // `.copied()` here drops the sizes MutexGuard immediately instead of
+    // holding it through the watched_roots check and enqueue() below.
+    let cached = state.size_cache.sizes.lock().unwrap().get(&path_buf).copied();
+    if let Some(cached) = cached {
         // A value loaded from the persisted cache — or computed earlier this
         // session but never watched — may be stale if the folder changed
         // while the app was closed. Return it immediately for a fast/instant
@@ -278,13 +291,10 @@ pub fn recompute_folder_size(state: tauri::State<'_, AppState>, path: String) ->
         return Err(format!("{} is not a directory", path));
     }
 
-    // Drop the stale value now, not just when the recompute finishes — while
-    // the old size is still cached, any other get_folder_size call for this
-    // same path (e.g. the frontend's own initial-load fetch, or another
-    // window) would read it back as an already-"Ready" result and clobber
-    // the "Calculating…" state the frontend just set, before the real
-    // recomputation ever finishes.
-    state.size_cache.sizes.lock().unwrap().remove(&path_buf);
+    // Enqueueing puts the path in `pending`, which is what makes
+    // get_folder_size report Pending during the recompute (see above) —
+    // without removing it from `sizes`, which handle_debounced_events needs
+    // to keep recognizing this folder as one to watch for live changes.
     enqueue(&state, path_buf);
     Ok(FolderSizeResponse::Pending)
 }

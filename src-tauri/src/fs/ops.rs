@@ -108,9 +108,23 @@ fn is_within(base: &Path, candidate: &Path) -> bool {
     }
 }
 
+// `is_dir()`/`is_file()` follow symlinks, so a directory symlink or NTFS
+// junction pointing back at one of its own ancestors would otherwise send
+// the recursive walkers below into unbounded recursion. Checking this first
+// (via metadata that does NOT follow the link) lets both walkers treat a
+// symlink as a single leaf instead of ever descending into it.
+fn is_symlink(path: &Path) -> bool {
+    fs::symlink_metadata(path).map(|m| m.file_type().is_symlink()).unwrap_or(false)
+}
+
 // Leaf-file count, used to size the progress total up front — a single file
-// counts as 1, an empty directory as 0.
+// (or symlink) counts as 1, an empty directory as 0, and a path that
+// doesn't exist (or isn't a plain file/dir) as 0 too, so it can't inflate
+// the total for work that was never going to happen.
 fn count_files(path: &Path) -> u64 {
+    if is_symlink(path) {
+        return 1;
+    }
     if path.is_dir() {
         let mut total = 0u64;
         if let Ok(read_dir) = fs::read_dir(path) {
@@ -119,8 +133,10 @@ fn count_files(path: &Path) -> u64 {
             }
         }
         total
-    } else {
+    } else if path.is_file() {
         1
+    } else {
+        0
     }
 }
 
@@ -136,7 +152,7 @@ fn copy_recursive_tracked(
     total: u64,
     on_progress: &mut dyn FnMut(u64, u64),
 ) -> std::io::Result<()> {
-    if src.is_dir() {
+    if !is_symlink(src) && src.is_dir() {
         fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
@@ -170,11 +186,13 @@ fn copy_items_inner(
         return Err(format!("{} is not a directory", destination_dir));
     }
 
-    let total: u64 = sources.iter().map(|s| count_files(Path::new(s))).sum::<u64>().max(1);
-    let mut done = 0u64;
-    on_progress(0, total, false, None);
-
+    // Validate every source before sizing the progress total — items
+    // rejected here (collision, self-copy, invalid path) never reach
+    // copy_recursive_tracked, so counting their files into `total` up front
+    // would mean `done` could never actually reach `total` through real
+    // progress, only via the forced final tick below.
     let mut result = BatchResult::new();
+    let mut to_copy: Vec<(String, PathBuf, PathBuf)> = Vec::new();
     for source in sources {
         let src_path = PathBuf::from(&source);
         let Some(file_name) = src_path.file_name() else {
@@ -192,6 +210,14 @@ fn copy_items_inner(
             continue;
         }
 
+        to_copy.push((source, src_path, dest_path));
+    }
+
+    let total: u64 = to_copy.iter().map(|(_, src, _)| count_files(src)).sum::<u64>().max(1);
+    let mut done = 0u64;
+    on_progress(0, total, false, None);
+
+    for (source, src_path, dest_path) in to_copy {
         match copy_recursive_tracked(&src_path, &dest_path, &mut done, total, &mut |d, t| on_progress(d, t, false, None)) {
             Ok(()) => result.push_ok(source),
             Err(e) => result.push_err(source, e.to_string()),
@@ -230,13 +256,11 @@ fn move_items_inner(
         return Err(format!("{} is not a directory", destination_dir));
     }
 
-    let counts: Vec<u64> = sources.iter().map(|s| count_files(Path::new(s))).collect();
-    let total: u64 = counts.iter().sum::<u64>().max(1);
-    let mut done = 0u64;
-    on_progress(0, total, false, None);
-
+    // Same reasoning as copy_items_inner: validate first so total is sized
+    // only from sources that will actually be attempted.
     let mut result = BatchResult::new();
-    for (source, file_count) in sources.into_iter().zip(counts) {
+    let mut to_move: Vec<(String, PathBuf, PathBuf)> = Vec::new();
+    for source in sources {
         let src_path = PathBuf::from(&source);
         let Some(file_name) = src_path.file_name() else {
             result.push_err(source, "Invalid source path".to_string());
@@ -253,6 +277,15 @@ fn move_items_inner(
             continue;
         }
 
+        to_move.push((source, src_path, dest_path));
+    }
+
+    let counts: Vec<u64> = to_move.iter().map(|(_, src, _)| count_files(src)).collect();
+    let total: u64 = counts.iter().sum::<u64>().max(1);
+    let mut done = 0u64;
+    on_progress(0, total, false, None);
+
+    for ((source, src_path, dest_path), file_count) in to_move.into_iter().zip(counts) {
         if fs::rename(&src_path, &dest_path).is_ok() {
             result.push_ok(source);
             done += file_count;
@@ -575,6 +608,40 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(ticks.first(), Some(&(0, 1, false)));
+        assert_eq!(ticks.last(), Some(&(1, 1, true)));
+    }
+
+    #[test]
+    fn count_files_treats_missing_path_as_zero() {
+        let dir = tempdir().unwrap();
+        assert_eq!(count_files(&dir.path().join("does_not_exist")), 0);
+    }
+
+    #[test]
+    fn copy_progress_total_excludes_skipped_sources() {
+        let dir = tempdir().unwrap();
+        let ok_src = dir.path().join("ok.txt");
+        write_file(&ok_src, "hello");
+        let collide_src = dir.path().join("collide.txt");
+        write_file(&collide_src, "new");
+        let dest_dir = dir.path().join("dest");
+        fs::create_dir(&dest_dir).unwrap();
+        write_file(&dest_dir.join("collide.txt"), "existing");
+
+        let mut ticks: Vec<(u64, u64, bool)> = Vec::new();
+        let result = copy_items_inner(
+            vec![ok_src.to_string_lossy().to_string(), collide_src.to_string_lossy().to_string()],
+            dest_dir.to_string_lossy().to_string(),
+            |done, total, finished, _error| ticks.push((done, total, finished)),
+        )
+        .unwrap();
+
+        assert_eq!(result.succeeded.len(), 1);
+        assert_eq!(result.failed.len(), 1);
+        // total should only count ok.txt (1 file), not the collided source's
+        // file too — otherwise done could never reach total except via the
+        // forced final tick.
         assert_eq!(ticks.first(), Some(&(0, 1, false)));
         assert_eq!(ticks.last(), Some(&(1, 1, true)));
     }

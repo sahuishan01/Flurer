@@ -1,6 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use tauri::{AppHandle, State};
@@ -46,6 +47,23 @@ pub fn size_cache_path() -> Result<PathBuf, String> {
     let root = config_root()?;
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     Ok(root.join("size_cache.json"))
+}
+
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+// Writes `bytes` to `path` atomically via a uniquely-named temp sibling
+// (process id + a counter) plus rename. Several of these cache files
+// (wallpaper.jpg, wallpaper_meta.json, size_cache.json) are shared by every
+// running instance of the app; a fixed temp filename would let concurrent
+// writers race on the same temp path and corrupt or clobber each other's
+// write, whereas each writer here gets its own temp file and only the
+// (atomic, same-volume) rename ever touches the shared final path.
+pub fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("tmp");
+    let temp = path.with_extension(format!("{ext}.{}-{counter}.tmp", std::process::id()));
+    fs::write(&temp, bytes)?;
+    fs::rename(&temp, path)
 }
 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
