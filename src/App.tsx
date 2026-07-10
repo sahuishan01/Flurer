@@ -373,19 +373,23 @@ function App() {
     });
   }
 
-  // Only the very first pass (once the disk cache has been checked) should
-  // respect the "is it due yet" gate — every later pass is only reached
-  // because the user explicitly changed a background setting, which should
-  // always take effect immediately.
-  let initialWallpaperCheckDone = false;
+  // What actually determines which photo should be showing — not opacity,
+  // blur, or the refresh frequency, none of which should yank in a new
+  // photo when adjusted. Compared against the previous run so this effect
+  // (which re-runs on ANY settings.background change) can tell "the
+  // category/list/mode actually changed" apart from "an unrelated field
+  // changed" — without it, dragging the opacity slider (which fires many
+  // rapid updates) forced a brand-new random photo on every single tick.
+  let previousWallpaperIdentity: string | null = null;
 
   createEffect(() => {
     const bg = settings.background;
     if (bg.backgroundType !== "unsplash") return;
     if (!wallpaperCacheChecked()) return;
 
-    const isExplicitChange = initialWallpaperCheckDone;
-    initialWallpaperCheckDone = true;
+    const identity = JSON.stringify([bg.unsplashMode, bg.unsplashCategory, bg.unsplashFixedList]);
+    const isExplicitChange = previousWallpaperIdentity !== null && previousWallpaperIdentity !== identity;
+    previousWallpaperIdentity = identity;
 
     if (bg.unsplashMode === "fixed") {
       // "Fixed" has no refresh schedule (see the Settings UI) — only fetch
