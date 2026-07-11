@@ -1,7 +1,8 @@
+import type { JSX } from "solid-js";
 import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
 
-type TopBarProps = {
+type CommandBarProps = {
   canGoBack: boolean;
   canGoForward: boolean;
   onBack: () => void;
@@ -10,12 +11,16 @@ type TopBarProps = {
   onSearchQueryChange: (query: string) => void;
   searchRecursive: boolean;
   onSearchRecursiveChange: (recursive: boolean) => void;
+  // Whatever the active view needs inline in this bar (e.g. the Explorer's
+  // path breadcrumb) — the bar itself stays generic and doesn't know what a
+  // path or a breadcrumb is.
+  viewControls?: JSX.Element;
 };
 
-export function TopBar(props: TopBarProps) {
+export function CommandBar(props: CommandBarProps) {
   return (
-    <div class="top-bar">
-      <div class="top-bar-nav">
+    <div class="command-bar">
+      <div class="command-bar-nav">
         <button type="button" class="icon-btn" aria-label="Back" disabled={!props.canGoBack} onClick={props.onBack}>
           <ArrowLeftIcon size={18} />
         </button>
@@ -29,6 +34,8 @@ export function TopBar(props: TopBarProps) {
           <ArrowRightIcon size={18} />
         </button>
       </div>
+
+      <div class="command-bar-slot">{props.viewControls}</div>
 
       <div class="search-field">
         <SearchIcon size={15} />

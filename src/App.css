@@ -135,7 +135,7 @@ body {
     }
 }
 
-.top-bar {
+.command-bar {
     display: flex;
     align-items: center;
     gap: 0.8em;
@@ -146,13 +146,26 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.top-bar-nav {
+.command-bar-nav {
     display: flex;
     gap: 0.2em;
+    flex-shrink: 0;
+}
+
+/* Holds whatever the active view wants inline in the bar (e.g. the
+   Explorer's breadcrumb) — flexes to fill the space between navigation and
+   the app-wide search/progress controls, and collapses to nothing when the
+   active view has nothing to put here. */
+.command-bar-slot {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
 }
 
 .search-field {
-    flex: 1;
+    flex: 0 1 240px;
+    min-width: 120px;
     display: flex;
     align-items: center;
     gap: 0.5em;
@@ -199,33 +212,63 @@ body {
     overflow: hidden;
 }
 
-.sidebar {
-    width: 180px;
+/* Icon-only strip for switching top-level views (Explorer / Storage graph /
+   Settings) — kept separate from .sidebar so the sidebar itself only ever
+   has to represent "places", not "modes". */
+.view-rail {
+    width: 52px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    padding: 1em;
-    overflow: hidden;
+    align-items: center;
+    gap: 0.3em;
+    padding: 0.8em 0;
     background-color: rgba(var(--surface-rgb), var(--surface-opacity));
     backdrop-filter: blur(var(--surface-blur));
     -webkit-backdrop-filter: blur(var(--surface-blur));
     border-right: 1px solid var(--border-color);
 }
 
-.sidebar-top {
+.view-rail-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    box-shadow: none;
+}
+
+.view-rail-item:hover {
+    background-color: var(--hover-bg);
+    border-color: transparent;
+}
+
+.view-rail-item.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.view-rail-spacer {
     flex: 1;
-    min-height: 0;
-    overflow-y: auto;
+}
+
+.sidebar {
+    width: 180px;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 0.2em;
-}
-
-.sidebar-bottom {
-    flex-shrink: 0;
-    margin-top: 0.6em;
-    padding-top: 0.6em;
-    border-top: 1px solid var(--border-color);
+    padding: 1em;
+    overflow-y: auto;
+    background-color: rgba(var(--surface-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur));
+    -webkit-backdrop-filter: blur(var(--surface-blur));
+    border-right: 1px solid var(--border-color);
 }
 
 .sidebar-item {
@@ -383,15 +426,12 @@ body {
     text-overflow: ellipsis;
 }
 
-.toolbar {
+.explorer-path-bar {
     display: flex;
     align-items: center;
-    gap: 0.5em;
-    padding: 0.6em 1em;
-    background-color: rgba(var(--surface-rgb), var(--surface-opacity));
-    backdrop-filter: blur(var(--surface-blur));
-    -webkit-backdrop-filter: blur(var(--surface-blur));
-    border-bottom: 1px solid var(--border-color);
+    gap: 0.4em;
+    flex: 1;
+    min-width: 0;
 }
 
 .path-form {
@@ -402,6 +442,48 @@ body {
 
 .path-input {
     flex: 1;
+}
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.1em;
+    flex: 1;
+    min-width: 0;
+    cursor: text;
+}
+
+.breadcrumb-segment {
+    padding: 0.3em 0.5em;
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    font-size: 0.95em;
+    color: var(--text-color);
+}
+
+.breadcrumb-segment:hover {
+    background-color: var(--hover-bg);
+    border-color: transparent;
+}
+
+.breadcrumb-segment:last-of-type {
+    font-weight: 600;
+}
+
+.breadcrumb-sep {
+    opacity: 0.45;
+    font-size: 0.95em;
+}
+
+.breadcrumb-edit-btn {
+    opacity: 0.55;
+    padding: 0.4em;
+}
+
+.breadcrumb-edit-btn:hover {
+    opacity: 1;
 }
 
 .icon-btn {
@@ -517,6 +599,20 @@ body {
 
 .progress-bar-fill.error {
     background-color: #d33;
+}
+
+.progress-bar-fill.indeterminate {
+    width: 40%;
+    animation: progress-bar-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-bar-indeterminate {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(250%);
+    }
 }
 
 .progress-task-error {

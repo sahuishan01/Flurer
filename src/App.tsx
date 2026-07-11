@@ -1,15 +1,17 @@
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
+import { CommandBar } from "./components/CommandBar";
+import { ExplorerPathBar } from "./components/ExplorerPathBar";
 import { ExplorerView } from "./components/ExplorerView";
 import { GraphView } from "./components/GraphView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { TopBar } from "./components/TopBar";
+import { ViewRail } from "./components/ViewRail";
 import { DEFAULT_SETTINGS, type BackgroundSettings, type GraphState, type Settings, type Theme } from "./lib/settings";
 import type { SortKey } from "./lib/fs";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
-import type { MainView } from "./lib/view";
+import type { GraphFocusRequest, MainView } from "./lib/view";
 import "./App.css";
 
 const DEFAULT_PATH = "C:\\";
@@ -266,6 +268,21 @@ function App() {
     pushHistory({ view, path: currentPath() });
   }
 
+  const [graphFocusRequest, setGraphFocusRequest] = createSignal<GraphFocusRequest | null>(null);
+
+  // Picking a place from the sidebar (a drive, a recent/favourite folder, or
+  // a quick-access shortcut) normally jumps to Explorer — but while already
+  // looking at the storage graph, jumping away from it is more disruptive
+  // than useful, so this asks GraphView to expand and center on that path's
+  // node there instead.
+  function selectSidebarPath(path: string) {
+    if (mainView() === "graph") {
+      setGraphFocusRequest((prev) => ({ path, token: (prev?.token ?? 0) + 1 }));
+      return;
+    }
+    navigateTo(path);
+  }
+
   function closeSettings() {
     if (historyIndex() > 0) {
       goBack();
@@ -476,7 +493,7 @@ function App() {
         }
       >
       <div class="app-shell">
-        <TopBar
+        <CommandBar
           canGoBack={historyIndex() > 0}
           canGoForward={historyIndex() < history().length - 1}
           onBack={goBack}
@@ -485,14 +502,26 @@ function App() {
           onSearchQueryChange={setSearchQuery}
           searchRecursive={searchRecursive()}
           onSearchRecursiveChange={setSearchRecursive}
+          viewControls={
+            <Show when={mainView() === "explorer"}>
+              <ExplorerPathBar
+                path={currentPath()}
+                pathInput={pathInput()}
+                onPathInputChange={setPathInput}
+                onNavigate={navigateTo}
+                favouritePaths={settings.favouritePaths}
+                onToggleFavourite={toggleFavourite}
+              />
+            </Show>
+          }
         />
 
         <div class="explorer-view">
+          <ViewRail activeView={mainView()} onSelectView={selectView} />
           <Sidebar
             currentPath={currentPath()}
-            onNavigate={navigateTo}
+            onSelectPath={selectSidebarPath}
             activeView={mainView()}
-            onSelectView={selectView}
             favouritePaths={settings.favouritePaths}
             onToggleFavourite={toggleFavourite}
             recentPaths={settings.recentPaths}
@@ -508,8 +537,6 @@ function App() {
             <div class="view-pane" style={{ display: mainView() === "explorer" ? "flex" : "none" }}>
               <ExplorerView
                 path={currentPath()}
-                pathInput={pathInput()}
-                onPathInputChange={setPathInput}
                 onNavigate={navigateTo}
                 searchQuery={searchQuery()}
                 searchRecursive={searchRecursive()}
@@ -529,6 +556,7 @@ function App() {
                 initialState={settings.graphState}
                 onStateChange={updateGraphState}
                 active={mainView() === "graph"}
+                focusPath={graphFocusRequest()}
               />
             </div>
             <div class="view-pane" style={{ display: mainView() === "settings" ? "flex" : "none" }}>

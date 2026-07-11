@@ -10,6 +10,10 @@ type OperationProgress = {
   total: number;
   finished: boolean;
   error: string | null;
+  // True for work with no meaningful done/total count (e.g. a recursive
+  // folder-size walk) — rendered as a running indicator instead of a
+  // percent-complete bar.
+  indeterminate: boolean;
 };
 
 // How long a finished task (success or failure) stays visible in the list
@@ -96,14 +100,20 @@ export function ProgressIndicator() {
                   <div class="progress-task-header">
                     <span class="progress-task-label">{task.label}</span>
                     <span class="progress-task-percent">
-                      {task.finished ? (task.error ? "Failed" : "Done") : `${percent(task)}%`}
+                      {task.finished
+                        ? task.error
+                          ? "Failed"
+                          : "Done"
+                        : task.indeterminate
+                          ? "Working…"
+                          : `${percent(task)}%`}
                     </span>
                   </div>
                   <div class="progress-bar">
                     <div
                       class="progress-bar-fill"
-                      classList={{ error: !!task.error }}
-                      style={{ width: `${percent(task)}%` }}
+                      classList={{ error: !!task.error, indeterminate: !task.finished && task.indeterminate }}
+                      style={task.indeterminate ? undefined : { width: `${percent(task)}%` }}
                     />
                   </div>
                   <Show when={task.error}>

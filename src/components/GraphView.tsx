@@ -1,13 +1,15 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { formatBytes, parentDir, type DirEntry, type FolderSizeResponse } from "../lib/fs";
+import { formatBytes, parentDir, pathSegments, type DirEntry, type FolderSizeResponse } from "../lib/fs";
 import type { PhysicalDisk } from "../lib/graph";
 import type { GraphState } from "../lib/settings";
+import type { GraphFocusRequest } from "../lib/view";
 import {
   buildDiskTree,
   canExpand,
   childNode,
+  findNode,
   layoutTree,
   updateNodeById,
   NODE_HEIGHT,
@@ -79,6 +81,9 @@ type GraphViewProps = {
   // actually on screen — it's always mounted, so without this a shortcut
   // pressed while looking at Explorer or Settings would still fire here.
   active: boolean;
+  // Set when the sidebar's drive picker is used while already in graph
+  // mode, instead of navigating to Explorer — see App.tsx's selectDrive.
+  focusPath: GraphFocusRequest | null;
 };
 
 // Everything an undoable action can change. roots/nodeOverrides are always
@@ -629,6 +634,88 @@ export function GraphView(props: GraphViewProps) {
     });
   }
 
+  // Briefly highlighted after focusOnPath centers on a node, using the same
+  // pulse animation as a search match — reused rather than duplicated since
+  // both mean the same thing to the user: "this is the node you're after."
+  const [focusedNodeId, setFocusedNodeId] = createSignal<string | null>(null);
+  let focusPulseTimeout: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(focusPulseTimeout));
+
+  function centerOnNode(nodeId: string) {
+    const p = layout().positioned.find((pn) => pn.node.id === nodeId);
+    if (!p || !canvasRef) return;
+
+    const nodeCenterX = effectiveX(p) + NODE_WIDTH / 2;
+    const nodeCenterY = effectiveY(p) + NODE_HEIGHT / 2;
+    const viewportWidth = canvasRef.clientWidth;
+    const viewportHeight = canvasRef.clientHeight;
+
+    setPan({
+      x: viewportWidth / 2 - nodeCenterX * zoom(),
+      y: viewportHeight / 2 - nodeCenterY * zoom(),
+    });
+
+    setFocusedNodeId(nodeId);
+    clearTimeout(focusPulseTimeout);
+    focusPulseTimeout = setTimeout(() => setFocusedNodeId(null), 1800);
+  }
+
+  // Expands a node in place (fetching its children if they've never been
+  // loaded) without toggling it closed if it's already open — the shared
+  // building block for walking down a path level by level below.
+  async function ensureExpanded(node: GraphNode) {
+    if (node.expanded) return;
+    if (!node.loaded) {
+      await fetchAndExpand(node);
+    } else {
+      setRoots((prev) => updateNodeById(prev, node.id, (n) => ({ ...n, expanded: true })));
+    }
+  }
+
+  // Walks down from the drive root to `path` (a drive, or any folder under
+  // it — recents/favourites/quick-access shortcuts included), expanding
+  // just enough of the tree to reveal each level and centering the view on
+  // it as soon as it's visible. Centering happens level by level rather
+  // than only once at the end, so the camera moves immediately instead of
+  // sitting still until the deepest folder (and its own contents/sizes,
+  // fetched separately and never awaited here) has loaded.
+  async function focusOnPath(path: string) {
+    const segments = pathSegments(path);
+    if (segments.length === 0) return;
+
+    let current = findNode(roots(), (n) => n.kind === "volume" && n.path === segments[0].path);
+    if (!current) return;
+
+    setTooltip(null);
+    setContextMenu(null);
+    pushHistory();
+
+    const parentDisk = roots().find((disk) => disk.children.some((v) => v.id === current!.id));
+    if (parentDisk) await ensureExpanded(parentDisk);
+    centerOnNode(current.id);
+
+    for (let i = 1; i < segments.length; i++) {
+      await ensureExpanded(current);
+      const next = findNode(roots(), (n) => n.kind === "folder" && n.path === segments[i].path);
+      // A segment that no longer resolves (renamed/deleted since, or a
+      // permissions error on that listing) just stops the walk where it
+      // got to — the camera is already centered on the deepest node reached.
+      if (!next) return;
+      current = next;
+      centerOnNode(current.id);
+    }
+
+    // Open the target's own contents too, matching "open and focus" for a
+    // drive — fire-and-forget, since nothing here needs to wait on it.
+    void ensureExpanded(current);
+  }
+
+  createEffect(() => {
+    const request = props.focusPath;
+    if (!request) return;
+    focusOnPath(request.path);
+  });
+
   function edgePath(fromX: number, fromY: number, toX: number, toY: number): string {
     const startX = fromX + NODE_WIDTH;
     const startY = fromY + NODE_HEIGHT / 2;
@@ -705,7 +792,7 @@ export function GraphView(props: GraphViewProps) {
                   loading: p.node.loading,
                   "has-error": !!p.node.error,
                   expandable: canExpand(p.node),
-                  "graph-node-match": matchedIds().has(p.node.id),
+                  "graph-node-match": matchedIds().has(p.node.id) || focusedNodeId() === p.node.id,
                   dragging: draggingNodeId() === p.node.id,
                 }}
                 transform={`translate(${effectiveX(p)}, ${effectiveY(p)})`}

@@ -1,11 +1,12 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+
+use crate::progress::{emit_progress, next_task_id};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,47 +39,12 @@ impl BatchResult {
     }
 }
 
-// Drives the top-right progress indicator: each copy/move/delete call gets
-// its own id, and reports done/total (in files, for copy/move — in items,
-// for delete) as it goes so the frontend can show real movement instead of
-// a single all-or-nothing spinner.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OperationProgress {
-    pub task_id: u64,
-    pub label: String,
-    pub done: u64,
-    pub total: u64,
-    pub finished: bool,
-    pub error: Option<String>,
-}
-
-static NEXT_TASK_ID: AtomicU64 = AtomicU64::new(1);
-
-fn next_task_id() -> u64 {
-    NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed)
-}
-
 fn operation_label(verb: &str, count: usize) -> String {
     if count == 1 {
         format!("{verb} 1 item")
     } else {
         format!("{verb} {count} items")
     }
-}
-
-fn emit_progress(app: &AppHandle, task_id: u64, label: &str, done: u64, total: u64, finished: bool, error: Option<String>) {
-    let _ = app.emit(
-        "operation-progress",
-        OperationProgress {
-            task_id,
-            label: label.to_string(),
-            done,
-            total,
-            finished,
-            error,
-        },
-    );
 }
 
 const RESERVED_NAMES: &[&str] = &[
@@ -238,10 +204,10 @@ pub fn copy_items(app: AppHandle, sources: Vec<String>, destination_dir: String)
     let task_id = next_task_id();
     let label = operation_label("Copying", sources.len());
     let result = copy_items_inner(sources, destination_dir, |done, total, finished, error| {
-        emit_progress(&app, task_id, &label, done, total, finished, error)
+        emit_progress(&app, task_id, &label, done, total, finished, error, false)
     });
     if let Err(e) = &result {
-        emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()));
+        emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
     }
     result
 }
@@ -315,10 +281,10 @@ pub fn move_items(app: AppHandle, sources: Vec<String>, destination_dir: String)
     let task_id = next_task_id();
     let label = operation_label("Moving", sources.len());
     let result = move_items_inner(sources, destination_dir, |done, total, finished, error| {
-        emit_progress(&app, task_id, &label, done, total, finished, error)
+        emit_progress(&app, task_id, &label, done, total, finished, error, false)
     });
     if let Err(e) = &result {
-        emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()));
+        emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
     }
     result
 }
@@ -352,7 +318,7 @@ pub fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchResult, S
     let task_id = next_task_id();
     let label = operation_label("Deleting", paths.len());
     Ok(delete_items_inner(paths, |done, total, finished, error| {
-        emit_progress(&app, task_id, &label, done, total, finished, error)
+        emit_progress(&app, task_id, &label, done, total, finished, error, false)
     }))
 }
 

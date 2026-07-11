@@ -76,6 +76,17 @@ export function updateNodeById(roots: GraphNode[], id: string, updater: (node: G
   });
 }
 
+export function findNode(roots: GraphNode[], predicate: (node: GraphNode) => boolean): GraphNode | undefined {
+  for (const node of roots) {
+    if (predicate(node)) return node;
+    if (node.children.length > 0) {
+      const found = findNode(node.children, predicate);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 export function canExpand(node: GraphNode): boolean {
   return !node.loaded || node.children.length > 0;
 }

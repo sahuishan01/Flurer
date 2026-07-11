@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     helpers::settings::{atomic_write, size_cache_path},
+    progress::{emit_progress, next_task_id},
     state::AppState,
 };
 
@@ -44,6 +45,23 @@ pub enum FolderSizeResponse {
     Pending,
 }
 
+// A folder-size computation the unified progress indicator should show
+// alongside copy/move/delete — carries the task id assigned at enqueue time
+// so the worker that finishes the job can report it as done.
+struct TrackedJob {
+    task_id: u64,
+    label: String,
+}
+
+struct SizeJob {
+    path: PathBuf,
+    // None for background work the user never explicitly waited on (silent
+    // cache revalidation, watcher-triggered recomputes) — those stay
+    // invisible rather than flooding the progress panel on every filesystem
+    // change under a watched folder.
+    tracking: Option<TrackedJob>,
+}
+
 #[derive(Default)]
 pub struct SizeCacheState {
     sizes: Mutex<HashMap<PathBuf, u64>>,
@@ -51,7 +69,7 @@ pub struct SizeCacheState {
     // folder already in flight isn't enqueued twice.
     pending: Mutex<HashSet<PathBuf>>,
     watched_roots: Mutex<Vec<PathBuf>>,
-    job_sender: Mutex<Option<mpsc::Sender<PathBuf>>>,
+    job_sender: Mutex<Option<mpsc::Sender<SizeJob>>>,
     // Holding the debouncer keeps its background thread and OS watch handles
     // alive; dropping it silently stops all watching.
     debouncer: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
@@ -117,17 +135,47 @@ pub fn compute_dir_size(path: &Path) -> u64 {
     total
 }
 
+// What the unified progress panel shows for a folder-size task — the
+// folder's own name, falling back to the full path for a drive root (which
+// has no file_name).
+fn folder_label(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned())
+}
+
 /// Queues a path for background computation unless it's already queued or in
 /// progress. Returns whether it was newly queued.
 fn enqueue(state: &AppState, path: PathBuf) -> bool {
+    enqueue_job(state, SizeJob { path, tracking: None })
+}
+
+/// Same as `enqueue`, but reports the computation through the unified
+/// operation-progress event — for computations the user is actually waiting
+/// on (a folder opened for the first time, or an explicit recalculate),
+/// as opposed to silent background revalidation.
+fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf) -> bool {
+    let task_id = next_task_id();
+    let label = format!("Calculating size — {}", folder_label(&path));
+    let queued = enqueue_job(
+        state,
+        SizeJob { path, tracking: Some(TrackedJob { task_id, label: label.clone() }) },
+    );
+    if queued {
+        emit_progress(app, task_id, &label, 0, 0, false, None, true);
+    }
+    queued
+}
+
+fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
     let mut pending = state.size_cache.pending.lock().unwrap();
-    if !pending.insert(path.clone()) {
+    if !pending.insert(job.path.clone()) {
         return false;
     }
     drop(pending);
 
     if let Some(sender) = state.size_cache.job_sender.lock().unwrap().as_ref() {
-        let _ = sender.send(path);
+        let _ = sender.send(job);
     }
     true
 }
@@ -143,7 +191,7 @@ fn start_watching(state: &AppState, path: &Path) {
     roots.push(path.to_path_buf());
 }
 
-fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<PathBuf>>>, count: usize) {
+fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, count: usize) {
     for _ in 0..count {
         let app = app.clone();
         let receiver = Arc::clone(&receiver);
@@ -152,22 +200,25 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<PathBuf>>>, 
                 let rx = receiver.lock().unwrap();
                 rx.recv()
             };
-            let Ok(path) = received else {
+            let Ok(job) = received else {
                 // Sender dropped (app shutting down) — nothing left to do.
                 break;
             };
 
-            let size = compute_dir_size(&path);
+            let size = compute_dir_size(&job.path);
             let state = app.state::<AppState>();
-            state.size_cache.sizes.lock().unwrap().insert(path.clone(), size);
-            state.size_cache.pending.lock().unwrap().remove(&path);
+            state.size_cache.sizes.lock().unwrap().insert(job.path.clone(), size);
+            state.size_cache.pending.lock().unwrap().remove(&job.path);
             *state.size_cache.dirty.lock().unwrap() = true;
-            start_watching(&state, &path);
+            start_watching(&state, &job.path);
 
             let _ = app.emit(
                 "folder-size-updated",
-                FolderSizeUpdate { path: path.to_string_lossy().to_string(), size },
+                FolderSizeUpdate { path: job.path.to_string_lossy().to_string(), size },
             );
+            if let Some(TrackedJob { task_id, label }) = &job.tracking {
+                emit_progress(&app, *task_id, label, 0, 0, true, None, true);
+            }
         });
     }
 }
@@ -176,7 +227,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<PathBuf>>>, 
 /// watcher. Call once during app setup; `get_folder_size` enqueues specific
 /// directories on demand.
 pub fn init(app: &AppHandle) {
-    let (tx, rx) = mpsc::channel::<PathBuf>();
+    let (tx, rx) = mpsc::channel::<SizeJob>();
     let receiver = Arc::new(Mutex::new(rx));
 
     {
@@ -244,7 +295,7 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
 }
 
 #[tauri::command]
-pub fn get_folder_size(state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
+pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
     let path_buf = PathBuf::from(&path);
     if !path_buf.is_dir() {
         return Err(format!("{} is not a directory", path));
@@ -277,7 +328,10 @@ pub fn get_folder_size(state: tauri::State<'_, AppState>, path: String) -> Resul
         return Ok(FolderSizeResponse::Ready { size: cached });
     }
 
-    enqueue(&state, path_buf);
+    // Genuinely uncached — the frontend is about to show a "Calculating…"
+    // state for this, so it's worth surfacing in the unified progress panel
+    // too, unlike the silent revalidation above.
+    enqueue_tracked(&app, &state, path_buf);
     Ok(FolderSizeResponse::Pending)
 }
 
@@ -285,7 +339,7 @@ pub fn get_folder_size(state: tauri::State<'_, AppState>, path: String) -> Resul
 /// user-triggered "recalculate" action. Still non-blocking: the fresh value
 /// arrives via `folder-size-updated` once the worker pool gets to it.
 #[tauri::command]
-pub fn recompute_folder_size(state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
+pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
     let path_buf = PathBuf::from(&path);
     if !path_buf.is_dir() {
         return Err(format!("{} is not a directory", path));
@@ -295,7 +349,7 @@ pub fn recompute_folder_size(state: tauri::State<'_, AppState>, path: String) ->
     // get_folder_size report Pending during the recompute (see above) —
     // without removing it from `sizes`, which handle_debounced_events needs
     // to keep recognizing this folder as one to watch for live changes.
-    enqueue(&state, path_buf);
+    enqueue_tracked(&app, &state, path_buf);
     Ok(FolderSizeResponse::Pending)
 }
 

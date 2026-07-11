@@ -52,6 +52,30 @@ export function baseName(path: string): string {
   return idx < 0 ? normalized : normalized.slice(idx + 1);
 }
 
+export type PathSegment = { label: string; path: string };
+
+// Splits a Windows path into clickable breadcrumb segments, each carrying
+// the full path to navigate to if that segment is clicked. The drive root
+// keeps its trailing separator ("C:\") for the same reason baseName does —
+// "C:" alone means "current directory on C:" to Windows, not the drive root.
+export function pathSegments(path: string): PathSegment[] {
+  const driveMatch = /^([a-zA-Z]:)[\\/]?/.exec(path);
+  if (!driveMatch) return path ? [{ label: path, path }] : [];
+
+  const drive = driveMatch[1];
+  const rest = path.slice(driveMatch[0].length);
+  const parts = rest.split(/[\\/]+/).filter(Boolean);
+
+  const driveRoot = `${drive}\\`;
+  const segments: PathSegment[] = [{ label: driveRoot, path: driveRoot }];
+  let current = driveRoot;
+  for (const part of parts) {
+    current = `${current}${part}\\`;
+    segments.push({ label: part, path: current });
+  }
+  return segments;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];

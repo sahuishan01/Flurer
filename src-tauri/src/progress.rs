@@ -1,0 +1,55 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+
+// Drives the top-right progress indicator. Any long-running background task
+// (file copy/move/delete, folder-size calculation) gets its own id from
+// next_task_id() and reports progress through emit_progress as it goes, so
+// the frontend can show real movement — or, for indeterminate work with no
+// meaningful done/total count, just a running/finished state — instead of a
+// single all-or-nothing spinner.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationProgress {
+    pub task_id: u64,
+    pub label: String,
+    pub done: u64,
+    pub total: u64,
+    pub finished: bool,
+    pub error: Option<String>,
+    // True for work with no meaningful done/total count (e.g. a recursive
+    // folder-size walk) — the frontend shows a running indicator instead of
+    // a percent-complete bar for these.
+    pub indeterminate: bool,
+}
+
+static NEXT_TASK_ID: AtomicU64 = AtomicU64::new(1);
+
+pub fn next_task_id() -> u64 {
+    NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+pub fn emit_progress(
+    app: &AppHandle,
+    task_id: u64,
+    label: &str,
+    done: u64,
+    total: u64,
+    finished: bool,
+    error: Option<String>,
+    indeterminate: bool,
+) {
+    let _ = app.emit(
+        "operation-progress",
+        OperationProgress {
+            task_id,
+            label: label.to_string(),
+            done,
+            total,
+            finished,
+            error,
+            indeterminate,
+        },
+    );
+}

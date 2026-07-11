@@ -3,6 +3,7 @@ mod disks;
 mod fs;
 mod helpers;
 mod network;
+mod progress;
 mod sizecache;
 mod state;
 

@@ -7,8 +7,6 @@ import {
   FileIcon,
   FilmIcon,
   FolderIcon,
-  GearIcon,
-  GraphIcon,
   ImageIcon,
   MonitorIcon,
   MusicIcon,
@@ -44,9 +42,12 @@ const ICONS: Record<string, () => JSX.Element> = {
 
 type SidebarProps = {
   currentPath: string;
-  onNavigate: (path: string) => void;
+  // Every clickable place in the sidebar (drives, recents, favourites, quick
+  // access) goes through this one callback rather than a plain "navigate to
+  // Explorer" — while already in graph mode it focuses that path there
+  // instead of switching away; see App.tsx's selectSidebarPath.
+  onSelectPath: (path: string) => void;
   activeView: MainView;
-  onSelectView: (view: MainView) => void;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
   recentPaths: string[];
@@ -115,123 +116,93 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <nav class="sidebar">
-      <div class="sidebar-top">
-        <button
-          type="button"
-          class="sidebar-item"
-          classList={{ active: props.activeView === "graph" }}
-          onClick={() => props.onSelectView(props.activeView === "graph" ? "explorer" : "graph")}
-        >
-          <span class="sidebar-icon">
-            <GraphIcon size={16} />
-          </span>
-          Graph
-        </button>
-
-        <div class="sidebar-divider" />
-
-        <span class="sidebar-section-label">Drives</span>
-        <For each={drives()}>
-          {(volume) => (
-            <div
-              class="sidebar-drive"
-              classList={{
-                active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
-              }}
-            >
-              <button
-                type="button"
-                class="sidebar-item"
-                classList={{
-                  active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
-                }}
-                onClick={() => props.onNavigate(`${volume.driveLetter}\\`)}
-              >
-                <span class="sidebar-icon">
-                  <VolumeIcon size={15} />
-                </span>
-                {driveLabel(volume)}
-              </button>
-              <div class="sidebar-drive-usage">
-                <div class="sidebar-drive-usage-bar">
-                  <div
-                    class="sidebar-drive-usage-fill"
-                    classList={{ low: usedPercent(volume) >= 90 }}
-                    style={{ width: `${usedPercent(volume)}%` }}
-                  />
-                </div>
-                <span class="sidebar-drive-usage-text">
-                  {formatBytes(volume.freeSpace)} free of {formatBytes(volume.totalSpace)}
-                </span>
-              </div>
-            </div>
-          )}
-        </For>
-
-        <div class="sidebar-divider" />
-
-        <Show when={props.recentPaths.length > 0}>
-          <span class="sidebar-section-label">Recents</span>
-          <For each={props.recentPaths}>
-            {(path) => (
-              <SidebarEntry
-                path={path}
-                icon={<ClockIcon size={15} />}
-                active={props.activeView === "explorer" && props.currentPath === path}
-                onNavigate={props.onNavigate}
-                onRemove={() => props.onRemoveRecent(path)}
-                removeLabel="Remove from Recents"
-              />
-            )}
-          </For>
-          <div class="sidebar-divider" />
-        </Show>
-
-        <Show when={props.favouritePaths.length > 0}>
-          <span class="sidebar-section-label">Favourites</span>
-          <For each={props.favouritePaths}>
-            {(path) => (
-              <SidebarEntry
-                path={path}
-                icon={<StarIcon size={15} filled />}
-                active={props.activeView === "explorer" && props.currentPath === path}
-                onNavigate={props.onNavigate}
-                onRemove={() => props.onToggleFavourite(path)}
-                removeLabel="Remove from Favourites"
-              />
-            )}
-          </For>
-          <div class="sidebar-divider" />
-        </Show>
-
-        <For each={entries()}>
-          {(entry) => (
+      <span class="sidebar-section-label">Drives</span>
+      <For each={drives()}>
+        {(volume) => (
+          <div
+            class="sidebar-drive"
+            classList={{
+              active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
+            }}
+          >
             <button
               type="button"
               class="sidebar-item"
-              classList={{ active: props.activeView === "explorer" && props.currentPath === entry.path }}
-              onClick={() => props.onNavigate(entry.path)}
+              classList={{
+                active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
+              }}
+              onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
             >
-              <span class="sidebar-icon">{ICONS[entry.label]?.() ?? <FolderIcon size={15} />}</span>
-              {entry.label}
+              <span class="sidebar-icon">
+                <VolumeIcon size={15} />
+              </span>
+              {driveLabel(volume)}
             </button>
+            <div class="sidebar-drive-usage">
+              <div class="sidebar-drive-usage-bar">
+                <div
+                  class="sidebar-drive-usage-fill"
+                  classList={{ low: usedPercent(volume) >= 90 }}
+                  style={{ width: `${usedPercent(volume)}%` }}
+                />
+              </div>
+              <span class="sidebar-drive-usage-text">
+                {formatBytes(volume.freeSpace)} free of {formatBytes(volume.totalSpace)}
+              </span>
+            </div>
+          </div>
+        )}
+      </For>
+
+      <div class="sidebar-divider" />
+
+      <Show when={props.recentPaths.length > 0}>
+        <span class="sidebar-section-label">Recents</span>
+        <For each={props.recentPaths}>
+          {(path) => (
+            <SidebarEntry
+              path={path}
+              icon={<ClockIcon size={15} />}
+              active={props.activeView === "explorer" && props.currentPath === path}
+              onNavigate={props.onSelectPath}
+              onRemove={() => props.onRemoveRecent(path)}
+              removeLabel="Remove from Recents"
+            />
           )}
         </For>
-      </div>
+        <div class="sidebar-divider" />
+      </Show>
 
-      <div class="sidebar-bottom">
-        <button
-          type="button"
-          class="sidebar-item"
-          classList={{ active: props.activeView === "settings" }}
-          onClick={() => props.onSelectView("settings")}
-        >
-          <span class="sidebar-icon">
-            <GearIcon size={16} />
-          </span>
-          Settings
-        </button>
-      </div>
+      <Show when={props.favouritePaths.length > 0}>
+        <span class="sidebar-section-label">Favourites</span>
+        <For each={props.favouritePaths}>
+          {(path) => (
+            <SidebarEntry
+              path={path}
+              icon={<StarIcon size={15} filled />}
+              active={props.activeView === "explorer" && props.currentPath === path}
+              onNavigate={props.onSelectPath}
+              onRemove={() => props.onToggleFavourite(path)}
+              removeLabel="Remove from Favourites"
+            />
+          )}
+        </For>
+        <div class="sidebar-divider" />
+      </Show>
+
+      <For each={entries()}>
+        {(entry) => (
+          <button
+            type="button"
+            class="sidebar-item"
+            classList={{ active: props.activeView === "explorer" && props.currentPath === entry.path }}
+            onClick={() => props.onSelectPath(entry.path)}
+          >
+            <span class="sidebar-icon">{ICONS[entry.label]?.() ?? <FolderIcon size={15} />}</span>
+            {entry.label}
+          </button>
+        )}
+      </For>
     </nav>
   );
 }
