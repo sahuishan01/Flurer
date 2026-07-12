@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { formatBytes, parentDir, pathSegments, type DirEntry, type FolderSizeResponse } from "../lib/fs";
@@ -696,7 +696,10 @@ export function GraphView(props: GraphViewProps) {
 
     for (let i = 1; i < segments.length; i++) {
       await ensureExpanded(current);
-      const next = findNode(roots(), (n) => n.kind === "folder" && n.path === segments[i].path);
+      // pathSegments builds paths with a trailing separator, but graph
+      // folder nodes store paths without one. Normalize before comparing.
+      const segmentPath = segments[i].path.replace(/[\\/]$/, "");
+      const next = findNode(roots(), (n) => n.kind === "folder" && n.path === segmentPath);
       // A segment that no longer resolves (renamed/deleted since, or a
       // permissions error on that listing) just stops the walk where it
       // got to — the camera is already centered on the deepest node reached.
@@ -710,11 +713,10 @@ export function GraphView(props: GraphViewProps) {
     void ensureExpanded(current);
   }
 
-  createEffect(() => {
-    const request = props.focusPath;
+  createEffect(on(() => props.focusPath, (request) => {
     if (!request) return;
     focusOnPath(request.path);
-  });
+  }));
 
   function edgePath(fromX: number, fromY: number, toX: number, toY: number): string {
     const startX = fromX + NODE_WIDTH;
@@ -760,6 +762,7 @@ export function GraphView(props: GraphViewProps) {
       <svg
         ref={canvasRef}
         class="graph-canvas"
+        style={{ "--graph-zoom": zoom() } as Record<string, string | number>}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

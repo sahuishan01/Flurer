@@ -569,7 +569,7 @@ body {
     display: flex;
     justify-content: space-between;
     gap: 0.6em;
-    font-size: 0.85em;
+    font-size: calc(min(0.85em, 1em / var(--graph-zoom)));
 }
 
 .progress-task-label {
