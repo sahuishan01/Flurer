@@ -518,7 +518,6 @@ export function GraphView(props: GraphViewProps) {
 
   function onWheel(e: WheelEvent) {
     e.preventDefault();
-    // Zooming rescales node positions under a stationary cursor the same way.
     setTooltip(null);
     setContextMenu(null);
     if (!zoomSessionActive) {
@@ -530,7 +529,23 @@ export function GraphView(props: GraphViewProps) {
       zoomSessionActive = false;
     }, 500);
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta)));
+    const oldZoom = zoom();
+    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom + delta));
+    if (newZoom === oldZoom) return;
+
+    // Zoom toward the cursor: keep the SVG point under the cursor fixed
+    // in screen space so the user's scroll target doesn't drift.
+    const rect = canvasRef?.getBoundingClientRect();
+    if (rect) {
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const ratio = newZoom / oldZoom;
+      setPan((p) => ({
+        x: cx - (cx - p.x) * ratio,
+        y: cy - (cy - p.y) * ratio,
+      }));
+    }
+    setZoom(newZoom);
   }
 
   function effectiveX(p: PositionedNode): number {
