@@ -15,6 +15,7 @@ type CommandBarProps = {
   // path breadcrumb) — the bar itself stays generic and doesn't know what a
   // path or a breadcrumb is.
   viewControls?: JSX.Element;
+  showProgressWhenIdle?: boolean;
 };
 
 export function CommandBar(props: CommandBarProps) {
@@ -60,7 +61,7 @@ export function CommandBar(props: CommandBarProps) {
         <LayersIcon size={16} />
       </button>
 
-      <ProgressIndicator />
+      <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
     </div>
   );
 }

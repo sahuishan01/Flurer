@@ -1,5 +1,6 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, produce } from "solid-js/store";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ActivityIcon } from "./icons";
 
@@ -26,7 +27,11 @@ function percent(task: OperationProgress): number {
   return Math.min(100, Math.round((task.done / task.total) * 100));
 }
 
-export function ProgressIndicator() {
+type ProgressIndicatorProps = {
+  showWhenIdle?: boolean;
+};
+
+export function ProgressIndicator(props: ProgressIndicatorProps) {
   // A keyed store, not a signal-wrapped Map — updating an existing task's
   // fields patches that entry's own object in place instead of replacing
   // it wholesale. <For> below tracks rows by reference; handing it a fresh
@@ -35,6 +40,7 @@ export function ProgressIndicator() {
   // progress-bar transition) instead of just updating its width.
   const [tasks, setTasks] = createStore<Record<number, OperationProgress>>({});
   const [open, setOpen] = createSignal(false);
+  const [panelPos, setPanelPos] = createSignal<Record<string, string>>({});
   let ref: HTMLDivElement | undefined;
 
   onMount(() => {
@@ -77,14 +83,24 @@ export function ProgressIndicator() {
   const activeCount = () => list().filter((t) => !t.finished).length;
 
   return (
-    <Show when={list().length > 0}>
+    <Show when={props.showWhenIdle || list().length > 0}>
       <div class="progress-indicator" ref={ref}>
         <button
           type="button"
           class="icon-btn"
           title="Ongoing operations"
           aria-label="Ongoing operations"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            const next = !open();
+            if (next && ref) {
+              const rect = ref.getBoundingClientRect();
+              setPanelPos({
+                top: `${rect.bottom + 6}px`,
+                right: `${window.innerWidth - rect.right}px`,
+              });
+            }
+            setOpen(next);
+          }}
         >
           <ActivityIcon size={16} />
           <Show when={activeCount() > 0}>
@@ -93,7 +109,7 @@ export function ProgressIndicator() {
         </button>
 
         <Show when={open()}>
-          <div class="progress-panel">
+          <div class="progress-panel" style={panelPos()}>
             <For each={list()}>
               {(task) => (
                 <div class="progress-task">
@@ -118,6 +134,17 @@ export function ProgressIndicator() {
                   </div>
                   <Show when={task.error}>
                     <span class="progress-task-error">{task.error}</span>
+                  </Show>
+                  <Show when={!task.finished}>
+                    <div class="progress-task-actions">
+                      <button
+                        type="button"
+                        class="progress-task-cancel"
+                        onClick={() => invoke("cancel_operation", { taskId: task.taskId })}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </Show>
                 </div>
               )}

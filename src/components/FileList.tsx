@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
@@ -70,12 +70,14 @@ export function FileList(props: FileListProps) {
   // resolve, keyed by absolute path so entries from different folders
   // (e.g. search results) don't collide.
   const [folderSizes, setFolderSizes] = createSignal<Map<string, number | "pending">>(new Map());
+  const [loading, setLoading] = createSignal(false);
 
   function isSearching(): boolean {
     return props.searchQuery.trim().length > 0;
   }
 
   async function refresh() {
+    setLoading(true);
     try {
       const result = isSearching()
         ? await invoke<DirEntry[]>("search_directory", {
@@ -92,6 +94,8 @@ export function FileList(props: FileListProps) {
       setEntries(result);
     } catch (err) {
       setError(String(err));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -461,6 +465,16 @@ export function FileList(props: FileListProps) {
             </tr>
           </thead>
           <tbody>
+            <Show when={sortedEntries().length === 0}>
+              <tr>
+                <td colspan={isSearching() ? 4 : 3} style="text-align:center;padding:3em 1em;opacity:0.5;">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:0.6em;">
+                    <FolderIcon size={24} />
+                    <span>{isSearching() ? "No results match your search" : "This folder is empty"}</span>
+                  </div>
+                </td>
+              </tr>
+            </Show>
             <For each={sortedEntries()}>
               {(entry, index) => (
                 <tr
@@ -470,8 +484,18 @@ export function FileList(props: FileListProps) {
                     "file-row-selected": selected().has(entry.path),
                     "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
                   }}
+                  tabIndex={0}
+                  role="row"
                   onClick={(e) => handleRowClick(e, entry, index())}
                   onDblClick={() => entry.isDir && props.onNavigate(entry.path)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if (entry.isDir) props.onNavigate(entry.path);
+                    } else if (e.key === " ") {
+                      e.preventDefault();
+                      handleRowClick(e as unknown as MouseEvent, entry, index());
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();

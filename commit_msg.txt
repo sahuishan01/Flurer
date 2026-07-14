@@ -1,0 +1,22 @@
+v0.4.0 — visual redesign, responsive layout, tooltips, progress cancellation, real-time byte progress
+
+- Grounded Warmth visual redesign: warm matte surfaces replace glassmorphism
+- Neutral cool-gray panels work with any wallpaper colour
+- Type system tokens (display/title/body/label/secondary/caption/section/badge)
+- Tabular numbers for file sizes, dark theme line-height compensation
+- Responsive breakpoints at 900px, 600px, 480px, 375px with column hiding
+- Hover sidebar tooltip at mouse position, configurable delay (100-2000ms)
+- Sidebar hides in settings view
+- File list and graph view now have panel background (fixes invisible text on light wallpapers)
+- File rows are keyboard-focusable (tabindex, role, Enter/Space handlers)
+- prefers-reduced-motion support
+- Settings spacing normalization and theme-consistent option buttons
+- Cargo build: copy/move/delete offloaded to tokio::spawn_blocking (no UI freeze)
+- Real-time byte-level progress for file operations (64KB chunked copy)
+- Progress panel uses position:fixed to escape stacking context
+- Cancel button for in-progress operations
+- All settings properly persisted (sidebarTooltipDelayMs, showProgressWhenIdle)
+- Aria-labels on all sidebar items and navigation buttons
+- Version bumped to 0.4.0
+
+Co-authored-by: CommandCodeBot <noreply@commandcode.ai>

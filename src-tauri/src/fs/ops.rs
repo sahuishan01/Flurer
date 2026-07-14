@@ -1,12 +1,14 @@
+use std::sync::atomic::AtomicBool;
 use std::{
     fs,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::progress::{emit_progress, next_task_id};
+use crate::progress::{cancel_task, emit_progress, is_cancelled, register_task};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,25 +113,73 @@ fn count_files(path: &Path) -> u64 {
 // 0% until everything finishes. Throttled to every 25 files (plus always on
 // the very last one) so a tree with tens of thousands of files doesn't
 // flood the frontend with IPC events.
+const COPY_CHUNK_SIZE: u64 = 64 * 1024; // 64 KB
+
+fn total_bytes(path: &Path) -> u64 {
+    if path.is_symlink() {
+        return 0;
+    }
+    if path.is_dir() {
+        match fs::read_dir(path) {
+            Ok(entries) => entries
+                .filter_map(|e| e.ok())
+                .map(|e| total_bytes(&e.path()))
+                .sum(),
+            Err(_) => 0,
+        }
+    } else {
+        fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+    }
+}
+
+fn copy_file_tracked(
+    src: &Path,
+    dst: &Path,
+    bytes_copied: &mut u64,
+    total_bytes: u64,
+    cancelled: &AtomicBool,
+    task_id: u64,
+    on_progress: &mut dyn FnMut(u64, u64),
+) -> std::io::Result<()> {
+    let mut src_file = fs::File::open(src)?;
+    let mut dst_file = fs::File::create(dst)?;
+    let mut buffer = vec![0u8; COPY_CHUNK_SIZE as usize];
+    loop {
+        if is_cancelled(task_id, cancelled) {
+            let _ = fs::remove_file(dst);
+            return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Cancelled"));
+        }
+        let n = src_file.read(&mut buffer)?;
+        if n == 0 {
+            break;
+        }
+        dst_file.write_all(&buffer[..n])?;
+        *bytes_copied += n as u64;
+        on_progress(*bytes_copied, total_bytes);
+    }
+    Ok(())
+}
+
 fn copy_recursive_tracked(
     src: &Path,
     dst: &Path,
-    done: &mut u64,
+    bytes_copied: &mut u64,
     total: u64,
+    cancelled: &AtomicBool,
+    task_id: u64,
     on_progress: &mut dyn FnMut(u64, u64),
 ) -> std::io::Result<()> {
+    if is_cancelled(task_id, cancelled) {
+        return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Cancelled"));
+    }
     if !is_symlink(src) && src.is_dir() {
         fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
-            copy_recursive_tracked(&entry.path(), &dst.join(entry.file_name()), done, total, on_progress)?;
+            copy_recursive_tracked(&entry.path(), &dst.join(entry.file_name()), bytes_copied, total, cancelled, task_id, on_progress)?;
         }
     } else {
-        fs::copy(src, dst)?;
-        *done += 1;
-        if *done % 25 == 0 || *done == total {
-            on_progress(*done, total);
-        }
+        copy_file_tracked(src, dst, bytes_copied, total, cancelled, task_id, on_progress)?;
     }
     Ok(())
 }
@@ -145,6 +195,8 @@ fn remove_any(path: &Path) -> std::io::Result<()> {
 fn copy_items_inner(
     sources: Vec<String>,
     destination_dir: String,
+    cancelled: &AtomicBool,
+    task_id: u64,
     mut on_progress: impl FnMut(u64, u64, bool, Option<String>),
 ) -> Result<BatchResult, String> {
     let dest_dir = PathBuf::from(&destination_dir);
@@ -152,11 +204,6 @@ fn copy_items_inner(
         return Err(format!("{} is not a directory", destination_dir));
     }
 
-    // Validate every source before sizing the progress total — items
-    // rejected here (collision, self-copy, invalid path) never reach
-    // copy_recursive_tracked, so counting their files into `total` up front
-    // would mean `done` could never actually reach `total` through real
-    // progress, only via the forced final tick below.
     let mut result = BatchResult::new();
     let mut to_copy: Vec<(String, PathBuf, PathBuf)> = Vec::new();
     for source in sources {
@@ -175,39 +222,63 @@ fn copy_items_inner(
             result.push_err(source, "An item with this name already exists".to_string());
             continue;
         }
-
+        if is_cancelled(task_id, cancelled) {
+            return Ok(result);
+        }
         to_copy.push((source, src_path, dest_path));
     }
 
-    let total: u64 = to_copy.iter().map(|(_, src, _)| count_files(src)).sum::<u64>().max(1);
-    let mut done = 0u64;
+    let total = to_copy.iter().map(|(_, src, _)| total_bytes(src)).sum::<u64>().max(1);
+    let mut bytes_copied = 0u64;
     on_progress(0, total, false, None);
 
     for (source, src_path, dest_path) in to_copy {
-        match copy_recursive_tracked(&src_path, &dest_path, &mut done, total, &mut |d, t| on_progress(d, t, false, None)) {
+        if is_cancelled(task_id, cancelled) {
+            break;
+        }
+        match copy_recursive_tracked(
+            &src_path, &dest_path, &mut bytes_copied, total, cancelled, task_id,
+            &mut |d, t| on_progress(d.min(t), t, false, None),
+        ) {
             Ok(()) => result.push_ok(source),
-            Err(e) => result.push_err(source, e.to_string()),
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::Interrupted {
+                    break;
+                }
+                result.push_err(source, e.to_string());
+            }
         }
     }
 
-    let error = if result.failed.is_empty() {
-        None
-    } else {
+    let error = if is_cancelled(task_id, cancelled) {
+        Some("Cancelled".to_string())
+    } else if !result.failed.is_empty() {
         Some(format!("{} item(s) failed", result.failed.len()))
+    } else {
+        None
     };
     on_progress(total, total, true, error);
     Ok(result)
 }
 
 #[tauri::command]
-pub fn copy_items(app: AppHandle, sources: Vec<String>, destination_dir: String) -> Result<BatchResult, String> {
-    let task_id = next_task_id();
+pub async fn copy_items(app: AppHandle, sources: Vec<String>, destination_dir: String) -> Result<BatchResult, String> {
+    let (task_id, cancelled) = register_task();
     let label = operation_label("Copying", sources.len());
-    let result = copy_items_inner(sources, destination_dir, |done, total, finished, error| {
-        emit_progress(&app, task_id, &label, done, total, finished, error, false)
-    });
-    if let Err(e) = &result {
-        emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
+    let label_clone = label.clone();
+    let app_clone = app.clone();
+    let cancelled_clone = cancelled.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        copy_items_inner(sources, destination_dir, &cancelled_clone, task_id, |done, total, finished, error| {
+            emit_progress(&app_clone, task_id, &label_clone, done, total, finished, error, false)
+        })
+    })
+    .await
+    .map_err(|e| format!("Background task failed: {e}"))?;
+    if !is_cancelled(task_id, &cancelled) {
+        if let Err(e) = &result {
+            emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
+        }
     }
     result
 }
@@ -215,6 +286,8 @@ pub fn copy_items(app: AppHandle, sources: Vec<String>, destination_dir: String)
 fn move_items_inner(
     sources: Vec<String>,
     destination_dir: String,
+    cancelled: &AtomicBool,
+    task_id: u64,
     mut on_progress: impl FnMut(u64, u64, bool, Option<String>),
 ) -> Result<BatchResult, String> {
     let dest_dir = PathBuf::from(&destination_dir);
@@ -222,18 +295,16 @@ fn move_items_inner(
         return Err(format!("{} is not a directory", destination_dir));
     }
 
-    // Same reasoning as copy_items_inner: validate first so total is sized
-    // only from sources that will actually be attempted.
     let mut result = BatchResult::new();
     let mut to_move: Vec<(String, PathBuf, PathBuf)> = Vec::new();
     for source in sources {
+        if is_cancelled(task_id, cancelled) { return Ok(result); }
         let src_path = PathBuf::from(&source);
         let Some(file_name) = src_path.file_name() else {
             result.push_err(source, "Invalid source path".to_string());
             continue;
         };
         let dest_path = dest_dir.join(file_name);
-
         if src_path.is_dir() && is_within(&src_path, &dest_dir) {
             result.push_err(source, "Cannot move a folder into itself".to_string());
             continue;
@@ -242,54 +313,73 @@ fn move_items_inner(
             result.push_err(source, "An item with this name already exists".to_string());
             continue;
         }
-
         to_move.push((source, src_path, dest_path));
     }
 
-    let counts: Vec<u64> = to_move.iter().map(|(_, src, _)| count_files(src)).collect();
-    let total: u64 = counts.iter().sum::<u64>().max(1);
-    let mut done = 0u64;
+    let total = to_move.iter().map(|(_, src, _)| total_bytes(src)).sum::<u64>().max(1);
+    let mut bytes_copied = 0u64;
     on_progress(0, total, false, None);
 
-    for ((source, src_path, dest_path), file_count) in to_move.into_iter().zip(counts) {
+    for (source, src_path, dest_path) in to_move {
+        if is_cancelled(task_id, cancelled) { break; }
         if fs::rename(&src_path, &dest_path).is_ok() {
+            let item_bytes = total_bytes(&src_path);
+            bytes_copied += item_bytes.max(1);
+            on_progress(bytes_copied.min(total), total, false, None);
             result.push_ok(source);
-            done += file_count;
-            on_progress(done, total, false, None);
             continue;
         }
-
-        match copy_recursive_tracked(&src_path, &dest_path, &mut done, total, &mut |d, t| on_progress(d, t, false, None))
+        match copy_recursive_tracked(&src_path, &dest_path, &mut bytes_copied, total, cancelled, task_id,
+            &mut |d, t| on_progress(d.min(t), t, false, None))
             .and_then(|()| remove_any(&src_path))
         {
             Ok(()) => result.push_ok(source),
-            Err(e) => result.push_err(source, e.to_string()),
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::Interrupted { break; }
+                result.push_err(source, e.to_string());
+            }
         }
     }
 
-    let error = if result.failed.is_empty() {
-        None
-    } else {
+    let error = if is_cancelled(task_id, cancelled) {
+        Some("Cancelled".to_string())
+    } else if !result.failed.is_empty() {
         Some(format!("{} item(s) failed", result.failed.len()))
+    } else {
+        None
     };
     on_progress(total, total, true, error);
     Ok(result)
 }
 
 #[tauri::command]
-pub fn move_items(app: AppHandle, sources: Vec<String>, destination_dir: String) -> Result<BatchResult, String> {
-    let task_id = next_task_id();
+pub async fn move_items(app: AppHandle, sources: Vec<String>, destination_dir: String) -> Result<BatchResult, String> {
+    let (task_id, cancelled) = register_task();
     let label = operation_label("Moving", sources.len());
-    let result = move_items_inner(sources, destination_dir, |done, total, finished, error| {
-        emit_progress(&app, task_id, &label, done, total, finished, error, false)
-    });
-    if let Err(e) = &result {
-        emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
+    let label_clone = label.clone();
+    let app_clone = app.clone();
+    let cancelled_clone = cancelled.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        move_items_inner(sources, destination_dir, &cancelled_clone, task_id, |done, total, finished, error| {
+            emit_progress(&app_clone, task_id, &label_clone, done, total, finished, error, false)
+        })
+    })
+    .await
+    .map_err(|e| format!("Background task failed: {e}"))?;
+    if !is_cancelled(task_id, &cancelled) {
+        if let Err(e) = &result {
+            emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
+        }
     }
     result
 }
 
-fn delete_items_inner(paths: Vec<String>, mut on_progress: impl FnMut(u64, u64, bool, Option<String>)) -> BatchResult {
+fn delete_items_inner(
+    paths: Vec<String>,
+    _cancelled: &AtomicBool,
+    _task_id: u64,
+    mut on_progress: impl FnMut(u64, u64, bool, Option<String>),
+) -> BatchResult {
     let total = (paths.len() as u64).max(1);
     let mut done = 0u64;
     on_progress(0, total, false, None);
@@ -314,12 +404,19 @@ fn delete_items_inner(paths: Vec<String>, mut on_progress: impl FnMut(u64, u64, 
 }
 
 #[tauri::command]
-pub fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchResult, String> {
-    let task_id = next_task_id();
+pub async fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchResult, String> {
+    let (task_id, cancelled) = register_task();
     let label = operation_label("Deleting", paths.len());
-    Ok(delete_items_inner(paths, |done, total, finished, error| {
-        emit_progress(&app, task_id, &label, done, total, finished, error, false)
-    }))
+    let app_clone = app.clone();
+    let label_clone = label.clone();
+    let cancelled_clone = cancelled.clone();
+    Ok(tokio::task::spawn_blocking(move || {
+        delete_items_inner(paths, &cancelled_clone, task_id, |done, total, finished, error| {
+            emit_progress(&app_clone, task_id, &label_clone, done, total, finished, error, false)
+        })
+    })
+    .await
+    .map_err(|e| format!("Background task failed: {e}"))?)
 }
 
 #[tauri::command]
@@ -338,6 +435,15 @@ pub fn rename_item(path: String, new_name: String) -> Result<String, String> {
 
     fs::rename(&src_path, &dest_path).map_err(|e| e.to_string())?;
     Ok(dest_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn cancel_operation(task_id: u64) -> Result<(), String> {
+    if cancel_task(task_id) {
+        Ok(())
+    } else {
+        Err(format!("No active task with id {task_id}"))
+    }
 }
 
 #[tauri::command]

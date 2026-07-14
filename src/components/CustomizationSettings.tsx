@@ -62,7 +62,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "tooltip", "hover", "delay", "progress"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -86,6 +86,10 @@ type CustomizationSettingsProps = {
   onFontSizePxChange: (fontSizePx: number) => void;
   persistGraphState: boolean;
   onPersistGraphStateChange: (enabled: boolean) => void;
+  sidebarTooltipDelayMs: number;
+  onSidebarTooltipDelayMsChange: (delayMs: number) => void;
+  showProgressWhenIdle: boolean;
+  onShowProgressWhenIdleChange: (show: boolean) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -468,6 +472,25 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
             onChange={(e) => props.onPersistGraphStateChange(e.currentTarget.checked)}
           />
           Remember graph layout between sessions
+        </label>
+        <label class="opacity-control">
+          Sidebar tooltip delay: {props.sidebarTooltipDelayMs}ms
+          <input
+            type="range"
+            min={100}
+            max={2000}
+            step={100}
+            value={props.sidebarTooltipDelayMs}
+            onInput={(e) => props.onSidebarTooltipDelayMsChange(e.currentTarget.valueAsNumber)}
+          />
+        </label>
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.showProgressWhenIdle}
+            onChange={(e) => props.onShowProgressWhenIdleChange(e.currentTarget.checked)}
+          />
+          Always show progress indicator
         </label>
       </section>
       )}

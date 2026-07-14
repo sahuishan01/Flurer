@@ -114,6 +114,8 @@ pub struct Settings {
     pub sort_direction: SortDirection,
     pub font_family: String,
     pub font_size_px: f32,
+    pub sidebar_tooltip_delay_ms: u64,
+    pub show_progress_when_idle: bool,
 }
 
 impl Default for Settings {
@@ -133,6 +135,8 @@ impl Default for Settings {
             sort_direction: SortDirection::default(),
             font_family: "Inter, Avenir, Helvetica, Arial, sans-serif".to_string(),
             font_size_px: 16.0,
+            sidebar_tooltip_delay_ms: 500,
+            show_progress_when_idle: false,
         }
     }
 }

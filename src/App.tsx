@@ -130,8 +130,18 @@ function App() {
     persistSettings();
   }
 
+  function updateSidebarTooltipDelayMs(delayMs: number) {
+    setSettings("sidebarTooltipDelayMs", delayMs);
+    persistSettings();
+  }
+
   function updatePersistGraphState(enabled: boolean) {
     setSettings("persistGraphState", enabled);
+    persistSettings();
+  }
+
+  function updateShowProgressWhenIdle(show: boolean) {
+    setSettings("showProgressWhenIdle", show);
     persistSettings();
   }
 
@@ -311,6 +321,10 @@ function App() {
     document.documentElement.style.setProperty("--font-size", `${settings.fontSizePx}px`);
   });
 
+  createEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-tooltip-delay", `${settings.sidebarTooltipDelayMs}ms`);
+  });
+
   // Settings has no "settings" view value of its own — only remember whether
   // the user was last looking at the explorer or the graph, so relaunching
   // the app doesn't strand them on the settings page.
@@ -475,7 +489,7 @@ function App() {
   }
 
   function appReady(): boolean {
-    return settingsLoaded() && !wallpaperPending();
+    return settingsLoaded();
   }
 
   return (
@@ -502,6 +516,7 @@ function App() {
           onSearchQueryChange={setSearchQuery}
           searchRecursive={searchRecursive()}
           onSearchRecursiveChange={setSearchRecursive}
+          showProgressWhenIdle={settings.showProgressWhenIdle}
           viewControls={
             <Show when={mainView() === "explorer"}>
               <ExplorerPathBar
@@ -518,15 +533,17 @@ function App() {
 
         <div class="explorer-view">
           <ViewRail activeView={mainView()} onSelectView={selectView} />
-          <Sidebar
-            currentPath={currentPath()}
-            onSelectPath={selectSidebarPath}
-            activeView={mainView()}
-            favouritePaths={settings.favouritePaths}
-            onToggleFavourite={toggleFavourite}
-            recentPaths={settings.recentPaths}
-            onRemoveRecent={removeRecent}
-          />
+          <Show when={mainView() !== "settings"}>
+            <Sidebar
+              currentPath={currentPath()}
+              onSelectPath={selectSidebarPath}
+              activeView={mainView()}
+              favouritePaths={settings.favouritePaths}
+              onToggleFavourite={toggleFavourite}
+              recentPaths={settings.recentPaths}
+              onRemoveRecent={removeRecent}
+            />
+          </Show>
           {/* All three views stay mounted and are just hidden/shown, rather
               than torn down and rebuilt on every toggle — otherwise switching
               away and back would silently reset the graph's expanded folders,
@@ -575,8 +592,12 @@ function App() {
                 onFontFamilyChange={updateFontFamily}
                 fontSizePx={settings.fontSizePx}
                 onFontSizePxChange={updateFontSizePx}
+                sidebarTooltipDelayMs={settings.sidebarTooltipDelayMs}
+                onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
                 persistGraphState={settings.persistGraphState}
                 onPersistGraphStateChange={updatePersistGraphState}
+                showProgressWhenIdle={settings.showProgressWhenIdle}
+                onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
                 hasUnsplashApiKey={hasUnsplashApiKey()}
                 onSaveUnsplashApiKey={saveUnsplashApiKey}
                 apiKeyError={apiKeyError()}

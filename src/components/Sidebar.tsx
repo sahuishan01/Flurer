@@ -1,4 +1,4 @@
-import { createSignal, For, onMount, Show, type JSX } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ClockIcon,
@@ -65,12 +65,12 @@ type SidebarEntryProps = {
 
 function SidebarEntry(props: SidebarEntryProps) {
   return (
-    <div class="sidebar-entry">
+    <div class="sidebar-entry" data-tip={props.path}>
       <button
         type="button"
         class="sidebar-item"
         classList={{ active: props.active }}
-        title={props.path}
+        aria-label={baseName(props.path)}
         onClick={() => props.onNavigate(props.path)}
       >
         <span class="sidebar-icon">{props.icon}</span>
@@ -79,14 +79,13 @@ function SidebarEntry(props: SidebarEntryProps) {
       <button
         type="button"
         class="sidebar-entry-remove"
-        title={props.removeLabel}
         aria-label={props.removeLabel}
         onClick={(e) => {
           e.stopPropagation();
           props.onRemove();
         }}
       >
-        <CloseIcon size={12} />
+        <CloseIcon size={10} />
       </button>
     </div>
   );
@@ -95,6 +94,10 @@ function SidebarEntry(props: SidebarEntryProps) {
 export function Sidebar(props: SidebarProps) {
   const [entries, setEntries] = createSignal<QuickAccessEntry[]>([]);
   const [drives, setDrives] = createSignal<VirtualDisk[]>([]);
+  const [tooltip, setTooltip] = createSignal<{ text: string; x: number; y: number } | null>(null);
+  let tooltipTimer: ReturnType<typeof setTimeout> | undefined;
+
+  onCleanup(() => clearTimeout(tooltipTimer));
 
   onMount(async () => {
     try {
@@ -114,8 +117,49 @@ export function Sidebar(props: SidebarProps) {
     }
   });
 
+  let tipTarget: HTMLElement | null = null;
+  let tipPointerX = 0;
+  let tipPointerY = 0;
+
+  function scheduleTip(btn: HTMLElement, e: PointerEvent) {
+    tipTarget = btn;
+    tipPointerX = e.clientX;
+    tipPointerY = e.clientY;
+    clearTimeout(tooltipTimer);
+    const delayStyle = getComputedStyle(document.documentElement).getPropertyValue("--sidebar-tooltip-delay").trim();
+    const delay = parseInt(delayStyle) || 500;
+    tooltipTimer = setTimeout(() => {
+      if (!tipTarget) return;
+      setTooltip({ text: tipTarget.dataset.tip || "", x: tipPointerX + 12, y: tipPointerY - 10 });
+    }, delay);
+  }
+
+  function handleTipMove(e: PointerEvent) {
+    const btn = (e.target as Element).closest("[data-tip]") as HTMLElement | null;
+    if (btn && btn !== tipTarget) {
+      scheduleTip(btn, e);
+    } else if (!btn) {
+      clearTimeout(tooltipTimer);
+      tipTarget = null;
+      setTooltip(null);
+    } else if (btn === tipTarget && tooltip()) {
+      tipPointerX = e.clientX;
+      tipPointerY = e.clientY;
+      setTooltip((t) => t ? { ...t, x: e.clientX + 12, y: e.clientY - 10 } : null);
+    }
+  }
+
   return (
-    <nav class="sidebar">
+    <>
+    <nav
+      class="sidebar"
+      onPointerMove={handleTipMove}
+      onPointerLeave={() => {
+        clearTimeout(tooltipTimer);
+        tipTarget = null;
+        setTooltip(null);
+      }}
+    >
       <span class="sidebar-section-label">Drives</span>
       <For each={drives()}>
         {(volume) => (
@@ -131,6 +175,8 @@ export function Sidebar(props: SidebarProps) {
               classList={{
                 active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
               }}
+              aria-label={driveLabel(volume)}
+              data-tip={driveLabel(volume)}
               onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
             >
               <span class="sidebar-icon">
@@ -156,27 +202,30 @@ export function Sidebar(props: SidebarProps) {
 
       <div class="sidebar-divider" />
 
-      <Show when={props.recentPaths.length > 0}>
-        <span class="sidebar-section-label">Recents</span>
-        <For each={props.recentPaths}>
-          {(path) => (
-            <SidebarEntry
-              path={path}
-              icon={<ClockIcon size={15} />}
-              active={props.activeView === "explorer" && props.currentPath === path}
-              onNavigate={props.onSelectPath}
-              onRemove={() => props.onRemoveRecent(path)}
-              removeLabel="Remove from Recents"
-            />
-          )}
-        </For>
-        <div class="sidebar-divider" />
+      <span class="sidebar-section-label">Recents</span>
+      <Show when={props.recentPaths.length === 0}>
+        <span class="sidebar-empty-label">No recent folders</span>
       </Show>
+      <For each={props.recentPaths}>
+        {(path) => (
+          <SidebarEntry
+            path={path}
+            icon={<ClockIcon size={15} />}
+            active={props.activeView === "explorer" && props.currentPath === path}
+            onNavigate={props.onSelectPath}
+            onRemove={() => props.onRemoveRecent(path)}
+            removeLabel="Remove from Recents"
+          />
+        )}
+      </For>
+      <div class="sidebar-divider" />
 
-      <Show when={props.favouritePaths.length > 0}>
-        <span class="sidebar-section-label">Favourites</span>
-        <For each={props.favouritePaths}>
-          {(path) => (
+      <span class="sidebar-section-label">Favourites</span>
+      <Show when={props.favouritePaths.length === 0}>
+        <span class="sidebar-empty-label">No favourites yet</span>
+      </Show>
+      <For each={props.favouritePaths}>
+        {(path) => (
             <SidebarEntry
               path={path}
               icon={<StarIcon size={15} filled />}
@@ -187,8 +236,7 @@ export function Sidebar(props: SidebarProps) {
             />
           )}
         </For>
-        <div class="sidebar-divider" />
-      </Show>
+      <div class="sidebar-divider" />
 
       <For each={entries()}>
         {(entry) => (
@@ -196,6 +244,8 @@ export function Sidebar(props: SidebarProps) {
             type="button"
             class="sidebar-item"
             classList={{ active: props.activeView === "explorer" && props.currentPath === entry.path }}
+            aria-label={entry.path}
+            data-tip={entry.path}
             onClick={() => props.onSelectPath(entry.path)}
           >
             <span class="sidebar-icon">{ICONS[entry.label]?.() ?? <FolderIcon size={15} />}</span>
@@ -204,5 +254,33 @@ export function Sidebar(props: SidebarProps) {
         )}
       </For>
     </nav>
+
+      <Show when={tooltip()}>
+        {(t) => (
+          <div
+            style={{
+              position: "fixed",
+              left: `${t().x}px`,
+              top: `${t().y}px`,
+              transform: "translateY(-50%)",
+              zIndex: 500,
+              padding: "0.3em 0.7em",
+              borderRadius: "6px",
+              background: "var(--panel-bg)",
+              border: "1px solid var(--border-strong)",
+              boxShadow: "var(--shadow-md)",
+              color: "var(--text-color)",
+              fontSize: "13px",
+              fontFamily: "var(--font-family)",
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+            }}
+            role="tooltip"
+          >
+            {t().text}
+          </div>
+        )}
+      </Show>
+    </>
   );
 }

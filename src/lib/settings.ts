@@ -44,6 +44,8 @@ export type Settings = {
   sortDirection: SortDirection;
   fontFamily: string;
   fontSizePx: number;
+  sidebarTooltipDelayMs: number;
+  showProgressWhenIdle: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -72,6 +74,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sortDirection: "ascending",
   fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
   fontSizePx: 16,
+  sidebarTooltipDelayMs: 500,
+  showProgressWhenIdle: false,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

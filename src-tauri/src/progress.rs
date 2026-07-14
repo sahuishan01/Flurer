@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Arc, LazyLock, Mutex,
+};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -25,9 +28,33 @@ pub struct OperationProgress {
 }
 
 static NEXT_TASK_ID: AtomicU64 = AtomicU64::new(1);
+static CANCELLED: LazyLock<Mutex<Vec<(u64, Arc<AtomicBool>)>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
 
 pub fn next_task_id() -> u64 {
     NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+pub fn register_task() -> (u64, Arc<AtomicBool>) {
+    let id = next_task_id();
+    let flag = Arc::new(AtomicBool::new(false));
+    let mut guard = CANCELLED.lock().unwrap();
+    guard.push((id, flag.clone()));
+    (id, flag)
+}
+
+pub fn cancel_task(task_id: u64) -> bool {
+    let guard = CANCELLED.lock().unwrap();
+    if let Some((_, flag)) = guard.iter().find(|(id, _)| *id == task_id) {
+        flag.store(true, Ordering::Relaxed);
+        true
+    } else {
+        false
+    }
+}
+
+pub fn is_cancelled(_task_id: u64, flag: &AtomicBool) -> bool {
+    flag.load(Ordering::Relaxed)
 }
 
 pub fn emit_progress(
