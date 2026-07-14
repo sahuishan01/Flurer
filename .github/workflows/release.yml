@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -33,10 +36,10 @@ jobs:
           workspaces: "src-tauri"
 
       - name: Install npm dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build Tauri app
-        run: npm run tauri build
+        run: bun run tauri build
 
       - name: Determine release version
         id: version
