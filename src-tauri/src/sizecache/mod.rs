@@ -116,6 +116,11 @@ fn save_persisted_sizes(sizes: &HashMap<PathBuf, u64>) {
 }
 
 pub fn compute_dir_size(path: &Path) -> u64 {
+    let mut subfolder_sizes = HashMap::new();
+    compute_dir_size_recursive(path, &mut subfolder_sizes)
+}
+
+pub fn compute_dir_size_recursive(path: &Path, subfolder_sizes: &mut HashMap<PathBuf, u64>) -> u64 {
     let mut total = 0u64;
     let Ok(read_dir) = fs::read_dir(path) else {
         return 0;
@@ -126,7 +131,10 @@ pub fn compute_dir_size(path: &Path) -> u64 {
             continue;
         };
         if metadata.is_dir() {
-            total += compute_dir_size(&entry.path());
+            let sub_path = entry.path();
+            let sub_size = compute_dir_size_recursive(&sub_path, subfolder_sizes);
+            subfolder_sizes.insert(sub_path, sub_size);
+            total += sub_size;
         } else {
             total += metadata.len();
         }
@@ -205,9 +213,17 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 break;
             };
 
-            let size = compute_dir_size(&job.path);
+            let mut subfolder_sizes = HashMap::new();
+            let size = compute_dir_size_recursive(&job.path, &mut subfolder_sizes);
             let state = app.state::<AppState>();
-            state.size_cache.sizes.lock().unwrap().insert(job.path.clone(), size);
+            
+            {
+                let mut sizes = state.size_cache.sizes.lock().unwrap();
+                sizes.insert(job.path.clone(), size);
+                for (sub_path, sub_size) in &subfolder_sizes {
+                    sizes.insert(sub_path.clone(), *sub_size);
+                }
+            }
             state.size_cache.pending.lock().unwrap().remove(&job.path);
             *state.size_cache.dirty.lock().unwrap() = true;
             start_watching(&state, &job.path);
@@ -216,6 +232,12 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 "folder-size-updated",
                 FolderSizeUpdate { path: job.path.to_string_lossy().to_string(), size },
             );
+            for (sub_path, sub_size) in subfolder_sizes {
+                let _ = app.emit(
+                    "folder-size-updated",
+                    FolderSizeUpdate { path: sub_path.to_string_lossy().to_string(), size: sub_size },
+                );
+            }
             if let Some(TrackedJob { task_id, label }) = &job.tracking {
                 emit_progress(&app, *task_id, label, 0, 0, true, None, true);
             }
@@ -289,7 +311,18 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
     }
     drop(sizes);
 
-    for dir in dirty {
+    // Keep only the highest-level ancestors to avoid redundant overlapping computations.
+    let mut optimized_dirty = Vec::new();
+    for dir in &dirty {
+        let has_ancestor_in_dirty = dirty.iter().any(|other| {
+            other != dir && dir.starts_with(other)
+        });
+        if !has_ancestor_in_dirty {
+            optimized_dirty.push(dir.clone());
+        }
+    }
+
+    for dir in optimized_dirty {
         enqueue(&state, dir);
     }
 }
@@ -307,8 +340,23 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
     // entry from `sizes` (as an earlier version of this did) keeps
     // `handle_debounced_events`' contains_key-based dirty-detection intact
     // for any filesystem change that lands while the recompute is in flight.
-    if state.size_cache.pending.lock().unwrap().contains(&path_buf) {
-        return Ok(FolderSizeResponse::Pending);
+    //
+    // Also, if any ancestor of this folder is currently pending, it is being calculated
+    // as part of that parent's recursive walk. Report Pending so the frontend displays
+    // the calculating state, and when the parent calculation finishes, it will emit
+    // the size update event for this child folder.
+    {
+        let pending = state.size_cache.pending.lock().unwrap();
+        if pending.contains(&path_buf) {
+            return Ok(FolderSizeResponse::Pending);
+        }
+        let mut ancestor = path_buf.parent();
+        while let Some(anc) = ancestor {
+            if pending.contains(anc) {
+                return Ok(FolderSizeResponse::Pending);
+            }
+            ancestor = anc.parent();
+        }
     }
 
     // `.copied()` here drops the sizes MutexGuard immediately instead of
@@ -321,7 +369,23 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
         // result, but silently revalidate in the background; once that
         // finishes the path is watched, so this only ever fires once per
         // path per app run.
-        let already_watching = state.size_cache.watched_roots.lock().unwrap().iter().any(|p| p == &path_buf);
+        //
+        // If the path or any of its ancestors is already in watched_roots,
+        // it means we are already actively listening to filesystem changes for it,
+        // so no silent revalidation is necessary.
+        let already_watching = {
+            let watched_roots = state.size_cache.watched_roots.lock().unwrap();
+            let mut found = false;
+            let mut current = Some(path_buf.as_path());
+            while let Some(p) = current {
+                if watched_roots.iter().any(|root| root == p) {
+                    found = true;
+                    break;
+                }
+                current = p.parent();
+            }
+            found
+        };
         if !already_watching {
             enqueue(&state, path_buf.clone());
         }
