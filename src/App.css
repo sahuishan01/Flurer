@@ -267,6 +267,7 @@ body {
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
 }
@@ -274,11 +275,13 @@ body {
 .view-stack {
     display: flex;
     flex: 1;
+    min-width: 0;
     min-height: 0;
 }
 
 .view-pane {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     flex-direction: column;
     overflow: hidden;

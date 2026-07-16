@@ -168,22 +168,30 @@ export function Sidebar(props: SidebarProps) {
             classList={{
               active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
             }}
+            onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                props.onSelectPath(`${volume.driveLetter}\\`);
+              }
+            }}
+            tabIndex={0}
+            role="button"
+            aria-label={driveLabel(volume)}
+            style={{ cursor: "pointer", "text-align": "left" }}
           >
-            <button
-              type="button"
+            <div
               class="sidebar-item"
               classList={{
                 active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
               }}
-              aria-label={driveLabel(volume)}
               data-tip={driveLabel(volume)}
-              onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
             >
               <span class="sidebar-icon">
                 <VolumeIcon size={15} />
               </span>
               {driveLabel(volume)}
-            </button>
+            </div>
             <div class="sidebar-drive-usage">
               <div class="sidebar-drive-usage-bar">
                 <div
