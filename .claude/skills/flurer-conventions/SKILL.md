@@ -47,3 +47,35 @@ Flurer's window is transparent (`"transparent": true` in `tauri.conf.json`) and 
 ## When something doesn't fit this pattern
 
 If a feature genuinely doesn't fit the command/state pattern above (e.g. it needs a long-lived background task, a file watcher, or streaming updates rather than request/response), say so explicitly and propose the deviation rather than forcing it through `invoke()` — Tauri supports events (`emit`/`listen`) for that case, which is the right tool for e.g. live directory-change notifications.
+
+## Release & Version Bump Workflow
+
+When performing a version bump or initiating a new release, follow this sequence:
+
+1. **Verify Frontend Build**: Always verify that the frontend compiles cleanly before tagging:
+   ```bash
+   bun run build
+   ```
+2. **Update Version Numbers**: The version number must be updated synchronously across four files:
+   * `package.json` (`"version": "X.Y.Z"`)
+   * `src-tauri/Cargo.toml` (`version = "X.Y.Z"`)
+   * `src-tauri/Cargo.lock` (`version = "X.Y.Z"` under the `[[package]]` named `flurer`)
+   * `src-tauri/tauri.conf.json` (`"version": "X.Y.Z"`)
+3. **Commit & Push Branch**:
+   * Stage all version change files:
+     ```bash
+     git add package.json src-tauri/Cargo.lock src-tauri/Cargo.toml src-tauri/tauri.conf.json
+     ```
+   * Commit with a message like: `bump version to X.Y.Z`.
+   * Push the commit to the remote repository:
+     ```bash
+     git push origin main
+     ```
+4. **Tag & Push Release**:
+   * Tag the commit (e.g., `v0.4.5`):
+     ```bash
+     git tag vX.Y.Z
+     git push origin vX.Y.Z
+     ```
+5. **Notify & Monitor**:
+   * Push an `agent-releases` notification containing the changelog and release link to the user's `ntfy` server immediately after pushing the tag to track the build.
