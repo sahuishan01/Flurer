@@ -1,4 +1,4 @@
-export type MainView = "explorer" | "graph" | "settings";
+export type MainView = "explorer" | "settings" | string;
 
 // A request for GraphView to expand and center on a given path (e.g. a
 // drive selected from the sidebar while already in graph mode). `token` is

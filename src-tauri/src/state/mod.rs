@@ -116,6 +116,10 @@ pub struct Settings {
     pub font_size_px: f32,
     pub sidebar_tooltip_delay_ms: u64,
     pub show_progress_when_idle: bool,
+    #[serde(default)]
+    pub plugin_settings: std::collections::HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub disabled_plugins: Vec<String>,
 }
 
 impl Default for Settings {
@@ -137,6 +141,8 @@ impl Default for Settings {
             font_size_px: 16.0,
             sidebar_tooltip_delay_ms: 500,
             show_progress_when_idle: false,
+            plugin_settings: std::collections::HashMap::new(),
+            disabled_plugins: Vec::new(),
         }
     }
 }

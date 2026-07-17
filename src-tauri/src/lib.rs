@@ -6,6 +6,7 @@ mod network;
 mod progress;
 mod sizecache;
 mod state;
+mod plugins;
 
 use disks::get_disk_topology;
 use fs::{
@@ -19,6 +20,10 @@ use tauri::Manager;
 use tokio::sync::Mutex;
 
 use configs::{has_unsplash_api_key, set_unsplash_api_key};
+use plugins::{
+    install_plugin_from_github, install_plugin_from_zip, list_installed_plugins, load_plugin_code,
+    uninstall_plugin,
+};
 
 use crate::{configs::Config, state::AppState};
 
@@ -58,7 +63,12 @@ pub fn run() {
             get_settings,
             set_settings,
             has_unsplash_api_key,
-            set_unsplash_api_key
+            set_unsplash_api_key,
+            list_installed_plugins,
+            load_plugin_code,
+            install_plugin_from_github,
+            install_plugin_from_zip,
+            uninstall_plugin
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

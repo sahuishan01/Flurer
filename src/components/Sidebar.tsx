@@ -52,6 +52,7 @@ type SidebarProps = {
   onToggleFavourite: (path: string) => void;
   recentPaths: string[];
   onRemoveRecent: (path: string) => void;
+  customContent?: JSX.Element;
   "data-bg-lightness"?: string;
 };
 
@@ -162,8 +163,10 @@ export function Sidebar(props: SidebarProps) {
         setTooltip(null);
       }}
     >
-      <span class="sidebar-section-label">Drives</span>
-      <For each={drives()}>
+      <Show when={props.customContent} fallback={
+        <>
+          <span class="sidebar-section-label">Drives</span>
+          <For each={drives()}>
         {(volume) => (
           <button
             type="button"
@@ -255,6 +258,10 @@ export function Sidebar(props: SidebarProps) {
           </button>
         )}
       </For>
+      </>
+      }>
+        {props.customContent}
+      </Show>
     </nav>
 
       <Show when={tooltip()}>

@@ -1,17 +1,17 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { CommandBar } from "./components/CommandBar";
 import { ExplorerPathBar } from "./components/ExplorerPathBar";
 import { ExplorerView } from "./components/ExplorerView";
-import { GraphView } from "./components/GraphView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ViewRail } from "./components/ViewRail";
-import { DEFAULT_SETTINGS, type BackgroundSettings, type GraphState, type Settings, type Theme } from "./lib/settings";
+import { DEFAULT_SETTINGS, type BackgroundSettings, type Settings, type Theme } from "./lib/settings";
 import type { SortKey } from "./lib/fs";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
+import { loadInstalledPlugins, registeredPlugins } from "./lib/plugins";
 import "./App.css";
 
 const DEFAULT_PATH = "C:\\";
@@ -179,9 +179,13 @@ function App() {
     try {
       const loaded = await invoke<Settings>("get_settings");
       setSettings(loaded);
-      if (loaded.lastMainView === "graph") {
-        setMainView("graph");
-        setHistory([{ view: "graph", path: currentPath() }]);
+      
+      // Load plugins on startup
+      await loadInstalledPlugins(loaded.disabledPlugins || []);
+
+      if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
+        setMainView(loaded.lastMainView);
+        setHistory([{ view: loaded.lastMainView, path: currentPath() }]);
       }
     } catch (err) {
       console.error("Failed to load settings", err);
@@ -253,18 +257,19 @@ function App() {
     persistSettings();
   }
 
-  function updatePersistGraphState(enabled: boolean) {
-    setSettings("persistGraphState", enabled);
-    persistSettings();
-  }
-
   function updateShowProgressWhenIdle(show: boolean) {
     setSettings("showProgressWhenIdle", show);
     persistSettings();
   }
 
-  function updateGraphState(state: GraphState) {
-    setSettings("graphState", state);
+  function updatePluginSettings(pluginId: string, patch: any) {
+    const current = settings.pluginSettings?.[pluginId] ?? {};
+    setSettings("pluginSettings", pluginId, { ...current, ...patch });
+    persistSettings();
+  }
+
+  function updateDisabledPlugins(disabled: string[]) {
+    setSettings("disabledPlugins", disabled);
     persistSettings();
   }
 
@@ -418,6 +423,15 @@ function App() {
       selectView("explorer");
     }
   }
+
+  const activePlugin = () => registeredPlugins().find((p) => p.id === mainView());
+  const showSidebar = () => {
+    const view = mainView();
+    if (view === "settings") return false;
+    const p = activePlugin();
+    if (p && p.fullPanel) return false;
+    return true;
+  };
 
   createEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -652,7 +666,7 @@ function App() {
 
         <div class="explorer-view">
           <ViewRail activeView={mainView()} onSelectView={selectView} />
-          <Show when={mainView() !== "settings"}>
+          <Show when={showSidebar()}>
             <Sidebar
               data-bg-lightness={sidebarLightness()}
               currentPath={currentPath()}
@@ -662,9 +676,13 @@ function App() {
               onToggleFavourite={toggleFavourite}
               recentPaths={settings.recentPaths}
               onRemoveRecent={removeRecent}
+              customContent={activePlugin()?.sidebar?.({
+                currentPath: currentPath(),
+                onSelectPath: selectSidebarPath
+              })}
             />
           </Show>
-          {/* All three views stay mounted and are just hidden/shown, rather
+          {/* All views stay mounted and are just hidden/shown, rather
               than torn down and rebuilt on every toggle — otherwise switching
               away and back would silently reset the graph's expanded folders,
               pan, and zoom, and settings would take over the whole window
@@ -685,19 +703,39 @@ function App() {
                 onSortChange={updateSort}
               />
             </div>
-            <div class="view-pane" style={{ display: mainView() === "graph" ? "flex" : "none" }}>
-              <GraphView
-                data-bg-lightness={fileListLightness()}
-                searchQuery={searchQuery()}
-                onOpenInExplorer={navigateTo}
-                settingsLoaded={settingsLoaded()}
-                persistState={settings.persistGraphState}
-                initialState={settings.graphState}
-                onStateChange={updateGraphState}
-                active={mainView() === "graph"}
-                focusPath={graphFocusRequest()}
-              />
-            </div>
+            
+            {/* Dynamically render plugin panels */}
+            <For each={registeredPlugins()}>
+              {(plugin) => (
+                <Show when={plugin.mainPanel || plugin.fullPanel}>
+                  <div
+                    class="view-pane"
+                    style={{ display: mainView() === plugin.id ? "flex" : "none" }}
+                  >
+                    {(() => {
+                      const props = {
+                        currentPath: currentPath(),
+                        navigateTo: navigateTo,
+                        searchQuery: searchQuery(),
+                        focusPath: graphFocusRequest(),
+                        active: mainView() === plugin.id,
+                        dataBgLightness: fileListLightness(),
+                        settingsLoaded: settingsLoaded(),
+                        pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
+                        onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
+                      };
+                      if (plugin.fullPanel) {
+                        return plugin.fullPanel(props);
+                      } else if (plugin.mainPanel) {
+                        return plugin.mainPanel(props);
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </Show>
+              )}
+            </For>
+
             <div class="view-pane" style={{ display: mainView() === "settings" ? "flex" : "none" }}>
               <SettingsPanel
                 data-bg-lightness={fileListLightness()}
@@ -717,8 +755,6 @@ function App() {
                 onFontSizePxChange={updateFontSizePx}
                 sidebarTooltipDelayMs={settings.sidebarTooltipDelayMs}
                 onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
-                persistGraphState={settings.persistGraphState}
-                onPersistGraphStateChange={updatePersistGraphState}
                 showProgressWhenIdle={settings.showProgressWhenIdle}
                 onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
                 hasUnsplashApiKey={hasUnsplashApiKey()}
@@ -727,6 +763,12 @@ function App() {
                 wallpaper={wallpaper()}
                 wallpaperError={wallpaperError()}
                 onFetchWallpaper={getWallpaper}
+                disabledPlugins={settings.disabledPlugins}
+                onDisabledPluginsChange={updateDisabledPlugins}
+                pluginSettings={settings.pluginSettings}
+                onPluginSettingsChange={updatePluginSettings}
+                persistGraphState={settings.persistGraphState}
+                onPersistGraphStateChange={(enabled) => updatePluginSettings("graph", { persistGraphState: enabled })}
               />
             </div>
           </div>

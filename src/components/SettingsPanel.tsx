@@ -3,10 +3,10 @@ import { CustomizationSettings } from "./CustomizationSettings";
 import { CloseIcon } from "./icons";
 import type { BackgroundSettings, Theme } from "../lib/settings";
 import type { Wallpaper } from "../lib/unsplash";
+import { registeredPlugins } from "../lib/plugins";
+import { PluginMarketplace } from "./PluginMarketplace";
 
-type SettingsCategory = "customization";
-
-const CATEGORIES: { id: SettingsCategory; label: string }[] = [{ id: "customization", label: "Customization" }];
+type SettingsCategory = "customization" | "plugins" | string;
 
 type SettingsPanelProps = {
   onClose: () => void;
@@ -35,11 +35,28 @@ type SettingsPanelProps = {
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
+  disabledPlugins: string[];
+  onDisabledPluginsChange: (disabled: string[]) => void;
+  pluginSettings: Record<string, any>;
+  onPluginSettingsChange: (pluginId: string, patch: any) => void;
   "data-bg-lightness"?: string;
 };
 
 export function SettingsPanel(props: SettingsPanelProps) {
   const [category, setCategory] = createSignal<SettingsCategory>("customization");
+
+  const categories = () => {
+    const list = [
+      { id: "customization", label: "Customization" },
+      { id: "plugins", label: "Plugins" }
+    ];
+    for (const p of registeredPlugins()) {
+      if (p.settingsPanel) {
+        list.push({ id: `plugin-${p.id}`, label: p.name });
+      }
+    }
+    return list;
+  };
 
   return (
     <div class="settings-page" data-bg-lightness={props["data-bg-lightness"]}>
@@ -52,7 +69,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
       <div class="settings-panel-body">
         <nav class="settings-nav">
-          <For each={CATEGORIES}>
+          <For each={categories()}>
             {(entry) => (
               <button
                 type="button"
@@ -94,6 +111,25 @@ export function SettingsPanel(props: SettingsPanelProps) {
               wallpaperError={props.wallpaperError}
               onFetchWallpaper={props.onFetchWallpaper}
             />
+          </Show>
+          <Show when={category() === "plugins"}>
+            <PluginMarketplace
+              disabledPlugins={props.disabledPlugins}
+              onDisabledPluginsChange={props.onDisabledPluginsChange}
+              searchQuery={props.searchQuery}
+            />
+          </Show>
+          <Show when={category().startsWith("plugin-")}>
+            {() => {
+              const id = category().substring(7); // "plugin-".length is 7
+              const p = registeredPlugins().find((x) => x.id === id);
+              if (!p || !p.settingsPanel) return null;
+              return p.settingsPanel({
+                dataBgLightness: props["data-bg-lightness"] || "light",
+                pluginSettings: props.pluginSettings[id] || {},
+                onPluginSettingsChange: (patch: any) => props.onPluginSettingsChange(id, patch)
+              });
+            }}
           </Show>
         </div>
       </div>

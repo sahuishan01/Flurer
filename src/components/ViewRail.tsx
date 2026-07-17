@@ -1,9 +1,10 @@
-import { FolderIcon, GearIcon, GraphIcon } from "./icons";
-import type { MainView } from "../lib/view";
+import { FolderIcon, GearIcon } from "./icons";
+import { registeredPlugins } from "../lib/plugins";
+import { For, Show } from "solid-js";
 
 type ViewRailProps = {
-  activeView: MainView;
-  onSelectView: (view: MainView) => void;
+  activeView: string;
+  onSelectView: (view: string) => void;
 };
 
 export function ViewRail(props: ViewRailProps) {
@@ -19,16 +20,18 @@ export function ViewRail(props: ViewRailProps) {
       >
         <FolderIcon size={19} />
       </button>
-      <button
-        type="button"
-        class="view-rail-item"
-        classList={{ active: props.activeView === "graph" }}
-        title="Storage graph"
-        aria-label="Storage graph"
-        onClick={() => props.onSelectView("graph")}
-      >
-        <GraphIcon size={19} />
-      </button>
+
+      {/* Dynamically render plugin buttons */}
+      <For each={registeredPlugins()}>
+        {(plugin) => (
+          <Show when={plugin.viewRailButton}>
+            {plugin.viewRailButton!({
+              active: props.activeView === plugin.id,
+              onClick: () => props.onSelectView(plugin.id)
+            })}
+          </Show>
+        )}
+      </For>
 
       <div class="view-rail-spacer" />
 

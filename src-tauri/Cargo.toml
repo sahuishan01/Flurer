@@ -34,6 +34,5 @@ notify-debouncer-mini = "0.7.0"
 keyring = "4.1.4"
 base64 = "0.22"
 url = "2"
-
-[dev-dependencies]
+zip = "2"
 tempfile = "3.27.0"

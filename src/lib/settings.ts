@@ -46,6 +46,8 @@ export type Settings = {
   fontSizePx: number;
   sidebarTooltipDelayMs: number;
   showProgressWhenIdle: boolean;
+  pluginSettings: Record<string, any>;
+  disabledPlugins: string[];
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -76,6 +78,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fontSizePx: 16,
   sidebarTooltipDelayMs: 500,
   showProgressWhenIdle: false,
+  pluginSettings: {},
+  disabledPlugins: [],
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [
