@@ -79,6 +79,10 @@ export function FileList(props: FileListProps) {
 
   async function refresh() {
     setLoading(true);
+    setEntries([]);
+    const currentPathReq = props.path;
+    const currentSearchQueryReq = props.searchQuery;
+    const currentSearchRecursiveReq = props.searchRecursive;
     try {
       const result = isSearching()
         ? await invoke<DirEntry[]>("search_directory", {
@@ -91,12 +95,31 @@ export function FileList(props: FileListProps) {
             sortKey: props.sortKey,
             sortDirection: props.sortDirection,
           });
+      if (
+        currentPathReq !== props.path ||
+        currentSearchQueryReq !== props.searchQuery ||
+        currentSearchRecursiveReq !== props.searchRecursive
+      ) {
+        return;
+      }
       setError("");
       setEntries(result);
     } catch (err) {
-      setError(String(err));
+      if (
+        currentPathReq === props.path &&
+        currentSearchQueryReq === props.searchQuery &&
+        currentSearchRecursiveReq === props.searchRecursive
+      ) {
+        setError(String(err));
+      }
     } finally {
-      setLoading(false);
+      if (
+        currentPathReq === props.path &&
+        currentSearchQueryReq === props.searchQuery &&
+        currentSearchRecursiveReq === props.searchRecursive
+      ) {
+        setLoading(false);
+      }
     }
   }
 
