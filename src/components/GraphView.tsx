@@ -59,7 +59,7 @@ function tooltipLines(node: GraphNode): TooltipLine[] {
         value: (
           <span class="size-calculating">
             {formatBytes(node.size)}
-            <span class="size-loading-spinner" />
+            <RefreshIcon size={12} class="size-loading-spinner" />
           </span>
         ),
       });
@@ -69,7 +69,7 @@ function tooltipLines(node: GraphNode): TooltipLine[] {
         value: (
           <span class="size-calculating">
             Calculating
-            <span class="size-loading-spinner" />
+            <RefreshIcon size={12} class="size-loading-spinner" />
           </span>
         ),
       });

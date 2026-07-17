@@ -170,7 +170,7 @@ export function FileList(props: FileListProps) {
       return (
         <span class="size-calculating">
           Calculating
-          <span class="size-loading-spinner" />
+          <RefreshIcon size={12} class="size-loading-spinner" />
         </span>
       );
     }
@@ -182,7 +182,7 @@ export function FileList(props: FileListProps) {
         return (
           <span class="size-calculating">
             {formatted}
-            <span class="size-loading-spinner" />
+            <RefreshIcon size={12} class="size-loading-spinner" />
           </span>
         );
       }
