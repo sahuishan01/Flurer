@@ -175,10 +175,10 @@ body {
     align-items: center;
     gap: 0.8em;
     padding: 0.6em 1em;
-    background: var(--mica-bg);
-    backdrop-filter: blur(var(--mica-blur));
-    -webkit-backdrop-filter: blur(var(--mica-blur));
-    border-bottom: var(--mica-border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-bottom: var(--glass-border);
 }
 
 .command-bar-nav {

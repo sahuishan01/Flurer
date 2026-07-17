@@ -1,6 +1,8 @@
 :root {
     /* Fluent Design System Typography */
     --fluent-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    --panel-rgb: 255, 255, 255;
+    --panel-tint-rgb: 255, 255, 255;
     
     /* Windows 11 Acrylic Material (Sidebar) - Strong blur, lower opacity */
     --acrylic-blur: var(--surface-blur, 30px);
@@ -61,6 +63,8 @@
 }
 
 [data-theme="dark"] {
+    --panel-rgb: 32, 32, 32;
+    --panel-tint-rgb: 32, 32, 32;
     /* Windows 11 Acrylic Material (Sidebar) - Dark Mode */
     --acrylic-blur: var(--surface-blur, 30px);
     --acrylic-opacity: var(--surface-opacity, 0.55);
