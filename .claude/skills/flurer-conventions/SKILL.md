@@ -50,7 +50,7 @@ If a feature genuinely doesn't fit the command/state pattern above (e.g. it need
 
 ## Release & Version Bump Workflow
 
-When performing a version bump or initiating a new release, follow this sequence:
+Any functional update, feature addition, or bug fix pushed to the `main` branch **must** be accompanied by a version bump (e.g., patch increment) in order to trigger a new release build. When performing a version bump or initiating a new release, follow this sequence:
 
 1. **Verify Frontend Build**: Always verify that the frontend compiles cleanly before tagging:
    ```bash
