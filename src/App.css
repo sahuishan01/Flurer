@@ -511,10 +511,21 @@ body {
     display: inline-flex;
 }
 
+button.sidebar-drive,
 .sidebar-drive {
     display: flex;
     flex-direction: column;
     border-radius: 8px;
+    border: none;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    cursor: pointer;
+    width: 100%;
 }
 
 /* Hovering or selecting a disk highlights its whole row as one unit,
@@ -1202,7 +1213,7 @@ a:hover {
 }
 
 input:not([type="range"]):not([type="color"]),
-button:not(.sidebar-item):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn),
 select {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
@@ -1220,18 +1231,18 @@ select option {
     background-color: var(--option-bg);
 }
 
-button:not(.sidebar-item):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel),
 select {
     cursor: pointer;
 }
 
-button:not(.sidebar-item):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel):hover,
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel):hover,
 select:hover {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 6%, var(--input-bg));
 }
 
-button:not(.sidebar-item):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel):active {
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel):active {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 12%, var(--input-bg));
 }

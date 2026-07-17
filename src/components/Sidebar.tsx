@@ -165,27 +165,27 @@ export function Sidebar(props: SidebarProps) {
       <span class="sidebar-section-label">Drives</span>
       <For each={drives()}>
         {(volume) => (
-          <div
+          <button
+            type="button"
             class="sidebar-drive"
             classList={{
               active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
             }}
+            aria-label={driveLabel(volume)}
+            data-tip={driveLabel(volume)}
+            onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
           >
-            <button
-              type="button"
+            <div
               class="sidebar-item"
               classList={{
                 active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
               }}
-              aria-label={driveLabel(volume)}
-              data-tip={driveLabel(volume)}
-              onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
             >
               <span class="sidebar-icon">
                 <VolumeIcon size={15} />
               </span>
               {driveLabel(volume)}
-            </button>
+            </div>
             <div class="sidebar-drive-usage">
               <div class="sidebar-drive-usage-bar">
                 <div
@@ -198,7 +198,7 @@ export function Sidebar(props: SidebarProps) {
                 {formatBytes(volume.freeSpace)} free of {formatBytes(volume.totalSpace)}
               </span>
             </div>
-          </div>
+          </button>
         )}
       </For>
 
