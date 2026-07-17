@@ -44,7 +44,7 @@ type TooltipState = {
   y: number;
 };
 
-type TooltipLine = { label: string; value: string };
+type TooltipLine = { label: string; value: string | JSX.Element };
 
 function tooltipLines(node: GraphNode): TooltipLine[] {
   const lines: TooltipLine[] = [{ label: "Name", value: node.label }];
@@ -54,9 +54,25 @@ function tooltipLines(node: GraphNode): TooltipLine[] {
   // prefer the pending indicator so the user doesn't mistake it for current.
   if (node.sizePending) {
     if (node.size !== undefined && node.size > 0) {
-      lines.push({ label: "Size", value: `${formatBytes(node.size)}...` });
+      lines.push({
+        label: "Size",
+        value: (
+          <span class="size-calculating">
+            {formatBytes(node.size)}
+            <span class="size-loading-spinner" />
+          </span>
+        ),
+      });
     } else {
-      lines.push({ label: "Size", value: "Calculating…" });
+      lines.push({
+        label: "Size",
+        value: (
+          <span class="size-calculating">
+            Calculating
+            <span class="size-loading-spinner" />
+          </span>
+        ),
+      });
     }
   } else if (node.size !== undefined) {
     lines.push({ label: "Size", value: formatBytes(node.size) });

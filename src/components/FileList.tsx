@@ -163,13 +163,29 @@ export function FileList(props: FileListProps) {
     setFolderSizes((prev) => new Map(prev).set(path, { size, done }));
   }
 
-  function sizeCellText(entry: DirEntry): string {
+  function renderSizeCell(entry: DirEntry) {
     if (!entry.isDir) return formatBytes(entry.size);
     const state = folderSizes().get(entry.path);
-    if (state === "pending") return "Calculating…";
+    if (state === "pending") {
+      return (
+        <span class="size-calculating">
+          Calculating
+          <span class="size-loading-spinner" />
+        </span>
+      );
+    }
     if (state && typeof state === "object") {
       const formatted = formatBytes(state.size);
-      return state.done ? formatted : `${formatted}...`;
+      if (state.done) {
+        return formatted;
+      } else {
+        return (
+          <span class="size-calculating">
+            {formatted}
+            <span class="size-loading-spinner" />
+          </span>
+        );
+      }
     }
     return "";
   }
@@ -528,7 +544,7 @@ export function FileList(props: FileListProps) {
                       entry.name
                     )}
                   </td>
-                  <td>{sizeCellText(entry)}</td>
+                  <td>{renderSizeCell(entry)}</td>
                   <td>{formatModified(entry.modified)}</td>
                   {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
                 </tr>
