@@ -29,7 +29,7 @@
 
     /* Inset Control Materials (Search field, buttons, breadcrumbs) */
     --control-blur: var(--surface-blur, 10px);
-    --control-opacity: var(--surface-opacity, 0.5);
+    --control-opacity: calc(var(--surface-opacity, 0.5) * 0.4);
     --control-tint-rgb: 255, 255, 255;
     --control-bg: rgba(var(--control-tint-rgb), var(--control-opacity));
     
@@ -53,6 +53,8 @@
     --text-secondary: #5f5f5f;
     --text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
     --text-backplate: rgba(255, 255, 255, 0.2);
+    --option-bg: #ffffff;
+    --option-color: #1c1c1c;
     
     /* Accent & System Colors */
     --accent-default: #0078d4;
@@ -90,7 +92,7 @@
 
     /* Inset Control Materials - Dark Mode */
     --control-blur: var(--surface-blur, 10px);
-    --control-opacity: var(--surface-opacity, 0.18);
+    --control-opacity: calc(var(--surface-opacity, 0.5) * 0.35);
     --control-tint-rgb: 255, 255, 255;
     --control-bg: rgba(var(--control-tint-rgb), var(--control-opacity));
     --control-border: 1px solid rgba(255, 255, 255, 0.06);
@@ -111,6 +113,8 @@
     --text-secondary: #c0c0c0;
     --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.5);
     --text-backplate: rgba(0, 0, 0, 0.35);
+    --option-bg: #202020;
+    --option-color: #ffffff;
     
     /* Accent & System Colors - Dark Mode */
     --accent-default: #60cdff;

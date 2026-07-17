@@ -282,7 +282,7 @@ body {
     gap: 0.6em;
     padding: 0.35em 0.8em;
     border-radius: var(--radius-lg);
-    background: rgba(var(--glass-tint-rgb), 0.45);
+    background: var(--control-bg);
     backdrop-filter: blur(var(--control-blur));
     -webkit-backdrop-filter: blur(var(--control-blur));
     border: var(--control-border);
@@ -292,7 +292,7 @@ body {
 }
 
 .search-field:hover {
-    background: rgba(var(--glass-tint-rgb), 0.7);
+    background: var(--control-hover-bg);
     border: var(--control-hover-border);
     border-bottom: var(--control-hover-border-bottom);
     box-shadow: var(--control-hover-shadow);
@@ -577,7 +577,7 @@ body {
     flex: 1;
     min-width: 0;
     padding: 0.35em 0.8em;
-    background: rgba(var(--glass-tint-rgb), 0.45);
+    background: var(--control-bg);
     backdrop-filter: blur(var(--control-blur));
     -webkit-backdrop-filter: blur(var(--control-blur));
     border: var(--control-border);
@@ -588,7 +588,7 @@ body {
 }
 
 .explorer-path-bar:hover {
-    background: rgba(var(--glass-tint-rgb), 0.7);
+    background: var(--control-hover-bg);
     border: var(--control-hover-border);
     border-bottom: var(--control-hover-border-bottom);
     box-shadow: var(--control-hover-shadow);
@@ -1216,8 +1216,8 @@ select {
 }
 
 select option {
-    color: var(--input-color);
-    background-color: var(--input-bg);
+    color: var(--option-color);
+    background-color: var(--option-bg);
 }
 
 button:not(.sidebar-item):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel),
