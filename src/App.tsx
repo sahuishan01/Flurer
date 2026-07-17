@@ -47,12 +47,21 @@ function App() {
   const [wallpaperCacheChecked, setWallpaperCacheChecked] = createSignal(false);
   const cachedWallpaperImage = () => cachedWallpaper()?.dataUrl ?? null;
   // A plain value, not a signal — screen resolution doesn't change when the
-  // window is resized, so there's nothing to react to (see getDisplaySize).
   const windowSize = getDisplaySize();
+
+  const [settings, setSettings] = createStore<Settings>(DEFAULT_SETTINGS);
+  // GraphView is always mounted (see the view-stack below) and needs to know
+  // once settings have actually finished loading before it can trust
+  // settings.graphState — otherwise it can't tell "nothing saved yet" apart
+  // from "hasn't arrived from disk yet", since both look like `null`.
+  const [settingsLoaded, setSettingsLoaded] = createSignal(false);
 
   const [wallpaperRGB, setWallpaperRGB] = createSignal<{r: number; g: number; b: number} | null>(null);
 
-  function parseHexColor(hex: string): {r: number; g: number; b: number} {
+  function parseHexColor(hex: string | undefined | null): {r: number; g: number; b: number} {
+    if (!hex) {
+      return { r: 128, g: 128, b: 128 };
+    }
     let cleanHex = hex.trim().replace("#", "");
     if (cleanHex.length === 3) {
       cleanHex = cleanHex.split("").map(c => c + c).join("");
@@ -96,9 +105,11 @@ function App() {
 
   function getPanelLightness(
     tintRGB: {r: number; g: number; b: number},
-    opacity: number
+    opacityVal: number | undefined | null
   ): "light" | "dark" {
-    const fallbackWall = settings.theme === "dark" ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
+    const opacity = (opacityVal !== undefined && opacityVal !== null && !isNaN(opacityVal)) ? opacityVal : 0.35;
+    const isDark = settings && settings.theme === "dark";
+    const fallbackWall = isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
     const wall = wallpaperRGB() ?? fallbackWall;
     
     // Blend colors
@@ -112,6 +123,7 @@ function App() {
   }
 
   const shellLightness = createMemo(() => {
+    if (!settings) return "light";
     const isDark = settings.theme === "dark";
     const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 243, g: 243, b: 243 };
     const opacity = settings.uiTintOpacity;
@@ -119,6 +131,7 @@ function App() {
   });
 
   const sidebarLightness = createMemo(() => {
+    if (!settings) return "light";
     const isDark = settings.theme === "dark";
     const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 243, g: 243, b: 243 };
     const opacity = settings.uiTintOpacity;
@@ -126,6 +139,7 @@ function App() {
   });
 
   const fileListLightness = createMemo(() => {
+    if (!settings) return "light";
     const isDark = settings.theme === "dark";
     const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
     const opacity = settings.uiTintOpacity;
@@ -133,6 +147,7 @@ function App() {
   });
 
   createEffect(() => {
+    if (!settings || !settings.background) return;
     const bg = settings.background;
     const bgType = bg.backgroundType;
     const solidColor = bg.solidColor;
@@ -159,13 +174,6 @@ function App() {
       setWallpaperRGB(null);
     }
   });
-
-  const [settings, setSettings] = createStore<Settings>(DEFAULT_SETTINGS);
-  // GraphView is always mounted (see the view-stack below) and needs to know
-  // once settings have actually finished loading before it can trust
-  // settings.graphState — otherwise it can't tell "nothing saved yet" apart
-  // from "hasn't arrived from disk yet", since both look like `null`.
-  const [settingsLoaded, setSettingsLoaded] = createSignal(false);
 
   onMount(async () => {
     try {
