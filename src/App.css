@@ -169,6 +169,8 @@ body {
 }
 
 .command-bar {
+    position: relative;
+    z-index: 100;
     display: flex;
     align-items: center;
     gap: 0.8em;
