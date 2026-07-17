@@ -120,7 +120,11 @@ pub fn compute_dir_size(path: &Path) -> u64 {
     compute_dir_size_with_progress(path, &mut |_| {})
 }
 
-pub fn compute_dir_size_with_progress<F>(path: &Path, on_progress: &mut F) -> u64
+pub fn compute_dir_size_recursive<F>(
+    path: &Path,
+    on_progress: &mut F,
+    subdirs: &mut HashMap<PathBuf, u64>,
+) -> u64
 where
     F: FnMut(u64),
 {
@@ -134,7 +138,10 @@ where
             continue;
         };
         if metadata.is_dir() {
-            total += compute_dir_size_with_progress(&entry.path(), on_progress);
+            let subdir_path = entry.path();
+            let subdir_size = compute_dir_size_recursive(&subdir_path, on_progress, subdirs);
+            subdirs.insert(subdir_path, subdir_size);
+            total += subdir_size;
         } else {
             let len = metadata.len();
             total += len;
@@ -143,6 +150,14 @@ where
     }
 
     total
+}
+
+pub fn compute_dir_size_with_progress<F>(path: &Path, on_progress: &mut F) -> u64
+where
+    F: FnMut(u64),
+{
+    let mut subdirs = HashMap::new();
+    compute_dir_size_recursive(path, on_progress, &mut subdirs)
 }
 
 // What the unified progress panel shows for a folder-size task — the
@@ -239,9 +254,16 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 }
             };
 
-            let size = compute_dir_size_with_progress(&job.path, &mut on_progress);
+            let mut subdirs = HashMap::new();
+            let size = compute_dir_size_recursive(&job.path, &mut on_progress, &mut subdirs);
             let state = app.state::<AppState>();
-            state.size_cache.sizes.lock().unwrap().insert(job.path.clone(), size);
+            {
+                let mut cache = state.size_cache.sizes.lock().unwrap();
+                cache.insert(job.path.clone(), size);
+                for (subdir_path, subdir_size) in subdirs {
+                    cache.insert(subdir_path, subdir_size);
+                }
+            }
             state.size_cache.pending.lock().unwrap().remove(&job.path);
             *state.size_cache.dirty.lock().unwrap() = true;
             start_watching(&state, &job.path);
