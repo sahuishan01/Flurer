@@ -80,3 +80,9 @@ Any functional update, feature addition, or bug fix pushed to the `main` branch 
      ```
 5. **Notify & Monitor**:
    * Push an `agent-releases` notification containing the changelog and release link to the user's `ntfy` server immediately after pushing the tag to track the build.
+6. **Verify GitHub Action Run**:
+   * Monitor the triggered GitHub Action run until completion to ensure it compiles, packages, and releases correctly.
+   * Query the GitHub REST API for runs (e.g., using `curl -s https://api.github.com/repos/sahuishan01/Flurer/actions/runs`):
+     * Check the status of the run corresponding to the tag (e.g., `status` should transition from `in_progress` to `completed`).
+     * Verify that `conclusion` is `success`.
+   * Do not mark the version bump/release task as done until the build has run to completion successfully.
