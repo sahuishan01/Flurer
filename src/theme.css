@@ -3,31 +3,31 @@
     --fluent-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     
     /* Windows 11 Acrylic Material (Sidebar) - Strong blur, lower opacity */
-    --acrylic-blur: 30px;
-    --acrylic-opacity: 0.65;
+    --acrylic-blur: var(--surface-blur, 30px);
+    --acrylic-opacity: var(--surface-opacity, 0.65);
     --acrylic-tint-rgb: 243, 243, 243;
     --acrylic-bg: rgba(var(--acrylic-tint-rgb), var(--acrylic-opacity));
     --acrylic-border: 1px solid rgba(0, 0, 0, 0.08);
     --acrylic-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 
     /* Windows 11 Mica Material (Base/Top bar overlay) */
-    --mica-blur: 15px;
-    --mica-opacity: 0.85;
+    --mica-blur: var(--surface-blur, 15px);
+    --mica-opacity: var(--surface-opacity, 0.85);
     --mica-tint-rgb: 243, 243, 243;
     --mica-bg: rgba(var(--mica-tint-rgb), var(--mica-opacity));
     --mica-border: 1px solid rgba(0, 0, 0, 0.08);
 
     /* Main Content Area Glass - Crisper, lighter, highly translucent */
-    --glass-blur: 20px;
-    --glass-opacity: 0.75;
+    --glass-blur: var(--surface-blur, 20px);
+    --glass-opacity: var(--surface-opacity, 0.75);
     --glass-tint-rgb: 255, 255, 255;
     --glass-bg: rgba(var(--glass-tint-rgb), var(--glass-opacity));
     --glass-border: 1px solid rgba(0, 0, 0, 0.08);
     --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
 
     /* Inset Control Materials (Search field, buttons, breadcrumbs) */
-    --control-blur: 10px;
-    --control-opacity: 0.5;
+    --control-blur: var(--surface-blur, 10px);
+    --control-opacity: var(--surface-opacity, 0.5);
     --control-tint-rgb: 255, 255, 255;
     --control-bg: rgba(var(--control-tint-rgb), var(--control-opacity));
     
@@ -62,31 +62,31 @@
 
 [data-theme="dark"] {
     /* Windows 11 Acrylic Material (Sidebar) - Dark Mode */
-    --acrylic-blur: 30px;
-    --acrylic-opacity: 0.55;
+    --acrylic-blur: var(--surface-blur, 30px);
+    --acrylic-opacity: var(--surface-opacity, 0.55);
     --acrylic-tint-rgb: 32, 32, 32;
     --acrylic-bg: rgba(var(--acrylic-tint-rgb), var(--acrylic-opacity));
     --acrylic-border: 1px solid rgba(255, 255, 255, 0.05);
     --acrylic-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 
     /* Windows 11 Mica Material (Base/Top bar overlay) - Dark Mode */
-    --mica-blur: 15px;
-    --mica-opacity: 0.8;
+    --mica-blur: var(--surface-blur, 15px);
+    --mica-opacity: var(--surface-opacity, 0.8);
     --mica-tint-rgb: 32, 32, 32;
     --mica-bg: rgba(var(--mica-tint-rgb), var(--mica-opacity));
     --mica-border: 1px solid rgba(255, 255, 255, 0.06);
 
     /* Main Content Area Glass - Dark Mode */
-    --glass-blur: 20px;
-    --glass-opacity: 0.7;
+    --glass-blur: var(--surface-blur, 20px);
+    --glass-opacity: var(--surface-opacity, 0.7);
     --glass-tint-rgb: 32, 32, 32;
     --glass-bg: rgba(var(--glass-tint-rgb), var(--glass-opacity));
     --glass-border: 1px solid rgba(255, 255, 255, 0.06);
     --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
 
     /* Inset Control Materials - Dark Mode */
-    --control-blur: 10px;
-    --control-opacity: 0.18;
+    --control-blur: var(--surface-blur, 10px);
+    --control-opacity: var(--surface-opacity, 0.18);
     --control-tint-rgb: 255, 255, 255;
     --control-bg: rgba(var(--control-tint-rgb), var(--control-opacity));
     --control-border: 1px solid rgba(255, 255, 255, 0.06);
