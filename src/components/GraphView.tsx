@@ -52,8 +52,15 @@ function tooltipLines(node: GraphNode): TooltipLine[] {
   lines.push({ label: "Type", value: node.kind });
   // While a recalculation is in flight, any previously known size is stale —
   // prefer the pending indicator so the user doesn't mistake it for current.
-  if (node.sizePending) lines.push({ label: "Size", value: "Calculating…" });
-  else if (node.size !== undefined) lines.push({ label: "Size", value: formatBytes(node.size) });
+  if (node.sizePending) {
+    if (node.size !== undefined && node.size > 0) {
+      lines.push({ label: "Size", value: `${formatBytes(node.size)}...` });
+    } else {
+      lines.push({ label: "Size", value: "Calculating…" });
+    }
+  } else if (node.size !== undefined) {
+    lines.push({ label: "Size", value: formatBytes(node.size) });
+  }
   if (node.modifiedAt) lines.push({ label: "Modified", value: new Date(node.modifiedAt * 1000).toLocaleString() });
   if (node.meta && node.kind !== "file") lines.push({ label: "Info", value: node.meta });
   if (node.error) lines.push({ label: "Error", value: node.error });
@@ -204,8 +211,8 @@ export function GraphView(props: GraphViewProps) {
   // refresh.
   onMount(() => {
     let unlisten: (() => void) | undefined;
-    listen<{ path: string; size: number }>("folder-size-updated", (event) => {
-      applyFolderSize(event.payload.path, event.payload.size);
+    listen<{ path: string; size: number; done: boolean }>("folder-size-updated", (event) => {
+      applyFolderSize(event.payload.path, event.payload.size, event.payload.done);
     }).then((fn) => {
       unlisten = fn;
     });
@@ -295,7 +302,7 @@ export function GraphView(props: GraphViewProps) {
   async function fetchFolderSize(path: string) {
     try {
       const response = await invoke<FolderSizeResponse>("get_folder_size", { path });
-      if (response.status === "ready") applyFolderSize(path, response.size);
+      if (response.status === "ready") applyFolderSize(path, response.size, true);
       else markFolderPending(path);
     } catch (err) {
       console.error("Failed to compute folder size for", path, err);
@@ -317,8 +324,8 @@ export function GraphView(props: GraphViewProps) {
     setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, sizePending: true })));
   }
 
-  function applyFolderSize(path: string, size: number) {
-    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, size, sizePending: false })));
+  function applyFolderSize(path: string, size: number, done: boolean) {
+    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, size, sizePending: !done })));
   }
 
   // Node ids embed their full path (e.g. "folder:C:\Users\me"), so counting

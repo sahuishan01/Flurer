@@ -32,6 +32,7 @@ const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(5);
 pub struct FolderSizeUpdate {
     pub path: String,
     pub size: u64,
+    pub done: bool,
 }
 
 /// `get_folder_size` never blocks on the recursive walk itself — it returns
@@ -116,6 +117,13 @@ fn save_persisted_sizes(sizes: &HashMap<PathBuf, u64>) {
 }
 
 pub fn compute_dir_size(path: &Path) -> u64 {
+    compute_dir_size_with_progress(path, &mut |_| {})
+}
+
+pub fn compute_dir_size_with_progress<F>(path: &Path, on_progress: &mut F) -> u64
+where
+    F: FnMut(u64),
+{
     let mut total = 0u64;
     let Ok(read_dir) = fs::read_dir(path) else {
         return 0;
@@ -126,9 +134,11 @@ pub fn compute_dir_size(path: &Path) -> u64 {
             continue;
         };
         if metadata.is_dir() {
-            total += compute_dir_size(&entry.path());
+            total += compute_dir_size_with_progress(&entry.path(), on_progress);
         } else {
-            total += metadata.len();
+            let len = metadata.len();
+            total += len;
+            on_progress(len);
         }
     }
 
@@ -205,7 +215,31 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 break;
             };
 
-            let size = compute_dir_size(&job.path);
+            let path_str = job.path.to_string_lossy().to_string();
+            let app_clone = app.clone();
+            let path_clone = path_str.clone();
+
+            // Throttle progress events to once every 250ms
+            let mut last_emit = std::time::Instant::now();
+            let mut current_size = 0u64;
+            
+            let mut on_progress = |bytes_added: u64| {
+                current_size += bytes_added;
+                let now = std::time::Instant::now();
+                if now.duration_since(last_emit) >= std::time::Duration::from_millis(250) {
+                    let _ = app_clone.emit(
+                        "folder-size-updated",
+                        FolderSizeUpdate {
+                            path: path_clone.clone(),
+                            size: current_size,
+                            done: false,
+                        },
+                    );
+                    last_emit = now;
+                }
+            };
+
+            let size = compute_dir_size_with_progress(&job.path, &mut on_progress);
             let state = app.state::<AppState>();
             state.size_cache.sizes.lock().unwrap().insert(job.path.clone(), size);
             state.size_cache.pending.lock().unwrap().remove(&job.path);
@@ -214,7 +248,11 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
 
             let _ = app.emit(
                 "folder-size-updated",
-                FolderSizeUpdate { path: job.path.to_string_lossy().to_string(), size },
+                FolderSizeUpdate {
+                    path: path_str,
+                    size,
+                    done: true,
+                },
             );
             if let Some(TrackedJob { task_id, label }) = &job.tracking {
                 emit_progress(&app, *task_id, label, 0, 0, true, None, true);

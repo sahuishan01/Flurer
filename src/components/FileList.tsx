@@ -69,7 +69,7 @@ export function FileList(props: FileListProps) {
   // cache (never blocking the listing itself) and pushed here as they
   // resolve, keyed by absolute path so entries from different folders
   // (e.g. search results) don't collide.
-  const [folderSizes, setFolderSizes] = createSignal<Map<string, number | "pending">>(new Map());
+  const [folderSizes, setFolderSizes] = createSignal<Map<string, "pending" | { size: number; done: boolean }>>(new Map());
   const [loading, setLoading] = createSignal(false);
 
   function isSearching(): boolean {
@@ -126,8 +126,8 @@ export function FileList(props: FileListProps) {
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
-    listen<{ path: string; size: number }>("folder-size-updated", (event) => {
-      applyFolderSize(event.payload.path, event.payload.size);
+    listen<{ path: string; size: number; done: boolean }>("folder-size-updated", (event) => {
+      applyFolderSize(event.payload.path, event.payload.size, event.payload.done);
     }).then((fn) => {
       unlisten = fn;
     });
@@ -137,7 +137,7 @@ export function FileList(props: FileListProps) {
   async function fetchFolderSize(path: string) {
     try {
       const response = await invoke<FolderSizeResponse>("get_folder_size", { path });
-      if (response.status === "ready") applyFolderSize(path, response.size);
+      if (response.status === "ready") applyFolderSize(path, response.size, true);
       else markFolderPending(path);
     } catch (err) {
       console.error("Failed to compute folder size for", path, err);
@@ -159,15 +159,18 @@ export function FileList(props: FileListProps) {
     setFolderSizes((prev) => new Map(prev).set(path, "pending"));
   }
 
-  function applyFolderSize(path: string, size: number) {
-    setFolderSizes((prev) => new Map(prev).set(path, size));
+  function applyFolderSize(path: string, size: number, done: boolean) {
+    setFolderSizes((prev) => new Map(prev).set(path, { size, done }));
   }
 
   function sizeCellText(entry: DirEntry): string {
     if (!entry.isDir) return formatBytes(entry.size);
     const state = folderSizes().get(entry.path);
     if (state === "pending") return "Calculating…";
-    if (typeof state === "number") return formatBytes(state);
+    if (state && typeof state === "object") {
+      const formatted = formatBytes(state.size);
+      return state.done ? formatted : `${formatted}...`;
+    }
     return "";
   }
 
@@ -197,8 +200,11 @@ export function FileList(props: FileListProps) {
       list.filter((e) => e.isDir),
       (entry) => {
         const state = sizes.get(entry.path);
-        return typeof state === "number" ? state : undefined;
-      },
+        if (state && typeof state === "object") {
+          return state.size;
+        }
+        return undefined;
+      }
     );
     const files = sortBySize(
       list.filter((e) => !e.isDir),
