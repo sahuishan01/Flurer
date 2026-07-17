@@ -173,24 +173,100 @@ body {
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 0.8em;
-    padding: 0.6em 1em;
-    background: var(--glass-bg);
+    gap: 1.2em;
+    padding: 0.75em 1.5em;
+    background: linear-gradient(to bottom, rgba(var(--glass-tint-rgb), calc(var(--glass-opacity) + 0.05)), rgba(var(--glass-tint-rgb), var(--glass-opacity)));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border-bottom: var(--glass-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.command-bar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.35);
+    z-index: 1;
+}
+
+[data-theme="dark"] .command-bar::before {
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .command-bar-nav {
     display: flex;
-    gap: 0.2em;
+    gap: 0.4em;
     flex-shrink: 0;
 }
 
-/* Holds whatever the active view wants inline in the bar (e.g. the
-   Explorer's breadcrumb) — flexes to fill the space between navigation and
-   the app-wide search/progress controls, and collapses to nothing when the
-   active view has nothing to put here. */
+.command-bar-nav .icon-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    border-radius: var(--radius-md);
+    padding: 0.55em;
+    transition: all 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.command-bar-nav .icon-btn:hover {
+    background: var(--control-bg);
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+}
+
+.command-bar-nav .icon-btn:active {
+    background: var(--control-active-bg);
+    border: var(--control-active-border);
+    transform: scale(0.96);
+}
+
+.command-bar-nav .icon-btn:disabled {
+    opacity: 0.25;
+    background: transparent;
+    border: 1px solid transparent;
+    transform: none;
+    box-shadow: none;
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn) {
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    border-radius: var(--radius-md);
+    padding: 0.55em;
+    transition: all 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn):hover {
+    background: var(--control-bg);
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn):active {
+    background: var(--control-active-bg);
+    border: var(--control-active-border);
+    transform: scale(0.96);
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn).active {
+    color: var(--accent);
+    background: var(--accent-bg-soft);
+    border-color: var(--accent-border);
+    border-bottom: 1px solid var(--accent);
+    box-shadow: var(--control-shadow);
+}
+
 .command-bar-slot {
     flex: 1;
     min-width: 0;
@@ -199,37 +275,50 @@ body {
 }
 
 .search-field {
-    flex: 0 1 240px;
-    min-width: 120px;
+    flex: 0 1 260px;
+    min-width: 140px;
     display: flex;
     align-items: center;
-    gap: 0.5em;
-    padding: 0.4em 0.8em;
-    border-radius: var(--radius-md);
-    background: var(--control-bg);
+    gap: 0.6em;
+    padding: 0.35em 0.8em;
+    border-radius: var(--radius-lg);
+    background: rgba(var(--glass-tint-rgb), 0.45);
     backdrop-filter: blur(var(--control-blur));
     -webkit-backdrop-filter: blur(var(--control-blur));
     border: var(--control-border);
     border-bottom: var(--control-border-bottom);
     box-shadow: var(--control-shadow);
-    transition: all 0.15s ease;
+    transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
-.search-field:hover,
-.search-field:focus-within {
-    background: var(--control-hover-bg);
+.search-field:hover {
+    background: rgba(var(--glass-tint-rgb), 0.7);
     border: var(--control-hover-border);
     border-bottom: var(--control-hover-border-bottom);
     box-shadow: var(--control-hover-shadow);
 }
 
+.search-field:focus-within {
+    flex: 0 1 320px;
+    background: rgba(var(--glass-tint-rgb), 0.95);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--accent-border), var(--control-shadow);
+}
+
 .search-input {
     flex: 1;
-    padding: 0;
+    min-width: 0;
     border: none;
     background: transparent;
-    box-shadow: none;
-    color: inherit;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-primary);
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
 }
 
 .explorer-view {
@@ -484,26 +573,31 @@ body {
 .explorer-path-bar {
     display: flex;
     align-items: center;
-    gap: 0.4em;
+    gap: 0.5em;
     flex: 1;
     min-width: 0;
-    padding: 0.25em 0.5em;
-    background: var(--control-bg);
+    padding: 0.35em 0.8em;
+    background: rgba(var(--glass-tint-rgb), 0.45);
     backdrop-filter: blur(var(--control-blur));
     -webkit-backdrop-filter: blur(var(--control-blur));
     border: var(--control-border);
     border-bottom: var(--control-border-bottom);
     box-shadow: var(--control-shadow);
-    border-radius: var(--radius-md);
-    transition: all 0.15s ease;
+    border-radius: var(--radius-lg);
+    transition: all 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
 }
 
-.explorer-path-bar:hover,
-.explorer-path-bar:focus-within {
-    background: var(--control-hover-bg);
+.explorer-path-bar:hover {
+    background: rgba(var(--glass-tint-rgb), 0.7);
     border: var(--control-hover-border);
     border-bottom: var(--control-hover-border-bottom);
     box-shadow: var(--control-hover-shadow);
+}
+
+.explorer-path-bar:focus-within {
+    background: rgba(var(--glass-tint-rgb), 0.95);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--accent-border), var(--control-shadow);
 }
 
 .path-form {
@@ -514,6 +608,13 @@ body {
 
 .path-input {
     flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-primary);
+    outline: none;
 }
 
 .breadcrumb {
@@ -527,16 +628,20 @@ body {
 }
 
 .breadcrumb-segment {
-    padding: 0.3em 0.5em;
+    padding: 0.3em 0.6em;
     background: transparent;
     border: none;
-    font-size: var(--text-body);
-    color: var(--text-color);
-    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
+    transition: all 0.15s ease;
+    cursor: pointer;
 }
 
 .breadcrumb-segment:hover {
     background-color: var(--hover-bg);
+    color: var(--accent);
 }
 
 .breadcrumb-segment:last-of-type {
@@ -544,8 +649,10 @@ body {
 }
 
 .breadcrumb-sep {
-    opacity: 0.45;
-    font-size: var(--text-body);
+    color: var(--text-secondary);
+    opacity: 0.4;
+    font-size: 11px;
+    user-select: none;
 }
 
 .breadcrumb-edit-btn {
