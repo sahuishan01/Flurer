@@ -52,11 +52,12 @@ If a feature genuinely doesn't fit the command/state pattern above (e.g. it need
 
 Any functional update, feature addition, or bug fix pushed to the `main` branch **must** be accompanied by a version bump (e.g., patch increment) in order to trigger a new release build. When performing a version bump or initiating a new release, follow this sequence:
 
-1. **Verify Frontend Build**: Always verify that the frontend compiles cleanly before tagging:
+1. **Verify Frontend Build**: Always run a build check to verify that the frontend compiles cleanly:
    ```bash
    bun run build
    ```
-2. **Update Version Numbers**: The version number must be updated synchronously across four files:
+   *If the build fails, first fix the build issue. Do not update version numbers or tag until the build compiles successfully.*
+2. **Update Version Numbers**: Update/increment the version number **after** a successful build check has run. The version number must be updated synchronously across four files:
    * `package.json` (`"version": "X.Y.Z"`)
    * `src-tauri/Cargo.toml` (`version = "X.Y.Z"`)
    * `src-tauri/Cargo.lock` (`version = "X.Y.Z"` under the `[[package]]` named `flurer`)
