@@ -1,5 +1,7 @@
+@import "./theme.css";
+
 :root {
-    --font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    --font-family: var(--fluent-font);
     --font-size: 16px;
     font-family: var(--font-family);
     font-size: var(--font-size);
@@ -23,69 +25,46 @@
     --text-section: 0.7em;      /* 11px   — sidebar section labels */
     --text-badge: 10px;         /* fixed  — progress badge count */
 
-    /* Neutral matte surfaces — warm enough to feel authored, neutral enough
-       to work with any wallpaper colour (blue, green, or vivid Unsplash
-       backgrounds included). The amber accent carries the warmth instead. */
-    --bg-color: #f0f0f2;
-    --text-color: #1f0f0f;
-    --panel-bg: #ffffff;
-    --panel-tint: #ececee;
+    /* Overriding with Fluent theme token mappings */
+    --bg-color: transparent;
+    --text-color: var(--text-primary);
+    --panel-bg: var(--glass-bg);
     --border-color: rgba(0, 0, 0, 0.08);
     --border-strong: rgba(0, 0, 0, 0.14);
-    --hover-bg: rgba(196, 138, 58, 0.08);
-    --active-bg: rgba(196, 138, 58, 0.14);
-    --input-bg: #fcfcfc;
-    --input-color: #0f0f0f;
-    --accent: #c48a3a;
-    --accent-soft: color-mix(in oklch, #c48a3a 85%, #fff);
+    --hover-bg: rgba(0, 0, 0, 0.04);
+    --active-bg: rgba(0, 0, 0, 0.08);
+    --input-bg: var(--control-bg);
+    --input-color: var(--text-primary);
+    --accent: var(--accent-default);
+    --accent-soft: var(--accent-bg-soft);
     --danger: #bc483a;
     --success: #4a8c5c;
     --scrollbar-thumb: rgba(0, 0, 0, 0.18);
     --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
-    --surface-glass: rgba(255, 255, 255, 0.5);
-    --surface-blur: 10px;
     --radius-sm: 6px;
     --radius-md: 8px;
     --radius-lg: 10px;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-md: var(--glass-shadow);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
     --text-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-    /* Panel opacity — 0 = fully transparent (wallpaper shows through), 1 = opaque.
-       Controlled by the tint slider in settings (uiTintOpacity). Components use
-       rgba(var(--panel-rgb), var(--surface-opacity)) for their backgrounds. */
-    --surface-opacity: 0.85;
-    --surface-blur: 10px;
-    --panel-rgb: 255, 255, 255;
-    --panel-tint-rgb: 236, 236, 238;
 }
 
 [data-theme="dark"] {
-    --surface-opacity: 0.88;
-    --panel-rgb: 28, 28, 30;
-    --panel-tint-rgb: 24, 24, 26;
-    --bg-color: #121214;
-    --text-color: #e8e8ea;
-    --panel-bg: #1c1c1e;
-    --panel-tint: #18181a;
+    --text-color: var(--text-primary);
+    --panel-bg: var(--glass-bg);
     --border-color: rgba(255, 255, 255, 0.08);
     --border-strong: rgba(255, 255, 255, 0.14);
-    --hover-bg: rgba(196, 138, 58, 0.10);
-    --active-bg: rgba(196, 138, 58, 0.18);
-    --input-bg: #28282a;
-    --input-color: #e8e8ea;
-    --accent: #d49a44;
-    --accent-soft: color-mix(in oklch, #d49a44 85%, #000);
-    --danger: #d4604f;
-    --success: #5ca06e;
+    --hover-bg: rgba(255, 255, 255, 0.06);
+    --active-bg: rgba(255, 255, 255, 0.1);
+    --input-bg: var(--control-bg);
+    --input-color: var(--text-primary);
+    --accent: var(--accent-default);
+    --accent-soft: var(--accent-bg-soft);
     --scrollbar-thumb: rgba(255, 255, 255, 0.18);
     --scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
-    --surface-glass: rgba(15, 15, 15, 0.6);
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 10px;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-md: var(--glass-shadow);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
@@ -194,8 +173,10 @@ body {
     align-items: center;
     gap: 0.8em;
     padding: 0.6em 1em;
-    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
-    border-bottom: 1px solid var(--border-color);
+    background: var(--mica-bg);
+    backdrop-filter: blur(var(--mica-blur));
+    -webkit-backdrop-filter: blur(var(--mica-blur));
+    border-bottom: var(--mica-border);
 }
 
 .command-bar-nav {
@@ -223,9 +204,21 @@ body {
     gap: 0.5em;
     padding: 0.4em 0.8em;
     border-radius: var(--radius-md);
-    background-color: var(--input-bg);
-    color: var(--input-color);
-    border: 1px solid var(--border-color);
+    background: var(--control-bg);
+    backdrop-filter: blur(var(--control-blur));
+    -webkit-backdrop-filter: blur(var(--control-blur));
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+    transition: all 0.15s ease;
+}
+
+.search-field:hover,
+.search-field:focus-within {
+    background: var(--control-hover-bg);
+    border: var(--control-hover-border);
+    border-bottom: var(--control-hover-border-bottom);
+    box-shadow: var(--control-hover-shadow);
 }
 
 .search-input {
@@ -316,10 +309,11 @@ body {
     gap: 0.2em;
     padding: 1em;
     overflow-y: auto;
-    background-color: rgba(var(--panel-tint-rgb), var(--surface-opacity));
-    backdrop-filter: blur(var(--surface-blur, 0));
-    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
-    border-right: 1px solid var(--border-color);
+    background: var(--acrylic-bg);
+    backdrop-filter: blur(var(--acrylic-blur));
+    -webkit-backdrop-filter: blur(var(--acrylic-blur));
+    border-right: var(--acrylic-border);
+    box-shadow: var(--acrylic-shadow);
 }
 
 .sidebar-empty-label {
@@ -491,6 +485,23 @@ body {
     gap: 0.4em;
     flex: 1;
     min-width: 0;
+    padding: 0.25em 0.5em;
+    background: var(--control-bg);
+    backdrop-filter: blur(var(--control-blur));
+    -webkit-backdrop-filter: blur(var(--control-blur));
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+    border-radius: var(--radius-md);
+    transition: all 0.15s ease;
+}
+
+.explorer-path-bar:hover,
+.explorer-path-bar:focus-within {
+    background: var(--control-hover-bg);
+    border: var(--control-hover-border);
+    border-bottom: var(--control-hover-border-bottom);
+    box-shadow: var(--control-hover-shadow);
 }
 
 .path-form {
@@ -549,29 +560,53 @@ body {
     align-items: center;
     justify-content: center;
     padding: 0.5em;
-    background: transparent;
-    border: 1px solid transparent;
+    background: var(--control-bg);
+    backdrop-filter: blur(var(--control-blur));
+    -webkit-backdrop-filter: blur(var(--control-blur));
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
     color: var(--text-color);
-    box-shadow: none;
+    box-shadow: var(--control-shadow);
     border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+    cursor: pointer;
 }
 
 .icon-btn:hover {
-    background-color: var(--hover-bg);
+    background: var(--control-hover-bg);
+    border: var(--control-hover-border);
+    border-bottom: var(--control-hover-border-bottom);
+    box-shadow: var(--control-hover-shadow);
+    transform: translateY(-0.5px);
+}
+
+.icon-btn:active {
+    background: var(--control-active-bg);
+    border: var(--control-active-border);
+    box-shadow: var(--control-active-shadow);
+    transform: translateY(0.5px);
 }
 
 .icon-btn:disabled {
-    opacity: 0.35;
+    opacity: 0.3;
     cursor: default;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    box-shadow: none;
+    transform: none;
 }
 
 .icon-btn:disabled:hover {
-    background-color: transparent;
+    background: transparent;
+    transform: none;
+    box-shadow: none;
 }
 
 .icon-btn.active {
     color: var(--accent);
-    background-color: var(--active-bg);
+    background: var(--accent-bg-soft);
+    border-color: var(--accent);
+    border-bottom: 2px solid var(--accent);
 }
 
 .settings-error {
@@ -727,9 +762,23 @@ body {
     flex: 1;
     overflow: auto;
     padding: 1em;
-    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
-    backdrop-filter: blur(var(--surface-blur, 0));
-    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-left: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+/* Enhanced legibility text shadows over dynamic backgrounds */
+.sidebar-item,
+.sidebar-section-label,
+.breadcrumb-segment,
+.file-table th,
+.file-table td,
+.progress-task-label,
+.settings-panel-header h2,
+.settings-section h3 {
+    text-shadow: var(--text-shadow);
 }
 
 .file-list-error {
