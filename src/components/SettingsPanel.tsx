@@ -35,13 +35,14 @@ type SettingsPanelProps = {
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
+  "data-bg-lightness"?: string;
 };
 
 export function SettingsPanel(props: SettingsPanelProps) {
   const [category, setCategory] = createSignal<SettingsCategory>("customization");
 
   return (
-    <div class="settings-page">
+    <div class="settings-page" data-bg-lightness={props["data-bg-lightness"]}>
       <div class="settings-panel-header">
         <h2>Settings</h2>
         <button type="button" class="icon-btn" aria-label="Close settings" onClick={props.onClose}>

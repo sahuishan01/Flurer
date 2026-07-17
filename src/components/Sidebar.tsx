@@ -52,6 +52,7 @@ type SidebarProps = {
   onToggleFavourite: (path: string) => void;
   recentPaths: string[];
   onRemoveRecent: (path: string) => void;
+  "data-bg-lightness"?: string;
 };
 
 type SidebarEntryProps = {
@@ -153,6 +154,7 @@ export function Sidebar(props: SidebarProps) {
     <>
     <nav
       class="sidebar"
+      data-bg-lightness={props["data-bg-lightness"]}
       onPointerMove={handleTipMove}
       onPointerLeave={() => {
         clearTimeout(tooltipTimer);

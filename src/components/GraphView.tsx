@@ -107,6 +107,7 @@ type GraphViewProps = {
   // Set when the sidebar's drive picker is used while already in graph
   // mode, instead of navigating to Explorer — see App.tsx's selectDrive.
   focusPath: GraphFocusRequest | null;
+  "data-bg-lightness"?: string;
 };
 
 // Everything an undoable action can change. roots/nodeOverrides are always
@@ -750,7 +751,7 @@ export function GraphView(props: GraphViewProps) {
   }
 
   return (
-    <div class="graph-view">
+    <div class="graph-view" data-bg-lightness={props["data-bg-lightness"]}>
       <div class="graph-toolbar">
         <h2 class="graph-title">Storage graph</h2>
         <button

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { CommandBar } from "./components/CommandBar";
@@ -49,6 +49,116 @@ function App() {
   // A plain value, not a signal — screen resolution doesn't change when the
   // window is resized, so there's nothing to react to (see getDisplaySize).
   const windowSize = getDisplaySize();
+
+  const [wallpaperRGB, setWallpaperRGB] = createSignal<{r: number; g: number; b: number} | null>(null);
+
+  function parseHexColor(hex: string): {r: number; g: number; b: number} {
+    let cleanHex = hex.trim().replace("#", "");
+    if (cleanHex.length === 3) {
+      cleanHex = cleanHex.split("").map(c => c + c).join("");
+    }
+    if (cleanHex.length !== 6) {
+      return { r: 128, g: 128, b: 128 };
+    }
+    const num = parseInt(cleanHex, 16);
+    if (isNaN(num)) {
+      return { r: 128, g: 128, b: 128 };
+    }
+    return {
+      r: (num >> 16) & 255,
+      g: (num >> 8) & 255,
+      b: num & 255
+    };
+  }
+
+  function getAverageColor(imageUrl: string): Promise<{r: number; g: number; b: number} | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = imageUrl;
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 1;
+          canvas.height = 1;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0, 1, 1);
+          const data = ctx.getImageData(0, 0, 1, 1).data;
+          resolve({ r: data[0], g: data[1], b: data[2] });
+        } catch (e) {
+          console.error("Canvas average color extraction failed", e);
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+    });
+  }
+
+  function getPanelLightness(
+    tintRGB: {r: number; g: number; b: number},
+    opacity: number
+  ): "light" | "dark" {
+    const fallbackWall = settings.theme === "dark" ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
+    const wall = wallpaperRGB() ?? fallbackWall;
+    
+    // Blend colors
+    const r = tintRGB.r * opacity + wall.r * (1 - opacity);
+    const g = tintRGB.g * opacity + wall.g * (1 - opacity);
+    const b = tintRGB.b * opacity + wall.b * (1 - opacity);
+    
+    // Relative luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? "light" : "dark";
+  }
+
+  const shellLightness = createMemo(() => {
+    const isDark = settings.theme === "dark";
+    const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 243, g: 243, b: 243 };
+    const opacity = settings.uiTintOpacity;
+    return getPanelLightness(tintRGB, opacity);
+  });
+
+  const sidebarLightness = createMemo(() => {
+    const isDark = settings.theme === "dark";
+    const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 243, g: 243, b: 243 };
+    const opacity = settings.uiTintOpacity;
+    return getPanelLightness(tintRGB, opacity);
+  });
+
+  const fileListLightness = createMemo(() => {
+    const isDark = settings.theme === "dark";
+    const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
+    const opacity = settings.uiTintOpacity;
+    return getPanelLightness(tintRGB, opacity);
+  });
+
+  createEffect(() => {
+    const bg = settings.background;
+    const bgType = bg.backgroundType;
+    const solidColor = bg.solidColor;
+    const grad1 = bg.gradientColor1;
+    const grad2 = bg.gradientColor2;
+    const liveUrl = bg.unsplashMode === "autoRotateList" ? rotationImage() : wallpaper()?.localDataUrl;
+    const dataUrl = liveUrl ?? cachedWallpaperImage();
+
+    if (bgType === "solid") {
+      setWallpaperRGB(parseHexColor(solidColor));
+    } else if (bgType === "gradient") {
+      const c1 = parseHexColor(grad1);
+      const c2 = parseHexColor(grad2);
+      setWallpaperRGB({
+        r: Math.round((c1.r + c2.r) / 2),
+        g: Math.round((c1.g + c2.g) / 2),
+        b: Math.round((c1.b + c2.b) / 2)
+      });
+    } else if (bgType === "unsplash" && dataUrl) {
+      getAverageColor(dataUrl).then((color) => {
+        if (color) setWallpaperRGB(color);
+      });
+    } else {
+      setWallpaperRGB(null);
+    }
+  });
 
   const [settings, setSettings] = createStore<Settings>(DEFAULT_SETTINGS);
   // GraphView is always mounted (see the view-stack below) and needs to know
@@ -506,8 +616,9 @@ function App() {
           </div>
         }
       >
-      <div class="app-shell">
+      <div class="app-shell" data-bg-lightness={shellLightness()}>
         <CommandBar
+          data-bg-lightness={shellLightness()}
           canGoBack={historyIndex() > 0}
           canGoForward={historyIndex() < history().length - 1}
           onBack={goBack}
@@ -535,6 +646,7 @@ function App() {
           <ViewRail activeView={mainView()} onSelectView={selectView} />
           <Show when={mainView() !== "settings"}>
             <Sidebar
+              data-bg-lightness={sidebarLightness()}
               currentPath={currentPath()}
               onSelectPath={selectSidebarPath}
               activeView={mainView()}
@@ -553,6 +665,7 @@ function App() {
           <div class="view-stack">
             <div class="view-pane" style={{ display: mainView() === "explorer" ? "flex" : "none" }}>
               <ExplorerView
+                data-bg-lightness={fileListLightness()}
                 path={currentPath()}
                 onNavigate={navigateTo}
                 searchQuery={searchQuery()}
@@ -566,6 +679,7 @@ function App() {
             </div>
             <div class="view-pane" style={{ display: mainView() === "graph" ? "flex" : "none" }}>
               <GraphView
+                data-bg-lightness={fileListLightness()}
                 searchQuery={searchQuery()}
                 onOpenInExplorer={navigateTo}
                 settingsLoaded={settingsLoaded()}
@@ -578,6 +692,7 @@ function App() {
             </div>
             <div class="view-pane" style={{ display: mainView() === "settings" ? "flex" : "none" }}>
               <SettingsPanel
+                data-bg-lightness={fileListLightness()}
                 onClose={closeSettings}
                 searchQuery={searchQuery()}
                 background={settings.background}

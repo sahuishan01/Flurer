@@ -12,6 +12,7 @@ type ExplorerViewProps = {
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSortChange: (key: SortKey) => void;
+  "data-bg-lightness"?: string;
 };
 
 export function ExplorerView(props: ExplorerViewProps) {
@@ -20,6 +21,7 @@ export function ExplorerView(props: ExplorerViewProps) {
   return (
     <div class="explorer-content">
       <FileList
+        data-bg-lightness={props["data-bg-lightness"]}
         path={props.path}
         onNavigate={props.onNavigate}
         sortKey={props.sortKey}

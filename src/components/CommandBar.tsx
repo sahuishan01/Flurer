@@ -16,11 +16,12 @@ type CommandBarProps = {
   // path or a breadcrumb is.
   viewControls?: JSX.Element;
   showProgressWhenIdle?: boolean;
+  "data-bg-lightness"?: string;
 };
 
 export function CommandBar(props: CommandBarProps) {
   return (
-    <div class="command-bar">
+    <div class="command-bar" data-bg-lightness={props["data-bg-lightness"]}>
       <div class="command-bar-nav">
         <button type="button" class="icon-btn" aria-label="Back" disabled={!props.canGoBack} onClick={props.onBack}>
           <ArrowLeftIcon size={18} />

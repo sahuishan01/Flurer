@@ -38,6 +38,7 @@ type FileListProps = {
   searchRecursive: boolean;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
+  "data-bg-lightness"?: string;
 };
 
 type ContextMenuState = { x: number; y: number; targetPath: string | null };
@@ -468,7 +469,7 @@ export function FileList(props: FileListProps) {
 
   return (
     <>
-      <div class="file-list" onContextMenu={handleBackgroundContextMenu}>
+      <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
         {error() && <p class="file-list-error">{error()}</p>}
         {opError() && <p class="file-list-error">{opError()}</p>}
         <table class="file-table">

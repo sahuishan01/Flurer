@@ -115,3 +115,16 @@
     --accent-border: rgba(96, 205, 255, 0.2);
     --accent-bg-soft: rgba(96, 205, 255, 0.08);
 }
+
+/* Background/Panel Lightness-aware Text overrides */
+[data-bg-lightness="light"] {
+    --text-primary: #1c1c1c !important;
+    --text-secondary: #5f5f5f !important;
+    --text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7) !important;
+}
+
+[data-bg-lightness="dark"] {
+    --text-primary: #ffffff !important;
+    --text-secondary: #c0c0c0 !important;
+    --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.5) !important;
+}
