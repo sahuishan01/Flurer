@@ -25,8 +25,6 @@ type SettingsPanelProps = {
   onFontSizePxChange: (fontSizePx: number) => void;
   sidebarTooltipDelayMs: number;
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
-  persistGraphState: boolean;
-  onPersistGraphStateChange: (enabled: boolean) => void;
   showProgressWhenIdle: boolean;
   onShowProgressWhenIdleChange: (show: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -100,8 +98,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onFontSizePxChange={props.onFontSizePxChange}
               sidebarTooltipDelayMs={props.sidebarTooltipDelayMs}
               onSidebarTooltipDelayMsChange={props.onSidebarTooltipDelayMsChange}
-              persistGraphState={props.persistGraphState}
-              onPersistGraphStateChange={props.onPersistGraphStateChange}
               showProgressWhenIdle={props.showProgressWhenIdle}
               onShowProgressWhenIdleChange={props.onShowProgressWhenIdleChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}

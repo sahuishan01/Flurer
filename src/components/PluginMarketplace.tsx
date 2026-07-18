@@ -1,4 +1,4 @@
-import { createSignal, For, Show, onMount } from "solid-js";
+import { createMemo, createSignal, For, Show, onMount } from "solid-js";
 import {
   pluginRegistry,
   registeredPlugins,
@@ -40,7 +40,15 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
 
   onMount(refreshInstalled);
 
-  const isEnabled = (id: string) => !props.disabledPlugins.includes(id);
+  // Derive the list with enabled state so it reactively updates when
+  // disabledPlugins changes (the installed list alone doesn't trigger
+  // a For re-render on toggle).
+  const pluginsWithState = createMemo(() =>
+    installed().map((p) => ({
+      ...p,
+      enabled: !props.disabledPlugins.includes(p.id),
+    })),
+  );
 
   // ── GitHub install ──────────────────────────────────────────────────────
 
@@ -98,7 +106,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
 
   const handleToggleEnable = async (id: string) => {
     setErrorMsg(null);
-    if (isEnabled(id)) {
+    if (!props.disabledPlugins.includes(id)) {
       // Disable
       props.onDisabledPluginsChange([...props.disabledPlugins, id]);
       pluginRegistry.unregister(id);
@@ -293,10 +301,8 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
           }
         >
           <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
-            <For each={installed()}>
-              {(plugin) => {
-                const enabled = isEnabled(plugin.id);
-                return (
+            <For each={pluginsWithState()}>
+              {(plugin) => (
                   <div
                     class="plugin-card"
                     style={{
@@ -307,7 +313,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                       background: "var(--card-bg, rgba(255,255,255,0.03))",
                       "border-radius": "6px",
                       border: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
-                      opacity: enabled ? 1 : 0.5,
+                      opacity: plugin.enabled ? 1 : 0.5,
                     }}
                   >
                     <div style={{ "min-width": 0 }}>
@@ -317,7 +323,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                             width: "8px",
                             height: "8px",
                             "border-radius": "50%",
-                            background: enabled ? "#22c55e" : "#6b7280",
+                            background: plugin.enabled ? "#22c55e" : "#6b7280",
                             display: "inline-block",
                             "flex-shrink": 0,
                           }}
@@ -339,20 +345,20 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                     <div style={{ display: "flex", gap: "6px", "flex-shrink": 0 }}>
                       <button
                         type="button"
-                        class={enabled ? "btn-secondary" : "btn-primary"}
+                        class={plugin.enabled ? "btn-secondary" : "btn-primary"}
                         style={{
                           padding: "5px 10px",
                           "font-size": "12px",
                           "border-radius": "4px",
-                          background: enabled ? "rgba(255,255,255,0.1)" : "var(--accent-color, #f59e0b)",
-                          color: enabled ? "var(--text-color)" : "#000",
+                          background: plugin.enabled ? "rgba(255,255,255,0.1)" : "var(--accent-color, #f59e0b)",
+                          color: plugin.enabled ? "var(--text-color)" : "#000",
                           border: "none",
                           cursor: "pointer",
                         }}
                         disabled={isBusy(plugin.id)}
                         onClick={() => handleToggleEnable(plugin.id)}
                       >
-                        {enabled ? "Disable" : "Enable"}
+                        {plugin.enabled ? "Disable" : "Enable"}
                       </button>
                       <button
                         type="button"
@@ -373,8 +379,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                       </button>
                     </div>
                   </div>
-                );
-              }}
+                )}
             </For>
           </div>
         </Show>

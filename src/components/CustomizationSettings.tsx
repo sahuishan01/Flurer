@@ -84,8 +84,6 @@ type CustomizationSettingsProps = {
   onFontFamilyChange: (fontFamily: string) => void;
   fontSizePx: number;
   onFontSizePxChange: (fontSizePx: number) => void;
-  persistGraphState: boolean;
-  onPersistGraphStateChange: (enabled: boolean) => void;
   sidebarTooltipDelayMs: number;
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
@@ -465,14 +463,6 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
       {showBehavior() && (
       <section class="settings-section">
         <h3>Behavior</h3>
-        <label class="checkbox-control">
-          <input
-            type="checkbox"
-            checked={props.persistGraphState}
-            onChange={(e) => props.onPersistGraphStateChange(e.currentTarget.checked)}
-          />
-          Remember graph layout between sessions
-        </label>
         <label class="opacity-control">
           Sidebar tooltip delay: {props.sidebarTooltipDelayMs}ms
           <input

@@ -767,8 +767,6 @@ function App() {
                 onDisabledPluginsChange={updateDisabledPlugins}
                 pluginSettings={settings.pluginSettings}
                 onPluginSettingsChange={updatePluginSettings}
-                persistGraphState={settings.persistGraphState}
-                onPersistGraphStateChange={(enabled) => updatePluginSettings("graph", { persistGraphState: enabled })}
               />
             </div>
           </div>
