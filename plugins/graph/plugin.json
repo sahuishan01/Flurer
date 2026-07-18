@@ -1,0 +1,8 @@
+{
+  "id": "graph",
+  "name": "Storage Graph",
+  "description": "Visualizes your disk space topology as an interactive SVG graph.",
+  "version": "0.4.19",
+  "author": "Algosculptor",
+  "entry": "index.js"
+}

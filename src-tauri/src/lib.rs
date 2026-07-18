@@ -21,6 +21,10 @@ use tokio::sync::Mutex;
 
 use configs::{has_unsplash_api_key, set_unsplash_api_key};
 use plugins::{
+    git::{
+        git_branches, git_checkout, git_commit, git_log, git_pull, git_push, git_repo_status, git_stage,
+        git_unstage,
+    },
     install_plugin_from_github, install_plugin_from_zip, list_installed_plugins, load_plugin_code,
     uninstall_plugin,
 };
@@ -68,7 +72,17 @@ pub fn run() {
             load_plugin_code,
             install_plugin_from_github,
             install_plugin_from_zip,
-            uninstall_plugin
+            uninstall_plugin,
+            // Git plugin commands
+            git_repo_status,
+            git_branches,
+            git_log,
+            git_stage,
+            git_unstage,
+            git_commit,
+            git_push,
+            git_pull,
+            git_checkout
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
