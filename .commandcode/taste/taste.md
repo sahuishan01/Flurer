@@ -21,6 +21,7 @@
 
 # Architecture
 - For plugin installation: support direct GitHub URL entry or ZIP file upload instead of a remote marketplace registry. Confidence: 0.70
+- Release and version plugins independently from the main app, not as release assets in main app builds. Confidence: 0.65
 
 # Documentation
 - Use AGENTS.md and HANDOFF.md files at project boundaries for AI coordination context. Confidence: 0.75
