@@ -1,3 +1,5 @@
+pub mod git;
+
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
