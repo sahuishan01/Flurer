@@ -3,6 +3,7 @@ import * as SolidStore from "solid-js/store";
 import * as SolidWeb from "solid-js/web";
 import * as TauriCore from "@tauri-apps/api/core";
 import * as TauriEvent from "@tauri-apps/api/event";
+import * as TauriShell from "@tauri-apps/plugin-shell";
 
 export interface PluginInfo {
   id: string;
@@ -80,6 +81,7 @@ export const pluginRegistry = {
 (window as any).SolidWeb = SolidWeb;
 (window as any).TauriCore = TauriCore;
 (window as any).TauriEvent = TauriEvent;
+(window as any).TauriShell = TauriShell;
 (window as any).registerPlugin = (plugin: PluginInfo) => pluginRegistry.register(plugin);
 
 export async function loadInstalledPlugins(disabledPlugins: string[] = []) {
