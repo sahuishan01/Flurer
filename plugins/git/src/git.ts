@@ -18,7 +18,7 @@ function getShell() {
 async function execGit(repoPath: string, ...args: string[]): Promise<string> {
   const Command = getShell();
   if (Command) {
-    const result = await Command.create("git", ["-C", repoPath, ...args]).execute();
+    const result = await Command.create("git", ["-C", repoPath, ...args]).execute({ windowsHide: true });
     if (result.code !== 0) {
       throw new Error(result.stderr.trim() || `git exited with code ${result.code}`);
     }
