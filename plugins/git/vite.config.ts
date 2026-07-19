@@ -20,6 +20,7 @@ export default defineConfig({
         "solid-js/store",
         "@tauri-apps/api/core",
         "@tauri-apps/api/event",
+        "@tauri-apps/plugin-shell",
       ],
       output: {
         globals: {
@@ -28,6 +29,7 @@ export default defineConfig({
           "solid-js/store": "window.SolidStore",
           "@tauri-apps/api/core": "window.TauriCore",
           "@tauri-apps/api/event": "window.TauriEvent",
+          "@tauri-apps/plugin-shell": "window.TauriShell",
         },
       },
     },
