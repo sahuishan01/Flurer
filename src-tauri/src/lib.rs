@@ -21,12 +21,12 @@ use tokio::sync::Mutex;
 
 use configs::{has_unsplash_api_key, set_unsplash_api_key};
 use plugins::{
-    git::{
+    check_plugin_updates, git::{
         git_branches, git_checkout, git_commit, git_log, git_pull, git_push, git_repo_status, git_stage,
         git_unstage,
     },
     install_plugin_from_github, install_plugin_from_zip, list_installed_plugins, load_plugin_code,
-    uninstall_plugin,
+    uninstall_plugin, update_plugin,
 };
 
 use crate::{configs::Config, state::AppState};
@@ -74,6 +74,8 @@ pub fn run() {
             install_plugin_from_github,
             install_plugin_from_zip,
             uninstall_plugin,
+            check_plugin_updates,
+            update_plugin,
             // Git plugin commands
             git_repo_status,
             git_branches,

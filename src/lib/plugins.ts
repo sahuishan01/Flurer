@@ -127,3 +127,19 @@ export async function uninstallPlugin(id: string) {
   await TauriCore.invoke("uninstall_plugin", { id });
   pluginRegistry.unregister(id);
 }
+
+export async function checkPluginUpdates(
+  plugins: { id: string; version: string; repo?: string }[],
+): Promise<{ id: string; name: string; installedVersion: string; latestVersion: string; repo: string }[]> {
+  return TauriCore.invoke("check_plugin_updates", { plugins });
+}
+
+export async function updatePlugin(repoUrl: string): Promise<void> {
+  const manifest = await TauriCore.invoke<any>("update_plugin", { repoUrl });
+
+  // Unregister old version, then load the new one
+  pluginRegistry.unregister(manifest.id);
+  const code = await TauriCore.invoke<string>("load_plugin_code", { id: manifest.id });
+  const runPlugin = new Function(code);
+  runPlugin();
+}
