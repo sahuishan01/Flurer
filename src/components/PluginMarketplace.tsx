@@ -5,6 +5,8 @@ import {
   installPluginFromGithub,
   installPluginFromZip,
   uninstallPlugin,
+  checkPluginUpdates,
+  updatePlugin,
 } from "../lib/plugins";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -20,6 +22,15 @@ type InstalledEntry = {
   description: string;
   version: string;
   author: string;
+  repo?: string;
+};
+
+type UpdateInfo = {
+  id: string;
+  name: string;
+  installedVersion: string;
+  latestVersion: string;
+  repo: string;
 };
 
 export function PluginMarketplace(props: PluginMarketplaceProps) {
@@ -28,6 +39,8 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
   const [installed, setInstalled] = createSignal<InstalledEntry[]>([]);
   const [loadingId, setLoadingId] = createSignal<string | null>(null);
   const [errorMsg, setErrorMsg] = createSignal<string | null>(null);
+  const [updates, setUpdates] = createSignal<UpdateInfo[]>([]);
+  const [checkingUpdates, setCheckingUpdates] = createSignal(false);
 
   const refreshInstalled = async () => {
     try {
@@ -38,11 +51,32 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
     }
   };
 
-  onMount(refreshInstalled);
+  const checkForUpdates = async () => {
+    const plugins = installed().filter((p) => p.repo);
+    if (plugins.length === 0) return;
+    setCheckingUpdates(true);
+    try {
+      const results = await checkPluginUpdates(plugins);
+      setUpdates(results);
+    } catch (err) {
+      console.error("Failed to check for updates:", err);
+    } finally {
+      setCheckingUpdates(false);
+    }
+  };
 
-  // Derive the list with enabled state so it reactively updates when
-  // disabledPlugins changes (the installed list alone doesn't trigger
-  // a For re-render on toggle).
+  onMount(async () => {
+    await refreshInstalled();
+    // Auto-check for updates after installed list loads
+    setTimeout(checkForUpdates, 500);
+  });
+
+  const updateMap = createMemo(() => {
+    const map: Record<string, UpdateInfo> = {};
+    for (const u of updates()) map[u.id] = u;
+    return map;
+  });
+
   const pluginsWithState = createMemo(() =>
     installed().map((p) => ({
       ...p,
@@ -61,6 +95,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
       await installPluginFromGithub(url);
       setGithubUrl("");
       await refreshInstalled();
+      setTimeout(checkForUpdates, 500);
     } catch (err) {
       setErrorMsg(`Install failed: ${err}`);
     } finally {
@@ -77,7 +112,6 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
       setZipFilePath(null);
       return;
     }
-    // Tauri v2 webview exposes a real filesystem path via .path
     const path = (file as any).path;
     if (path) {
       setZipFilePath(path);
@@ -102,16 +136,14 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
     }
   };
 
-  // ── Enable / Disable / Uninstall ────────────────────────────────────────
+  // ── Enable / Disable / Uninstall / Update ───────────────────────────────
 
   const handleToggleEnable = async (id: string) => {
     setErrorMsg(null);
     if (!props.disabledPlugins.includes(id)) {
-      // Disable
       props.onDisabledPluginsChange([...props.disabledPlugins, id]);
       pluginRegistry.unregister(id);
     } else {
-      // Enable – load plugin code dynamically
       const nextDisabled = props.disabledPlugins.filter((p) => p !== id);
       props.onDisabledPluginsChange(nextDisabled);
       setLoadingId(id);
@@ -134,9 +166,24 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
     setErrorMsg(null);
     try {
       await uninstallPlugin(id);
+      setUpdates((prev) => prev.filter((u) => u.id !== id));
       await refreshInstalled();
     } catch (err) {
       setErrorMsg(`Failed to uninstall plugin: ${err}`);
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleUpdate = async (repo: string) => {
+    setLoadingId("__update__");
+    setErrorMsg(null);
+    try {
+      await updatePlugin(repo);
+      await refreshInstalled();
+      setTimeout(checkForUpdates, 500);
+    } catch (err) {
+      setErrorMsg(`Update failed: ${err}`);
     } finally {
       setLoadingId(null);
     }
@@ -288,9 +335,26 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
           padding: "16px",
         }}
       >
-        <h4 style={{ margin: "0 0 12px", "font-size": "14px", "font-weight": 600 }}>
-          Installed Plugins
-        </h4>
+        <div style={{ display: "flex", "align-items": "center", "justify-content": "space-between", "margin-bottom": "12px" }}>
+          <h4 style={{ margin: 0, "font-size": "14px", "font-weight": 600 }}>Installed Plugins</h4>
+          <button
+            type="button"
+            style={{
+              padding: "4px 10px",
+              "font-size": "11px",
+              "border-radius": "4px",
+              background: "rgba(255,255,255,0.08)",
+              color: "var(--text-muted, #888)",
+              border: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
+              cursor: checkingUpdates() ? "default" : "pointer",
+              opacity: checkingUpdates() ? 0.5 : 1,
+            }}
+            disabled={checkingUpdates()}
+            onClick={checkForUpdates}
+          >
+            {checkingUpdates() ? "Checking…" : "Check for updates"}
+          </button>
+        </div>
 
         <Show
           when={installed().length > 0}
@@ -302,7 +366,9 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
         >
           <div style={{ display: "flex", "flex-direction": "column", gap: "8px" }}>
             <For each={pluginsWithState()}>
-              {(plugin) => (
+              {(plugin) => {
+                const update = createMemo(() => updateMap()[plugin.id]);
+                return (
                   <div
                     class="plugin-card"
                     style={{
@@ -312,7 +378,9 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                       padding: "12px",
                       background: "var(--card-bg, rgba(255,255,255,0.03))",
                       "border-radius": "6px",
-                      border: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
+                      border: update()
+                        ? "1px solid rgba(245,158,11,0.4)"
+                        : "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
                       opacity: plugin.enabled ? 1 : 0.5,
                     }}
                   >
@@ -331,9 +399,24 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                         <span style={{ "font-size": "14px", "font-weight": 600, color: "var(--text-color)" }}>
                           {plugin.name}
                         </span>
+                        <Show when={update()}>
+                          <span
+                            style={{
+                              padding: "1px 6px",
+                              "border-radius": "4px",
+                              "font-size": "10px",
+                              "font-weight": 600,
+                              background: "rgba(245,158,11,0.2)",
+                              color: "#f59e0b",
+                            }}
+                          >
+                            v{update()!.latestVersion} available
+                          </span>
+                        </Show>
                       </div>
                       <div style={{ "font-size": "11px", color: "var(--text-muted, #888)", "margin-left": "16px", "font-family": "Space Mono, monospace" }}>
                         v{plugin.version} • {plugin.author}
+                        {plugin.repo ? ` • ${plugin.repo}` : ""}
                       </div>
                       <Show when={plugin.description}>
                         <div style={{ "font-size": "12px", color: "var(--text-muted, #888)", "margin-left": "16px", "margin-top": "2px", "overflow": "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
@@ -343,6 +426,25 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                     </div>
 
                     <div style={{ display: "flex", gap: "6px", "flex-shrink": 0 }}>
+                      <Show when={update()}>
+                        <button
+                          type="button"
+                          style={{
+                            padding: "5px 10px",
+                            "font-size": "12px",
+                            "border-radius": "4px",
+                            background: "#f59e0b",
+                            color: "#000",
+                            border: "none",
+                            cursor: "pointer",
+                            "font-weight": 600,
+                          }}
+                          disabled={isBusy("__update__")}
+                          onClick={() => handleUpdate(update()!.repo)}
+                        >
+                          {isBusy("__update__") ? "Updating…" : "Update"}
+                        </button>
+                      </Show>
                       <button
                         type="button"
                         class={plugin.enabled ? "btn-secondary" : "btn-primary"}
@@ -379,7 +481,8 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                       </button>
                     </div>
                   </div>
-                )}
+                );
+              }}
             </For>
           </div>
         </Show>

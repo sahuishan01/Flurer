@@ -20,6 +20,18 @@ pub struct PluginManifest {
     pub version: String,
     pub author: String,
     pub entry: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUpdateInfo {
+    pub id: String,
+    pub name: String,
+    pub installed_version: String,
+    pub latest_version: String,
+    pub repo: String,
 }
 
 fn config_root() -> Result<PathBuf, String> {
@@ -209,13 +221,14 @@ fn extract_plugin_zip<R: Read + Seek>(
 #[tauri::command]
 pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManifest, String> {
     let (owner, repo) = parse_github_url(&repo_url)?;
+    let repo_slug = format!("{owner}/{repo}");
 
     let api_url = format!("https://api.github.com/repos/{owner}/{repo}/releases/latest");
     let client = reqwest::Client::new();
 
     let resp = client
         .get(&api_url)
-        .header("User-Agent", "Flurer/0.4.19")
+        .header("User-Agent", "Flurer/0.4.22")
         .send()
         .await
         .map_err(|e| format!("GitHub API request failed: {e}"))?;
@@ -249,7 +262,7 @@ pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManife
     // Download the full ZIP into memory
     let zip_bytes = client
         .get(download_url)
-        .header("User-Agent", "Flurer/0.4.19")
+        .header("User-Agent", "Flurer/0.4.22")
         .send()
         .await
         .map_err(|e| format!("Failed to download ZIP: {e}"))?
@@ -261,7 +274,10 @@ pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManife
     let temp = tempdir().map_err(|e| e.to_string())?;
     let cursor = Cursor::new(zip_bytes.to_vec());
     let archive = zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid ZIP: {e}"))?;
-    let manifest = extract_plugin_zip(archive, temp.path())?;
+    let mut manifest = extract_plugin_zip(archive, temp.path())?;
+
+    // Store the source repo in the manifest
+    manifest.repo = Some(repo_slug);
 
     // Move into the permanent plugin directory
     let plugins = plugins_dir()?;
@@ -271,6 +287,10 @@ pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManife
     }
 
     copy_dir(temp.path(), &plugin_dir)?;
+
+    // Write the updated manifest with the repo field
+    let manifest_json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    atomic_write(&plugin_dir.join("plugin.json"), manifest_json.as_bytes()).map_err(|e| e.to_string())?;
 
     Ok(manifest)
 }
@@ -291,6 +311,155 @@ pub async fn install_plugin_from_zip(zip_path: String) -> Result<PluginManifest,
     }
 
     copy_dir(temp.path(), &plugin_dir)?;
+
+    Ok(manifest)
+}
+
+// ---------------------------------------------------------------------------
+// Plugin update commands
+// ---------------------------------------------------------------------------
+
+/// Compare two semver-style version strings. Returns true if `remote` is newer.
+fn version_is_newer(installed: &str, remote: &str) -> bool {
+    let parse = |v: &str| -> Vec<u32> {
+        v.split('.')
+            .filter_map(|s| s.trim_start_matches('v').parse().ok())
+            .collect()
+    };
+    let a = parse(installed);
+    let b = parse(remote);
+    b > a
+}
+
+#[tauri::command]
+pub async fn check_plugin_updates(
+    plugins: Vec<serde_json::Value>,
+) -> Result<Vec<PluginUpdateInfo>, String> {
+    let client = reqwest::Client::new();
+    let mut updates = Vec::new();
+
+    for p in &plugins {
+        let id = p["id"].as_str().unwrap_or_default();
+        let installed_version = p["version"].as_str().unwrap_or_default();
+        let repo_slug = match p["repo"].as_str() {
+            Some(r) if !r.is_empty() => r,
+            _ => continue, // no repo → can't check for updates
+        };
+
+        let parts: Vec<&str> = repo_slug.splitn(2, '/').collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        let api_url = format!(
+            "https://api.github.com/repos/{}/{}/releases/latest",
+            parts[0], parts[1]
+        );
+
+        let resp = match client
+            .get(&api_url)
+            .header("User-Agent", "Flurer/0.4.22")
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if !resp.status().is_success() {
+            continue;
+        }
+
+        let release: serde_json::Value = match resp.json().await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let tag = release["tag_name"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_start_matches('v')
+            .to_string();
+
+        if !tag.is_empty() && version_is_newer(installed_version, &tag) {
+            updates.push(PluginUpdateInfo {
+                id: id.to_string(),
+                name: p["name"].as_str().unwrap_or(id).to_string(),
+                installed_version: installed_version.to_string(),
+                latest_version: tag,
+                repo: repo_slug.to_string(),
+            });
+        }
+    }
+
+    Ok(updates)
+}
+
+#[tauri::command]
+pub async fn update_plugin(repo_url: String) -> Result<PluginManifest, String> {
+    let (owner, repo) = parse_github_url(&repo_url)?;
+    let repo_slug = format!("{owner}/{repo}");
+
+    let api_url = format!("https://api.github.com/repos/{owner}/{repo}/releases/latest");
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .get(&api_url)
+        .header("User-Agent", "Flurer/0.4.22")
+        .send()
+        .await
+        .map_err(|e| format!("GitHub API request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("GitHub API returned {status}: {body}"));
+    }
+
+    let release: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse release JSON: {e}"))?;
+
+    let zip_asset = release["assets"]
+        .as_array()
+        .and_then(|a| {
+            a.iter()
+                .find(|a| a["name"].as_str().map_or(false, |n| n.ends_with(".zip")))
+        })
+        .ok_or("No .zip asset found in the latest release")?;
+
+    let download_url = zip_asset["browser_download_url"]
+        .as_str()
+        .ok_or("Missing download URL")?;
+
+    let zip_bytes = client
+        .get(download_url)
+        .header("User-Agent", "Flurer/0.4.22")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read ZIP data: {e}"))?;
+
+    let temp = tempdir().map_err(|e| e.to_string())?;
+    let cursor = Cursor::new(zip_bytes.to_vec());
+    let archive = zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid ZIP: {e}"))?;
+    let mut manifest = extract_plugin_zip(archive, temp.path())?;
+    manifest.repo = Some(repo_slug);
+
+    let plugins = plugins_dir()?;
+    let plugin_dir = plugins.join(&manifest.id);
+
+    // Remove old version, install new
+    if plugin_dir.exists() {
+        fs::remove_dir_all(&plugin_dir).map_err(|e| e.to_string())?;
+    }
+
+    copy_dir(temp.path(), &plugin_dir)?;
+
+    let manifest_json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    atomic_write(&plugin_dir.join("plugin.json"), manifest_json.as_bytes()).map_err(|e| e.to_string())?;
 
     Ok(manifest)
 }
