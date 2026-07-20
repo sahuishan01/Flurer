@@ -25,5 +25,8 @@
 - Place all plugins under a `plugins/` directory within the main app repo, each with its own build config and package.json. Confidence: 0.75
 - When bumping app version, update ALL version fields consistently (Cargo.toml, package.json, tauri.conf.json). Confidence: 0.75
 
+# Workflow
+- After pushing code to GitHub, monitor the CI/build status before considering the task done. Confidence: 0.65
+
 # Documentation
 - Use AGENTS.md and HANDOFF.md files at project boundaries for AI coordination context. Confidence: 0.75
