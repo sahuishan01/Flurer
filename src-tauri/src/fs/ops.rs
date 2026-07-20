@@ -8,7 +8,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::progress::{cancel_task, emit_progress, is_cancelled, register_task};
+use crate::progress::{cancel_task, cleanup_task, emit_progress, is_cancelled, register_task};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -280,6 +280,7 @@ pub async fn copy_items(app: AppHandle, sources: Vec<String>, destination_dir: S
             emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
         }
     }
+    cleanup_task(task_id);
     result
 }
 
@@ -371,6 +372,7 @@ pub async fn move_items(app: AppHandle, sources: Vec<String>, destination_dir: S
             emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
         }
     }
+    cleanup_task(task_id);
     result
 }
 
@@ -410,13 +412,15 @@ pub async fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchRes
     let app_clone = app.clone();
     let label_clone = label.clone();
     let cancelled_clone = cancelled.clone();
-    Ok(tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         delete_items_inner(paths, &cancelled_clone, task_id, |done, total, finished, error| {
             emit_progress(&app_clone, task_id, &label_clone, done, total, finished, error, false)
         })
     })
     .await
-    .map_err(|e| format!("Background task failed: {e}"))?)
+    .map_err(|e| format!("Background task failed: {e}"))?;
+    cleanup_task(task_id);
+    Ok(result)
 }
 
 #[tauri::command]

@@ -54,10 +54,9 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
       const task = event.payload;
       setTasks(task.taskId, task);
       if (task.finished) {
+        const id = task.taskId;
         setTimeout(() => {
-          if (tasks[task.taskId]?.finished) {
-            setTasks(produce((all) => delete all[task.taskId]));
-          }
+          setTasks(produce((all) => { if (all[id]?.finished) delete all[id]; }));
         }, FADE_DELAY_MS);
       }
     }).then((fn) => {

@@ -682,93 +682,95 @@ function App() {
               })}
             />
           </Show>
-          {/* All views stay mounted and are just hidden/shown, rather
-              than torn down and rebuilt on every toggle — otherwise switching
-              away and back would silently reset the graph's expanded folders,
-              pan, and zoom, and settings would take over the whole window
-              instead of living in this same content area next to the
-              sidebar. */}
+          {/* Views are mounted and unmounted on toggle so resources
+              (signals, listeners, timers) are freed when hidden.
+              State that should survive view switches (graph pan/zoom,
+              git repo path) is preserved by the owning plugin or
+              lifted to App.tsx. */}
           <div class="view-stack">
-            <div class="view-pane" style={{ display: mainView() === "explorer" ? "flex" : "none" }}>
-              <ExplorerView
-                data-bg-lightness={fileListLightness()}
-                path={currentPath()}
-                onNavigate={navigateTo}
-                searchQuery={searchQuery()}
-                searchRecursive={searchRecursive()}
-                favouritePaths={settings.favouritePaths}
-                onToggleFavourite={toggleFavourite}
-                sortKey={settings.sortKey}
-                sortDirection={settings.sortDirection}
-                onSortChange={updateSort}
-              />
-            </div>
+            <Show when={mainView() === "explorer"}>
+              <div class="view-pane">
+                <ExplorerView
+                  data-bg-lightness={fileListLightness()}
+                  path={currentPath()}
+                  onNavigate={navigateTo}
+                  searchQuery={searchQuery()}
+                  searchRecursive={searchRecursive()}
+                  favouritePaths={settings.favouritePaths}
+                  onToggleFavourite={toggleFavourite}
+                  sortKey={settings.sortKey}
+                  sortDirection={settings.sortDirection}
+                  onSortChange={updateSort}
+                />
+              </div>
+            </Show>
             
             {/* Dynamically render plugin panels */}
             <For each={registeredPlugins()}>
               {(plugin) => (
                 <Show when={plugin.mainPanel || plugin.fullPanel}>
-                  <div
-                    class="view-pane"
-                    style={{ display: mainView() === plugin.id ? "flex" : "none" }}
-                  >
-                    {(() => {
-                      const props = {
-                        currentPath: currentPath(),
-                        navigateTo: navigateTo,
-                        searchQuery: searchQuery(),
-                        focusPath: graphFocusRequest(),
-                        active: mainView() === plugin.id,
-                        dataBgLightness: fileListLightness(),
-                        settingsLoaded: settingsLoaded(),
-                        pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
-                        onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
-                      };
-                      if (plugin.fullPanel) {
-                        return plugin.fullPanel(props);
-                      } else if (plugin.mainPanel) {
-                        return plugin.mainPanel(props);
-                      }
-                      return null;
-                    })()}
-                  </div>
+                  <Show when={mainView() === plugin.id}>
+                    <div class="view-pane">
+                      {(() => {
+                        const props = {
+                          currentPath: currentPath(),
+                          navigateTo: navigateTo,
+                          searchQuery: searchQuery(),
+                          focusPath: graphFocusRequest(),
+                          active: true,
+                          dataBgLightness: fileListLightness(),
+                          settingsLoaded: settingsLoaded(),
+                          pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
+                          onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
+                        };
+                        if (plugin.fullPanel) {
+                          return plugin.fullPanel(props);
+                        } else if (plugin.mainPanel) {
+                          return plugin.mainPanel(props);
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  </Show>
                 </Show>
               )}
             </For>
 
-            <div class="view-pane" style={{ display: mainView() === "settings" ? "flex" : "none" }}>
-              <SettingsPanel
-                data-bg-lightness={fileListLightness()}
-                onClose={closeSettings}
-                searchQuery={searchQuery()}
-                background={settings.background}
-                onBackgroundChange={updateBackground}
-                theme={settings.theme}
-                onThemeChange={updateTheme}
-                uiTintOpacity={settings.uiTintOpacity}
-                onUiTintOpacityChange={updateUiTintOpacity}
-                uiBlurPx={settings.uiBlurPx}
-                onUiBlurPxChange={updateUiBlurPx}
-                fontFamily={settings.fontFamily}
-                onFontFamilyChange={updateFontFamily}
-                fontSizePx={settings.fontSizePx}
-                onFontSizePxChange={updateFontSizePx}
-                sidebarTooltipDelayMs={settings.sidebarTooltipDelayMs}
-                onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
-                showProgressWhenIdle={settings.showProgressWhenIdle}
-                onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
-                hasUnsplashApiKey={hasUnsplashApiKey()}
-                onSaveUnsplashApiKey={saveUnsplashApiKey}
-                apiKeyError={apiKeyError()}
-                wallpaper={wallpaper()}
-                wallpaperError={wallpaperError()}
-                onFetchWallpaper={getWallpaper}
-                disabledPlugins={settings.disabledPlugins}
-                onDisabledPluginsChange={updateDisabledPlugins}
-                pluginSettings={settings.pluginSettings}
-                onPluginSettingsChange={updatePluginSettings}
-              />
-            </div>
+            <Show when={mainView() === "settings"}>
+              <div class="view-pane">
+                <SettingsPanel
+                  data-bg-lightness={fileListLightness()}
+                  onClose={closeSettings}
+                  searchQuery={searchQuery()}
+                  background={settings.background}
+                  onBackgroundChange={updateBackground}
+                  theme={settings.theme}
+                  onThemeChange={updateTheme}
+                  uiTintOpacity={settings.uiTintOpacity}
+                  onUiTintOpacityChange={updateUiTintOpacity}
+                  uiBlurPx={settings.uiBlurPx}
+                  onUiBlurPxChange={updateUiBlurPx}
+                  fontFamily={settings.fontFamily}
+                  onFontFamilyChange={updateFontFamily}
+                  fontSizePx={settings.fontSizePx}
+                  onFontSizePxChange={updateFontSizePx}
+                  sidebarTooltipDelayMs={settings.sidebarTooltipDelayMs}
+                  onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
+                  showProgressWhenIdle={settings.showProgressWhenIdle}
+                  onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
+                  hasUnsplashApiKey={hasUnsplashApiKey()}
+                  onSaveUnsplashApiKey={saveUnsplashApiKey}
+                  apiKeyError={apiKeyError()}
+                  wallpaper={wallpaper()}
+                  wallpaperError={wallpaperError()}
+                  onFetchWallpaper={getWallpaper}
+                  disabledPlugins={settings.disabledPlugins}
+                  onDisabledPluginsChange={updateDisabledPlugins}
+                  pluginSettings={settings.pluginSettings}
+                  onPluginSettingsChange={updatePluginSettings}
+                />
+              </div>
+            </Show>
           </div>
         </div>
       </div>
