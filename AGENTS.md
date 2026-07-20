@@ -140,7 +140,7 @@ This pushes **only the tag**, triggering the Release workflow (which builds + cr
 When bumping:
 - Increment the **patch** segment for bugfixes and minor changes.
 - Increment the **minor** segment for new features or breaking UI changes.
-- Bump both `package.json` and `src-tauri/Cargo.toml` in the same commit.
+- Bump both `package.json` and `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` in the same commit.
 - After the release succeeds: `git push origin main` to bring the version-bump commit to main.
 
 ### 6.5. Release Notification
