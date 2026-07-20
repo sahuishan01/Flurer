@@ -26,7 +26,7 @@ use plugins::{
         git_unstage,
     },
     install_plugin_from_github, install_plugin_from_zip, list_installed_plugins, load_plugin_code,
-    uninstall_plugin, update_plugin,
+    uninstall_plugin, update_plugin, link_plugin_repo,
 };
 
 use crate::{configs::Config, state::AppState};
@@ -76,6 +76,7 @@ pub fn run() {
             uninstall_plugin,
             check_plugin_updates,
             update_plugin,
+            link_plugin_repo,
             // Git plugin commands
             git_repo_status,
             git_branches,

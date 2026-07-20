@@ -143,3 +143,7 @@ export async function updatePlugin(repoUrl: string): Promise<void> {
   const runPlugin = new Function(code);
   runPlugin();
 }
+
+export async function linkPluginRepo(id: string, repoUrl: string): Promise<void> {
+  await TauriCore.invoke("link_plugin_repo", { id, repoUrl });
+}
