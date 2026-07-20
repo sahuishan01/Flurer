@@ -69,3 +69,89 @@ This file acts as a context preservation and coordination document for future AI
    - Create a boilerplate repository containing `vite.config.ts` pre-configured to bundle plugins as IIFE packages with externalized Reactives.
 2. **Types Package**:
    - Extract `PluginInfo` and related interfaces into a shared NPM package or file (e.g. `flurer-plugin-sdk`) so developers get auto-completion and type checking during development.
+
+---
+
+## 6. Development Workflow & Release Process
+
+This section defines the rigid workflow any AI agent must follow when making code changes to Flurer. It is designed to prevent orphaned builds, version-drift, and silent failures.
+
+### 6.1. Notifications on Every Task
+
+After every agent turn that performs a user-requested task (modification, build, test, deploy — not simple Q&A), the agent MUST send a push notification to the ntfy `agent-tasks` topic:
+
+- **Topic**: `agent-tasks`
+- **Base URL**: `https://ntfy.algosculptor.com`
+- **Authorization**: `Bearer tk_qj3kmd5rrrssrb2mmrmtb1nqrwxye`
+- **Headers**: `Title: Flurer ($(hostname))`
+- **Body**: Concise bulleted summary of what was accomplished in that turn.
+
+Do NOT send notifications for conversational chat or simple questions.
+
+### 6.2. Commit & Push After Every Modification
+
+After every successful modification (code change, config change, dependency update), the agent MUST:
+
+1. Bump the version in `package.json` and `src-tauri/Cargo.toml` — but only **after** a successful CI build and release (see below).
+2. Commit the changes with a descriptive message:
+   ```
+   git add -A
+   git commit -m "description: what changed and why"
+   ```
+3. Push to the remote:
+   ```
+   git push origin main
+   ```
+
+The version number in both `package.json` and `Cargo.toml` must always be kept in sync.
+
+### 6.3. Watch for CI Completion
+
+After pushing, the agent MUST watch the GitHub Actions workflow run to completion:
+
+1. Retrieve the latest workflow run ID via:
+   ```bash
+   gh run list --repo sahuishan01/Flurer --limit 1 --json databaseId,status,conclusion --workflow=<name>
+   ```
+2. Poll every 30–60 seconds until `status` is `completed`.
+3. If the run **fails**, report the failure in the turn output and in the ntfy notification. Do NOT bump the version. Do NOT proceed.
+
+### 6.4. Version Bump Rule — Only After a Successful Release
+
+The version number MUST only be incremented **after** a CI build has completed successfully and produced a release-ready artifact. The sequence is:
+
+```
+Modify code → Commit → Push → CI passes → Bump version → Commit version bump
+```
+
+**Never** bump the version before pushing. The rationale: a failed build should not leave a higher version number stranded in the repo without a corresponding working artifact. The version is a statement about what has shipped, not what is being attempted.
+
+When bumping:
+- Increment the **patch** segment for bugfixes and minor changes.
+- Increment the **minor** segment for new features or breaking UI changes.
+- Bump both `package.json` (`bun version --patch` or manual edit) and `src-tauri/Cargo.toml` (manual edit) in the same commit.
+- After bumping, push the version-bump commit.
+
+### 6.5. Release Notification
+
+After the version bump commit is pushed, if the resulting CI build produces a release (GitHub Release with attached assets), send a notification to the ntfy `agent-releases` topic:
+
+- **Topic**: `agent-releases`
+- **Headers**: `Title: Flurer v<new-version> Released ($(hostname))`
+- **Body**: Bulleted summary of what changed in the release with a link to the release page on GitHub.
+
+### 6.6. Summary Diagram
+
+```
+┌─────────────┐     ┌──────────┐     ┌───────────┐     ┌──────────────┐     ┌──────────────┐
+│ Modify code │────>│ Commit   │────>│ Push      │────>│ Watch CI     │────>│ Version bump │
+│ (send ntfy) │     │ (no bump)│     │           │     │ (poll to     │     │ (only on     │
+└─────────────┘     └──────────┘     └───────────┘     │ completion)  │     │ CI success)  │
+                                                        └──────────────┘     └──────┬───────┘
+                                                                                   │
+                                                                                   v
+                                                                           ┌──────────────┐
+                                                                           │ Release ntfy │
+                                                                           │ notification │
+                                                                           └──────────────┘
+```

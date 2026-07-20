@@ -2,11 +2,18 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 
 fn git(args: &[&str], repo_path: &str) -> Result<String, String> {
-    Command::new("git")
-        .arg("-C")
-        .arg(repo_path)
-        .args(args)
-        .output()
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(repo_path).args(args);
+
+    // Prevent git.exe from flashing a console window on Windows.
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.output()
         .map_err(|e| format!("Failed to run git: {e}"))
         .and_then(|out| {
             if out.status.success() {
