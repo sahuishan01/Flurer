@@ -116,25 +116,36 @@ After pushing, the agent MUST watch the GitHub Actions workflow run to completio
 2. Poll every 30–60 seconds until `status` is `completed`.
 3. If the run **fails**, report the failure in the turn output and in the ntfy notification. Do NOT bump the version. Do NOT proceed.
 
-### 6.4. Version Bump Rule — Only After a Successful Release
+### 6.4. Version Bump Rule — Only After a Successful Build
 
 The version number MUST only be incremented **after** a CI build has completed successfully and produced a release-ready artifact. The sequence is:
 
 ```
-Modify code → Commit → Push → CI passes → Bump version → Commit version bump
+Modify code → Commit → Push (no bump) → Watch Build CI → CI passes
+  → Bump version → Commit locally → Tag (v0.4.23) → Push tag only
+  → Watch Release CI → Release passes → Push version-bump commit to main
 ```
 
 **Never** bump the version before pushing. The rationale: a failed build should not leave a higher version number stranded in the repo without a corresponding working artifact. The version is a statement about what has shipped, not what is being attempted.
 
+**Tag-only push** (not `--tags` which also pushes the commit to main):
+
+```bash
+git tag -a v0.4.23 -m "Flurer v0.4.23"
+git push origin v0.4.23
+```
+
+This pushes **only the tag**, triggering the Release workflow (which builds + creates the GitHub Release). The version-bump commit stays local; it gets pushed to `main` only after the release succeeds, avoiding a redundant Build workflow run on the version bump.
+
 When bumping:
 - Increment the **patch** segment for bugfixes and minor changes.
 - Increment the **minor** segment for new features or breaking UI changes.
-- Bump both `package.json` (`bun version --patch` or manual edit) and `src-tauri/Cargo.toml` (manual edit) in the same commit.
-- After bumping, push the version-bump commit.
+- Bump both `package.json` and `src-tauri/Cargo.toml` in the same commit.
+- After the release succeeds: `git push origin main` to bring the version-bump commit to main.
 
 ### 6.5. Release Notification
 
-After the version bump commit is pushed, if the resulting CI build produces a release (GitHub Release with attached assets), send a notification to the ntfy `agent-releases` topic:
+After the Release workflow succeeds (GitHub Release created with MSI/NSIS assets), send a notification to the ntfy `agent-releases` topic:
 
 - **Topic**: `agent-releases`
 - **Headers**: `Title: Flurer v<new-version> Released ($(hostname))`
@@ -143,15 +154,31 @@ After the version bump commit is pushed, if the resulting CI build produces a re
 ### 6.6. Summary Diagram
 
 ```
-┌─────────────┐     ┌──────────┐     ┌───────────┐     ┌──────────────┐     ┌──────────────┐
-│ Modify code │────>│ Commit   │────>│ Push      │────>│ Watch CI     │────>│ Version bump │
-│ (send ntfy) │     │ (no bump)│     │           │     │ (poll to     │     │ (only on     │
-└─────────────┘     └──────────┘     └───────────┘     │ completion)  │     │ CI success)  │
-                                                        └──────────────┘     └──────┬───────┘
-                                                                                   │
-                                                                                   v
-                                                                           ┌──────────────┐
-                                                                           │ Release ntfy │
-                                                                           │ notification │
-                                                                           └──────────────┘
+┌─────────────┐     ┌──────────┐     ┌───────────┐     ┌──────────────┐
+│ Modify code │────>│ Commit   │────>│ Push to   │────>│ Watch Build  │
+│ (send ntfy) │     │ (no bump)│     │ main      │     │ CI           │
+└─────────────┘     └──────────┘     └───────────┘     └──────┬───────┘
+                                                              │ pass?
+                                                              v
+                                                     ┌──────────────────┐
+                                                     │ Version bump     │
+                                                     │ Local commit     │
+                                                     │ Tag (v0.4.23)    │
+                                                     │ Push tag only    │
+                                                     └────────┬─────────┘
+                                                              │
+                                                              v
+                                                     ┌──────────────────┐
+                                                     │ Watch Release   │
+                                                     │ CI (builds +    │
+                                                     │ creates Release)│
+                                                     └────────┬─────────┘
+                                                              │ pass?
+                                                              v
+                                          ┌──────────────────────────────┐
+                                          │ Push version-bump commit    │
+                                          │ to main                     │
+                                          │ Send release ntfy           │
+                                          │ notification                │
+                                          └──────────────────────────────┘
 ```
