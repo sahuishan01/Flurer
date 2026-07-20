@@ -179,12 +179,32 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  const MAX_FOLDER_SIZES = 500;
+
   function markFolderPending(path: string) {
-    setFolderSizes((prev) => new Map(prev).set(path, "pending"));
+    setFolderSizes((prev) => {
+      const next = new Map(prev).set(path, "pending");
+      if (next.size > MAX_FOLDER_SIZES) {
+        const keys = [...next.keys()];
+        for (let i = 0; i < keys.length - MAX_FOLDER_SIZES; i++) {
+          next.delete(keys[i]);
+        }
+      }
+      return next;
+    });
   }
 
   function applyFolderSize(path: string, size: number, done: boolean) {
-    setFolderSizes((prev) => new Map(prev).set(path, { size, done }));
+    setFolderSizes((prev) => {
+      const next = new Map(prev).set(path, { size, done });
+      if (next.size > MAX_FOLDER_SIZES) {
+        const keys = [...next.keys()];
+        for (let i = 0; i < keys.length - MAX_FOLDER_SIZES; i++) {
+          next.delete(keys[i]);
+        }
+      }
+      return next;
+    });
   }
 
   function renderSizeCell(entry: DirEntry) {

@@ -53,6 +53,17 @@ pub fn cancel_task(task_id: u64) -> bool {
     }
 }
 
+/// Removes a completed task from the global list so the vector
+/// doesn't grow unbounded over the session. Called by every
+/// operation (copy, move, delete, folder-size) after it finishes,
+/// regardless of success or failure — cancelled tasks are cleaned
+/// up the same way since the cancellation flag is no longer needed
+/// once the operation has stopped running.
+pub fn cleanup_task(task_id: u64) {
+    let mut guard = CANCELLED.lock().unwrap();
+    guard.retain(|(id, _)| *id != task_id);
+}
+
 pub fn is_cancelled(_task_id: u64, flag: &AtomicBool) -> bool {
     flag.load(Ordering::Relaxed)
 }

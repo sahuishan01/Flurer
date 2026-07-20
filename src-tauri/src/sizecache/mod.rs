@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex},
@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     helpers::settings::{atomic_write, size_cache_path},
-    progress::{emit_progress, next_task_id},
+    progress::{cleanup_task, emit_progress, next_task_id},
     state::AppState,
 };
 
@@ -26,6 +26,10 @@ const WORKER_COUNT: usize = 2;
 // cache has changed and, if so, writes it to disk — bounds worst-case data
 // loss on a forced close without persisting on every single computed size.
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(5);
+/// Soft cap on the in-memory folder-size cache. When exceeded the
+/// oldest entries (by insertion order) are evicted to stay within
+/// this limit, preventing unbounded growth during long sessions.
+const MAX_CACHED_SIZES: usize = 500;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -210,6 +214,17 @@ fn start_watching(state: &AppState, path: &Path) {
     if roots.iter().any(|p| p == path) {
         return;
     }
+    // Keep at most 50 watched roots to avoid accumulating OS file
+    // watcher handles across the whole session. When the cap is
+    // reached the oldest watched root is dropped — its cached size
+    // stays in the map but won't auto-update on filesystem changes
+    // until the user visits that folder again.
+    if roots.len() >= 50 {
+        let removed = roots.remove(0);
+        if let Some(debouncer) = state.size_cache.debouncer.lock().unwrap().as_mut() {
+            let _ = debouncer.watcher().unwatch(&removed);
+        }
+    }
     if let Some(debouncer) = state.size_cache.debouncer.lock().unwrap().as_mut() {
         let _ = debouncer.watcher().watch(path, RecursiveMode::Recursive);
     }
@@ -263,6 +278,15 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 for (subdir_path, subdir_size) in subdirs {
                     cache.insert(subdir_path, subdir_size);
                 }
+                // Evict oldest entries when the cache exceeds the cap
+                // to prevent unbounded growth during long sessions.
+                if cache.len() > MAX_CACHED_SIZES {
+                    let excess = cache.len() - MAX_CACHED_SIZES;
+                    let keys: Vec<PathBuf> = cache.keys().take(excess).cloned().collect();
+                    for key in keys {
+                        cache.remove(&key);
+                    }
+                }
             }
             state.size_cache.pending.lock().unwrap().remove(&job.path);
             *state.size_cache.dirty.lock().unwrap() = true;
@@ -278,6 +302,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             );
             if let Some(TrackedJob { task_id, label }) = &job.tracking {
                 emit_progress(&app, *task_id, label, 0, 0, true, None, true);
+                cleanup_task(*task_id);
             }
         });
     }
