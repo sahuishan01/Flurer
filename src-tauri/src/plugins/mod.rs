@@ -319,6 +319,29 @@ pub async fn install_plugin_from_zip(zip_path: String) -> Result<PluginManifest,
 // Plugin update commands
 // ---------------------------------------------------------------------------
 
+#[tauri::command]
+pub async fn link_plugin_repo(id: String, repo_url: String) -> Result<(), String> {
+    let (owner, repo) = parse_github_url(&repo_url)?;
+    let repo_slug = format!("{owner}/{repo}");
+
+    let plugins = plugins_dir()?;
+    let plugin_dir = plugins.join(&id);
+    let manifest_path = plugin_dir.join("plugin.json");
+
+    if !manifest_path.is_file() {
+        return Err(format!("Plugin \"{}\" not found", id));
+    }
+
+    let content = fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
+    let mut manifest: PluginManifest = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    manifest.repo = Some(repo_slug);
+
+    let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
+    atomic_write(&manifest_path, json.as_bytes()).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 /// Compare two semver-style version strings. Returns true if `remote` is newer.
 fn version_is_newer(installed: &str, remote: &str) -> bool {
     let parse = |v: &str| -> Vec<u32> {

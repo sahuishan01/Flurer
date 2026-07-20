@@ -7,6 +7,7 @@ import {
   uninstallPlugin,
   checkPluginUpdates,
   updatePlugin,
+  linkPluginRepo,
 } from "../lib/plugins";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -41,6 +42,8 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
   const [errorMsg, setErrorMsg] = createSignal<string | null>(null);
   const [updates, setUpdates] = createSignal<UpdateInfo[]>([]);
   const [checkingUpdates, setCheckingUpdates] = createSignal(false);
+  const [linkingId, setLinkingId] = createSignal<string | null>(null);
+  const [linkRepoUrl, setLinkRepoUrl] = createSignal("");
 
   const refreshInstalled = async () => {
     try {
@@ -186,6 +189,20 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
       setErrorMsg(`Update failed: ${err}`);
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleLinkRepo = async (id: string) => {
+    const url = linkRepoUrl().trim();
+    if (!url) return;
+    try {
+      await linkPluginRepo(id, url);
+      setLinkingId(null);
+      setLinkRepoUrl("");
+      await refreshInstalled();
+      setTimeout(checkForUpdates, 500);
+    } catch (err) {
+      setErrorMsg(`Failed to link repo: ${err}`);
     }
   };
 
@@ -418,6 +435,81 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                         v{plugin.version} • {plugin.author}
                         {plugin.repo ? ` • ${plugin.repo}` : ""}
                       </div>
+                      <Show when={!plugin.repo}>
+                        <Show
+                          when={linkingId() === plugin.id}
+                          fallback={
+                            <button
+                              type="button"
+                              style={{
+                                "margin-left": "16px",
+                                "margin-top": "4px",
+                                padding: "2px 8px",
+                                "font-size": "10px",
+                                "border-radius": "4px",
+                                background: "rgba(255,255,255,0.06)",
+                                color: "var(--text-muted, #888)",
+                                border: "1px solid var(--border-subtle, rgba(255,255,255,0.06))",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => { setLinkingId(plugin.id); setLinkRepoUrl(""); }}
+                            >
+                              Link GitHub repo for updates
+                            </button>
+                          }
+                        >
+                          <div style={{ "margin-left": "16px", "margin-top": "4px", display: "flex", gap: "6px", "align-items": "center" }}>
+                            <input
+                              type="text"
+                              placeholder="owner/repo"
+                              value={linkRepoUrl()}
+                              onInput={(e) => setLinkRepoUrl(e.currentTarget.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleLinkRepo(plugin.id)}
+                              style={{
+                                padding: "3px 8px",
+                                "font-size": "11px",
+                                "border-radius": "4px",
+                                border: "1px solid var(--border-strong)",
+                                background: "var(--bg-color, #1a1a2e)",
+                                color: "var(--text-color)",
+                                width: "200px",
+                                "font-family": "Space Mono, monospace",
+                              }}
+                            />
+                            <button
+                              type="button"
+                              style={{
+                                padding: "2px 8px",
+                                "font-size": "10px",
+                                "border-radius": "4px",
+                                background: "var(--accent-color, #f59e0b)",
+                                color: "#000",
+                                border: "none",
+                                cursor: "pointer",
+                                "font-weight": 600,
+                              }}
+                              onClick={() => handleLinkRepo(plugin.id)}
+                            >
+                              Link
+                            </button>
+                            <button
+                              type="button"
+                              style={{
+                                padding: "2px 6px",
+                                "font-size": "10px",
+                                "border-radius": "4px",
+                                background: "rgba(255,255,255,0.06)",
+                                color: "var(--text-muted, #888)",
+                                border: "none",
+                                cursor: "pointer",
+                              }}
+                              onClick={() => setLinkingId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </Show>
+                      </Show>
                       <Show when={plugin.description}>
                         <div style={{ "font-size": "12px", color: "var(--text-muted, #888)", "margin-left": "16px", "margin-top": "2px", "overflow": "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
                           {plugin.description}

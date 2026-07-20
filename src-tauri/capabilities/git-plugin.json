@@ -9,7 +9,8 @@
       "allow": [
         {
           "cmd": "git",
-          "args": ["-C", {"validator": ".*"}]
+          "args": ["-C", {"validator": ".*"}],
+          "options": { "windowsHide": true }
         }
       ]
     }
