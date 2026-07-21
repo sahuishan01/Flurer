@@ -346,7 +346,7 @@ body {
     flex: 1;
     min-height: 0;
     flex-direction: column;
-    overflow: hidden;
+    overflow: auto;
 }
 
 /* Icon-only strip for switching top-level views (Explorer / Storage graph /
