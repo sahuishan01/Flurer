@@ -1,7 +1,7 @@
 import { Show, Switch, Match, createMemo } from "solid-js";
 import { useGit } from "../context";
 import { basename } from "../utils";
-import { GitIcon, RefreshIcon, PullIcon, PushIcon, FetchIcon, BackIcon, BranchIcon, Button, TabBar } from "./shared";
+import { GitIcon, RefreshIcon, PullIcon, PushIcon, FetchIcon, CloseIcon, BranchIcon, Button, TabBar } from "./shared";
 import { S } from "../styles";
 import { ChangesView } from "./ChangesView";
 import { DiffView } from "./DiffView";
@@ -21,7 +21,11 @@ const TABS = [
   { id: "worktrees", label: "Worktrees" },
 ];
 
-export function RepoView() {
+type RepoViewProps = {
+  onClose: () => void;
+};
+
+export function RepoView(props: RepoViewProps) {
   const ctx = useGit();
 
   const repoName = createMemo(() => {
@@ -49,8 +53,8 @@ export function RepoView() {
     <div style={{ height: "100%", display: "flex", "flex-direction": "column", overflow: "hidden" }}>
       <div style={{ ...S.section, "border-bottom": "1px solid var(--border-strong)", "flex-shrink": 0 }}>
         <div style={S.toolbar}>
-          <Button onClick={ctx.backToDashboard} size="sm">
-            <BackIcon size={14} />
+          <Button onClick={props.onClose} size="sm" title="Close tab">
+            <CloseIcon size={14} />
           </Button>
           <GitIcon size={22} />
           <div style={{ flex: 1, overflow: "hidden" }}>

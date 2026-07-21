@@ -1,17 +1,19 @@
 import { createSignal, For, Show } from "solid-js";
-import { useGit } from "../context";
 import { getRecentRepos, removeRecentRepo, formatTimestamp } from "../utils";
-import { GitIcon, FolderIcon, TrashIcon, Button, EmptyState } from "./shared";
+import { GitIcon, FolderIcon, TrashIcon, Button } from "./shared";
 import { S } from "../styles";
 
-export function DashboardView() {
-  const ctx = useGit();
+type DashboardViewProps = {
+  onOpenRepo: (path: string) => void;
+};
+
+export function DashboardView(props: DashboardViewProps) {
   const [repos, setRepos] = createSignal(getRecentRepos());
   const [openPath, setOpenPath] = createSignal("");
   const [showInput, setShowInput] = createSignal(false);
 
   function handleOpen(path: string) {
-    ctx.openRepo(path);
+    props.onOpenRepo(path);
   }
 
   function handleRemove(path: string) {
@@ -22,7 +24,9 @@ export function DashboardView() {
   function handleOpenPath() {
     const p = openPath().trim();
     if (!p) return;
-    ctx.openRepo(p);
+    props.onOpenRepo(p);
+    setOpenPath("");
+    setShowInput(false);
   }
 
   return (
@@ -99,10 +103,12 @@ export function DashboardView() {
           </Show>
         </div>
 
-        <Show when={repos().length === 0 && !showInput()}>
-          <EmptyState message="Open a git repository to get started">
-            <FolderIcon size={40} />
-          </EmptyState>
+        <Show when={repos().length === 0}>
+          <div style={{ ...S.emptyState, "padding-top": "60px" }}>
+            <GitIcon size={48} />
+            <p style={{ "margin-top": "16px" }}>No recent repositories</p>
+            <p style={{ "font-size": "12px", opacity: 0.6 }}>Open a git repository to get started</p>
+          </div>
         </Show>
       </div>
     </div>

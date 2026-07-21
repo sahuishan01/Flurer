@@ -92,6 +92,10 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   onMount(() => {
+    if (props.initialPath) {
+      setRepoPath(props.initialPath);
+      refresh();
+    }
     setShellAvail(git.hasShellPlugin());
   });
 
