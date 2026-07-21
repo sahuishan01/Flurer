@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { CustomizationSettings } from "./CustomizationSettings";
+import { UpdatesView } from "./UpdatesView";
 import { CloseIcon } from "./icons";
 import type { BackgroundSettings, Theme } from "../lib/settings";
 import type { Wallpaper } from "../lib/unsplash";
@@ -44,10 +45,11 @@ export function SettingsPanel(props: SettingsPanelProps) {
   const [category, setCategory] = createSignal<SettingsCategory>("customization");
 
   const categories = () => {
-    const list = [
-      { id: "customization", label: "Customization" },
-      { id: "plugins", label: "Plugins" }
-    ];
+      const list = [
+        { id: "customization", label: "Customization" },
+        { id: "plugins", label: "Plugins" },
+        { id: "updates", label: "Updates" },
+      ];
     for (const p of registeredPlugins()) {
       if (p.settingsPanel) {
         list.push({ id: `plugin-${p.id}`, label: p.name });
@@ -126,6 +128,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
                 onPluginSettingsChange: (patch: any) => props.onPluginSettingsChange(id, patch)
               });
             }}
+          </Show>
+          <Show when={category() === "updates"}>
+            <UpdatesView />
           </Show>
         </div>
       </div>

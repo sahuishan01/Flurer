@@ -3,10 +3,11 @@ mod disks;
 mod fs;
 mod helpers;
 mod network;
+mod plugins;
 mod progress;
 mod sizecache;
 mod state;
-mod plugins;
+mod updater;
 
 use disks::get_disk_topology;
 use fs::{
@@ -30,6 +31,7 @@ use plugins::{
 };
 
 use crate::{configs::Config, state::AppState};
+use updater::{check_for_updates, download_and_install_update};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -86,7 +88,10 @@ pub fn run() {
             git_commit,
             git_push,
             git_pull,
-            git_checkout
+            git_checkout,
+            // Updater
+            check_for_updates,
+            download_and_install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
