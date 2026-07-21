@@ -19,6 +19,12 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
+      - name: Build plugins
+        run: |
+          cd plugins/git
+          bun install
+          bun run build
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
