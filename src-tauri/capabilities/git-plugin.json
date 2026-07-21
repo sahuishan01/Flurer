@@ -8,9 +8,10 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
+          "name": "git",
           "cmd": "git",
-          "args": ["-C", {"validator": ".*"}],
-          "options": { "windowsHide": true }
+          "args": true,
+          "sidecar": false
         }
       ]
     }

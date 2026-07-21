@@ -89,7 +89,21 @@ export function RepoView(props: RepoViewProps) {
         </div>
       </div>
 
+      <Show when={ctx.error()}>
+        {(e) => (
+          <div style={{ ...S.statusMsg, background: "rgba(239,68,68,0.15)", color: "#f87171", "margin": "8px 24px 0", "font-size": "12px" }}>
+            {e()}
+          </div>
+        )}
+      </Show>
+
       <TabBar tabs={tabsWithCount()} activeTab={ctx.activeView()} onSelect={handleTabSelect} />
+
+      <Show when={ctx.loading() && !ctx.status()}>
+        <div style={{ ...S.emptyState, "padding-top": "60px" }}>
+          <div style={{ "font-size": "14px", opacity: 0.6 }}>Loading repository…</div>
+        </div>
+      </Show>
 
       <div style={{ flex: 1, overflow: "auto" }}>
         <Switch>
