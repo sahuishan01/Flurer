@@ -1,5 +1,6 @@
-import { createSignal, Show } from "solid-js";
+import { createSignal, Show, onMount } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { RefreshIcon, DownloadIcon } from "./icons";
 
@@ -37,14 +38,26 @@ export function UpdatesView() {
   const [checking, setChecking] = createSignal(false);
   const [error, setError] = createSignal("");
   const [downloading, setDownloading] = createSignal(false);
+  const [appVersion, setAppVersion] = createSignal("");
+
+  onMount(async () => {
+    try {
+      const v = await getVersion();
+      setAppVersion(v);
+    } catch {
+      setAppVersion("0.0.0");
+    }
+  });
 
   async function check() {
+    const version = appVersion();
+    if (!version) return;
     setChecking(true);
     setError("");
     setUpdateInfo(null);
     try {
       const result = await invoke<UpdateInfo>("check_for_updates", {
-        currentVersion: "0.4.26",
+        currentVersion: version,
       });
       setUpdateInfo(result);
     } catch (err) {
@@ -75,24 +88,30 @@ export function UpdatesView() {
     }
   }
 
+  // Only show download/install if latest is strictly greater than current
+  const canUpdate = () => {
+    const info = updateInfo();
+    return info?.hasUpdate && info.latestVersion !== info.currentVersion;
+  };
+
   return (
     <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
       <div class="settings-section">
         <h3 style={{ margin: "0 0 12px", "font-size": "14px", "font-weight": 600 }}>App Updates</h3>
         <p style={{ "font-size": "13px", opacity: 0.7, margin: "0 0 12px" }}>
-          Check for new versions of Flurer. Updates are distributed as MSI/NSIS installers from GitHub Releases.
+          Current version: <strong>v{appVersion()}</strong>
         </p>
         <div style={{ display: "flex", gap: "8px", "align-items": "center", "flex-wrap": "wrap" }}>
           <button
             type="button"
-            style={{ ...btn.base, ...btn.primary, ...(checking() ? btn.disabled : {}) }}
+            style={{ ...btn.base, ...btn.primary, ...(checking() || !appVersion() ? btn.disabled : {}) }}
             onClick={check}
-            disabled={checking()}
+            disabled={checking() || !appVersion()}
           >
             <RefreshIcon size={14} />
             {checking() ? "Checking…" : "Check for Updates"}
           </button>
-          <Show when={updateInfo()?.hasUpdate}>
+          <Show when={canUpdate()}>
             <button
               type="button"
               style={{ ...btn.base, ...btn.update, ...(downloading() ? btn.disabled : {}) }}
@@ -118,22 +137,24 @@ export function UpdatesView() {
         </div>
       </Show>
 
-      <Show when={updateInfo() && !updateInfo()!.hasUpdate && !error()}>
-        <div class="settings-section">
-          <p style={{ "font-size": "13px", color: "var(--success, #4a8c5c)", margin: 0, display: "flex", "align-items": "center", gap: "6px" }}>
-            ✓ You're up to date — Flurer v{updateInfo()!.currentVersion}
-          </p>
-        </div>
+      <Show when={updateInfo() && !canUpdate() && !error()}>
+        {(info) => (
+          <div class="settings-section">
+            <p style={{ "font-size": "13px", color: "var(--success, #4a8c5c)", margin: 0, display: "flex", "align-items": "center", gap: "6px" }}>
+              ✓ You're up to date — Flurer <strong>v{info().currentVersion}</strong>
+            </p>
+          </div>
+        )}
       </Show>
 
-      <Show when={updateInfo()?.hasUpdate}>
+      <Show when={canUpdate()}>
         {(info) => (
           <div class="settings-section">
             <h3 style={{ margin: "0 0 8px", "font-size": "14px", "font-weight": 600 }}>
               v{info().latestVersion} Available
             </h3>
             <p style={{ "font-size": "12px", opacity: 0.6, margin: "0 0 8px" }}>
-              Current: v{info().currentVersion} → Latest: v{info().latestVersion}
+              Current: <strong>v{info().currentVersion}</strong> → Latest: <strong>v{info().latestVersion}</strong>
             </p>
             <Show when={info().releaseBody}>
               <div style={{ "font-size": "12px", "white-space": "pre-wrap", "max-height": "200px", overflow: "auto", "line-height": "1.6", "border-top": "1px solid var(--border-color)", "padding-top": "8px" }}>
