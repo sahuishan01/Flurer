@@ -92,7 +92,7 @@ pub struct SizeCacheState {
     // folder already in flight isn't enqueued twice.
     pending: Mutex<HashSet<PathBuf>>,
     watched_roots: Mutex<Vec<PathBuf>>,
-    job_sender: Mutex<Option<mpsc::Sender<SizeJob>>>,
+    job_sender: Mutex<Option<mpsc::SyncSender<SizeJob>>>,
     // Holding the debouncer keeps its background thread and OS watch handles
     // alive; dropping it silently stops all watching.
     debouncer: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
