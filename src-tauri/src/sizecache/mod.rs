@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex},
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
-    helpers::settings::{atomic_write, size_cache_path},
+    helpers::settings::save_settings,
     progress::{cleanup_task, emit_progress, next_task_id},
     state::AppState,
 };
@@ -92,7 +92,7 @@ pub struct SizeCacheState {
     // folder already in flight isn't enqueued twice.
     pending: Mutex<HashSet<PathBuf>>,
     watched_roots: Mutex<Vec<PathBuf>>,
-    job_sender: Mutex<Option<mpsc::Sender<SizeJob>>>,
+    job_sender: Mutex<Option<mpsc::SyncSender<SizeJob>>>,
     // Holding the debouncer keeps its background thread and OS watch handles
     // alive; dropping it silently stops all watching.
     debouncer: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
@@ -101,40 +101,68 @@ pub struct SizeCacheState {
     dirty: Mutex<bool>,
 }
 
-#[derive(Serialize, Deserialize, Default)]
-struct PersistedSizeCache {
-    sizes: HashMap<String, CachedSize>,
-}
+/// Loads persisted folder sizes from app settings (which are loaded from
+/// `settings.json` on startup).  On the first run after upgrading from the
+/// old separate `size_cache.json`, also migrates that file into settings
+/// and removes it so future launches go straight through settings.
+fn load_persisted_sizes(app: &AppHandle) -> HashMap<PathBuf, CachedSize> {
+    let state = app.state::<AppState>();
+    let settings = state.settings.blocking_lock();
+    let from_settings: HashMap<PathBuf, CachedSize> = settings
+        .folder_sizes
+        .iter()
+        .map(|(p, s)| (PathBuf::from(p), *s))
+        .collect();
+    if !from_settings.is_empty() {
+        return from_settings;
+    }
+    drop(settings);
 
-fn load_persisted_sizes() -> HashMap<PathBuf, CachedSize> {
-    let Ok(path) = size_cache_path() else {
+    // First run after upgrade — migrate the old separate cache file.
+    #[derive(Deserialize)]
+    struct LegacyEntry {
+        size: u64,
+        #[serde(default)]
+        dir_mtime: i64,
+    }
+    let legacy_path = crate::helpers::settings::config_root()
+        .map(|r| r.join("size_cache.json"))
+        .ok();
+    let Some(path) = legacy_path else {
         return HashMap::new();
     };
+    if !path.is_file() {
+        return HashMap::new();
+    }
     let Ok(data) = fs::read_to_string(&path) else {
         return HashMap::new();
     };
-    // Try the current format first (CachedSize entries with mtime), then
-    // fall back to the legacy flat format (string -> u64) for a clean
-    // upgrade path — old cache files aren't lost on update.
-    if let Ok(persisted) = serde_json::from_str::<PersistedSizeCache>(&data) {
-        return persisted
-            .sizes
-            .into_iter()
-            .map(|(path, entry)| (PathBuf::from(path), entry))
+    // Try CachedSize format first, then flat u64 format.
+    let migrated: Option<HashMap<PathBuf, CachedSize>> = serde_json::from_str::<
+        HashMap<String, LegacyEntry>,
+    >(&data)
+    .ok()
+    .map(|m| m.into_iter().map(|(p, e)| (PathBuf::from(p), CachedSize { size: e.size, dir_mtime: e.dir_mtime })).collect())
+    .or_else(|| {
+        serde_json::from_str::<HashMap<String, u64>>(&data)
+            .ok()
+            .map(|m| m.into_iter().map(|(p, s)| (PathBuf::from(p), CachedSize { size: s, dir_mtime: 0 })).collect())
+    });
+    if let Some(sizes) = migrated {
+        // Persist into settings and remove the old file.
+        let mut settings = state.settings.blocking_lock();
+        settings.folder_sizes = sizes
+            .iter()
+            .map(|(p, s)| (p.to_string_lossy().to_string(), *s))
             .collect();
+        drop(settings);
+        let settings = state.settings.blocking_lock();
+        let _ = save_settings(app, &settings);
+        let _ = fs::remove_file(&path);
+        sizes
+    } else {
+        HashMap::new()
     }
-    #[derive(Deserialize)]
-    struct Legacy {
-        sizes: HashMap<String, u64>,
-    }
-    if let Ok(legacy) = serde_json::from_str::<Legacy>(&data) {
-        return legacy
-            .sizes
-            .into_iter()
-            .map(|(path, size)| (PathBuf::from(path), CachedSize { size, dir_mtime: 0 }))
-            .collect();
-    }
-    HashMap::new()
 }
 
 // Reads the directory's current mtime (rounded to whole seconds); returns 0
@@ -148,12 +176,9 @@ fn dir_mtime_secs(path: &Path) -> i64 {
         .unwrap_or(0)
 }
 
-// Drops entries for folders that no longer exist so the cache file doesn't
-// grow forever with paths the user deleted long ago.
-fn save_persisted_sizes(sizes: &HashMap<PathBuf, CachedSize>) {
-    let Ok(path) = size_cache_path() else {
-        return;
-    };
+// Drops entries for folders that no longer exist, then writes the folder
+// sizes into `AppState.settings.folder_sizes` and persists settings to disk.
+fn save_persisted_sizes(app: &AppHandle, sizes: &HashMap<PathBuf, CachedSize>) {
     // Refresh mtime for each directory before saving — the cached mtime may
     // be stale if the folder changed during the session (the debounced
     // watcher will have triggered a recompute, so the mtime is updated
@@ -167,11 +192,12 @@ fn save_persisted_sizes(sizes: &HashMap<PathBuf, CachedSize>) {
             (path.to_string_lossy().to_string(), CachedSize { size: entry.size, dir_mtime: mtime })
         })
         .collect();
-    let persisted = PersistedSizeCache { sizes };
-    let Ok(data) = serde_json::to_string(&persisted) else {
-        return;
-    };
-    let _ = atomic_write(&path, data.as_bytes());
+    let state = app.state::<AppState>();
+    let mut settings = state.settings.blocking_lock();
+    settings.folder_sizes = sizes;
+    drop(settings);
+    let settings = state.settings.blocking_lock();
+    let _ = save_settings(app, &settings);
 }
 
 pub fn compute_dir_size(path: &Path) -> u64 {
@@ -255,6 +281,8 @@ fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
     if !pending.insert(job.path.clone()) {
         return false;
     }
+    // Snapshot the path before job is moved into try_send below.
+    let path = job.path.clone();
     // Still holding `pending` while trying to send — if the channel is
     // full we atomically back out by removing from `pending`. Otherwise a
     // path stuck in `pending` with no job in the channel would make
@@ -268,7 +296,7 @@ fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
         .map(|sender| sender.try_send(job).is_ok())
         .unwrap_or(false);
     if !sent {
-        pending.remove(&job.path);
+        pending.remove(&path);
         return false;
     }
     true
@@ -386,7 +414,7 @@ pub fn init(app: &AppHandle) {
 
     {
         let state = app.state::<AppState>();
-        *state.size_cache.sizes.lock().unwrap() = load_persisted_sizes();
+        *state.size_cache.sizes.lock().unwrap() = load_persisted_sizes(app);
         *state.size_cache.job_sender.lock().unwrap() = Some(tx);
     }
 
@@ -420,7 +448,7 @@ fn spawn_autosave(app: AppHandle) {
         *dirty = false;
         drop(dirty);
         let snapshot = state.size_cache.sizes.lock().unwrap().clone();
-        save_persisted_sizes(&snapshot);
+        save_persisted_sizes(&app, &snapshot);
     });
 }
 
