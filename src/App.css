@@ -172,9 +172,7 @@ body {
     position: relative;
     z-index: 100;
     display: flex;
-    align-items: center;
-    gap: 1.2em;
-    padding: 0.75em 1.5em;
+    flex-direction: column;
     background: linear-gradient(to bottom, rgba(var(--glass-tint-rgb), calc(var(--glass-opacity) + 0.05)), rgba(var(--glass-tint-rgb), var(--glass-opacity)));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -195,6 +193,30 @@ body {
 
 [data-theme="dark"] .command-bar::before {
     background: rgba(255, 255, 255, 0.08);
+}
+
+/* Top row: nav + drag spacer + window controls (thin, compact) */
+.command-bar-top {
+    display: flex;
+    align-items: center;
+    height: 34px;
+    flex-shrink: 0;
+    padding: 0 0 0 0.8em;
+}
+
+.command-bar-top-spacer {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+}
+
+/* Bottom row: path bar, search, controls */
+.command-bar-bottom {
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+    padding: 0.5em 0.8em 0.6em;
+    min-height: 0;
 }
 
 .command-bar-nav {
@@ -258,6 +280,58 @@ body {
     border: var(--control-active-border);
     transform: scale(0.96);
 }
+
+/* ====== Custom titlebar (window controls) ====== */
+
+.titlebar-controls {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    align-self: stretch;
+}
+
+.titlebar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background 0.1s;
+    flex-shrink: 0;
+}
+
+.titlebar-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .titlebar-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.titlebar-btn:active {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .titlebar-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.titlebar-btn-close:hover {
+    background: #e81123 !important;
+    color: #fff !important;
+}
+
+.titlebar-btn-close:active {
+    background: #bf0f1d !important;
+    color: #fff !important;
+}
+
+/* Tauri v2 ignores interactive children of drag regions automatically,
+   so all buttons and inputs inside .command-bar are non-draggable. */
 
 .command-bar .icon-btn:not(.command-bar-nav .icon-btn).active {
     color: var(--accent);

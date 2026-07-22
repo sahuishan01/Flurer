@@ -1,6 +1,7 @@
 import type { JSX } from "solid-js";
 import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
+import { TitleBarControls } from "./TitleBarControls";
 
 type CommandBarProps = {
   canGoBack: boolean;
@@ -22,47 +23,55 @@ type CommandBarProps = {
 export function CommandBar(props: CommandBarProps) {
   return (
     <div class="command-bar" data-bg-lightness={props["data-bg-lightness"]}>
-      <div class="command-bar-nav">
-        <button type="button" class="icon-btn" aria-label="Back" disabled={!props.canGoBack} onClick={props.onBack}>
-          <ArrowLeftIcon size={18} />
-        </button>
+      {/* Top row: navigation + window controls */}
+      <div class="command-bar-top">
+        <div class="command-bar-nav">
+          <button type="button" class="icon-btn" aria-label="Back" disabled={!props.canGoBack} onClick={props.onBack}>
+            <ArrowLeftIcon size={16} />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Forward"
+            disabled={!props.canGoForward}
+            onClick={props.onForward}
+          >
+            <ArrowRightIcon size={16} />
+          </button>
+        </div>
+        <div class="command-bar-top-spacer" data-tauri-drag-region />
+        <TitleBarControls />
+      </div>
+
+      {/* Bottom row: view controls + search */}
+      <div class="command-bar-bottom">
+        <div class="command-bar-slot">{props.viewControls}</div>
+
+        <div class="search-field">
+          <SearchIcon size={13} />
+          <input
+            type="text"
+            class="search-input"
+            placeholder="Search…"
+            value={props.searchQuery}
+            onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
+          />
+        </div>
+
         <button
           type="button"
           class="icon-btn"
-          aria-label="Forward"
-          disabled={!props.canGoForward}
-          onClick={props.onForward}
+          classList={{ active: props.searchRecursive }}
+          title="Include subfolders"
+          aria-label="Include subfolders"
+          aria-pressed={props.searchRecursive}
+          onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
         >
-          <ArrowRightIcon size={18} />
+          <LayersIcon size={14} />
         </button>
+
+        <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
       </div>
-
-      <div class="command-bar-slot">{props.viewControls}</div>
-
-      <div class="search-field">
-        <SearchIcon size={15} />
-        <input
-          type="text"
-          class="search-input"
-          placeholder="Search…"
-          value={props.searchQuery}
-          onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
-        />
-      </div>
-
-      <button
-        type="button"
-        class="icon-btn"
-        classList={{ active: props.searchRecursive }}
-        title="Include subfolders"
-        aria-label="Include subfolders"
-        aria-pressed={props.searchRecursive}
-        onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
-      >
-        <LayersIcon size={16} />
-      </button>
-
-      <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
     </div>
   );
 }
