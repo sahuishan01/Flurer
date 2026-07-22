@@ -140,8 +140,18 @@ export function FileList(props: FileListProps) {
 
   // Kick off (or resume) background size computation for every folder row as
   // soon as it's listed, rather than waiting for the user to hover/select it.
+  // Also drop entries for paths no longer in the listing so folderSizes
+  // doesn't accumulate visited folders across the whole session.
   createEffect(() => {
     const list = entries();
+    const paths = new Set(list.filter((e) => e.isDir).map((e) => e.path));
+    setFolderSizes((prev) => {
+      const next = new Map(prev);
+      for (const key of next.keys()) {
+        if (!paths.has(key)) next.delete(key);
+      }
+      return next;
+    });
     const known = untrack(folderSizes);
     for (const entry of list) {
       if (entry.isDir && !known.has(entry.path)) fetchFolderSize(entry.path);
