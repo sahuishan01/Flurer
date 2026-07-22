@@ -683,10 +683,7 @@ function App() {
             />
           </Show>
           {/* Views are mounted and unmounted on toggle so resources
-              (signals, listeners, timers) are freed when hidden.
-              State that should survive view switches (graph pan/zoom,
-              git repo path) is preserved by the owning plugin or
-              lifted to App.tsx. */}
+              (signals, listeners, timers) are freed when hidden. */}
           <div class="view-stack">
             <Show when={mainView() === "explorer"}>
               <div class="view-pane">
@@ -705,33 +702,36 @@ function App() {
               </div>
             </Show>
             
-            {/* Dynamically render plugin panels */}
+            {/* Plugin panels stay mounted (hidden via display:none) so their
+                state (open tabs, repo data, graph zoom) survives switching
+                to settings and back. */}
             <For each={registeredPlugins()}>
               {(plugin) => (
                 <Show when={plugin.mainPanel || plugin.fullPanel}>
-                  <Show when={mainView() === plugin.id}>
-                    <div class="view-pane">
-                      {(() => {
-                        const props = {
-                          currentPath: currentPath(),
-                          navigateTo: navigateTo,
-                          searchQuery: searchQuery(),
-                          focusPath: graphFocusRequest(),
-                          active: true,
-                          dataBgLightness: fileListLightness(),
-                          settingsLoaded: settingsLoaded(),
-                          pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
-                          onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
-                        };
-                        if (plugin.fullPanel) {
-                          return plugin.fullPanel(props);
-                        } else if (plugin.mainPanel) {
-                          return plugin.mainPanel(props);
-                        }
-                        return null;
-                      })()}
-                    </div>
-                  </Show>
+                  <div
+                    class="view-pane"
+                    style={{ display: mainView() === plugin.id ? "flex" : "none" }}
+                  >
+                    {(() => {
+                      const props = {
+                        currentPath: currentPath(),
+                        navigateTo: navigateTo,
+                        searchQuery: searchQuery(),
+                        focusPath: graphFocusRequest(),
+                        active: mainView() === plugin.id,
+                        dataBgLightness: fileListLightness(),
+                        settingsLoaded: settingsLoaded(),
+                        pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
+                        onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
+                      };
+                      if (plugin.fullPanel) {
+                        return plugin.fullPanel(props);
+                      } else if (plugin.mainPanel) {
+                        return plugin.mainPanel(props);
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </Show>
               )}
             </For>

@@ -88,11 +88,8 @@ export function UpdatesView() {
     }
   }
 
-  // Only show download/install if latest is strictly greater than current
-  const canUpdate = () => {
-    const info = updateInfo();
-    return info?.hasUpdate && info.latestVersion !== info.currentVersion;
-  };
+  const info = () => updateInfo();
+  const canUpdate = () => info()?.hasUpdate && info()!.latestVersion !== info()!.currentVersion;
 
   return (
     <div style={{ display: "flex", "flex-direction": "column", gap: "16px" }}>
@@ -137,32 +134,30 @@ export function UpdatesView() {
         </div>
       </Show>
 
-      <Show when={updateInfo() && !canUpdate() && !error()}>
-        {(info) => (
-          <div class="settings-section">
-            <p style={{ "font-size": "13px", color: "var(--success, #4a8c5c)", margin: 0, display: "flex", "align-items": "center", gap: "6px" }}>
-              ✓ You're up to date — Flurer <strong>v{info().currentVersion}</strong>
-            </p>
-          </div>
-        )}
+      {/* Up to date — use signal directly, not Show function-child, so version renders */}
+      <Show when={info() && !canUpdate() && !error()}>
+        <div class="settings-section">
+          <p style={{ "font-size": "13px", color: "var(--success, #4a8c5c)", margin: 0, display: "flex", "align-items": "center", gap: "6px" }}>
+            ✓ You're up to date — Flurer <strong>v{info()!.currentVersion}</strong>
+          </p>
+        </div>
       </Show>
 
+      {/* Update available */}
       <Show when={canUpdate()}>
-        {(info) => (
-          <div class="settings-section">
-            <h3 style={{ margin: "0 0 8px", "font-size": "14px", "font-weight": 600 }}>
-              v{info().latestVersion} Available
-            </h3>
-            <p style={{ "font-size": "12px", opacity: 0.6, margin: "0 0 8px" }}>
-              Current: <strong>v{info().currentVersion}</strong> → Latest: <strong>v{info().latestVersion}</strong>
-            </p>
-            <Show when={info().releaseBody}>
-              <div style={{ "font-size": "12px", "white-space": "pre-wrap", "max-height": "200px", overflow: "auto", "line-height": "1.6", "border-top": "1px solid var(--border-color)", "padding-top": "8px" }}>
-                {info().releaseBody}
-              </div>
-            </Show>
-          </div>
-        )}
+        <div class="settings-section">
+          <h3 style={{ margin: "0 0 8px", "font-size": "14px", "font-weight": 600 }}>
+            v{info()!.latestVersion} Available
+          </h3>
+          <p style={{ "font-size": "12px", opacity: 0.6, margin: "0 0 8px" }}>
+            Current: <strong>v{info()!.currentVersion}</strong> → Latest: <strong>v{info()!.latestVersion}</strong>
+          </p>
+          <Show when={info()!.releaseBody}>
+            <div style={{ "font-size": "12px", "white-space": "pre-wrap", "max-height": "200px", overflow: "auto", "line-height": "1.6", "border-top": "1px solid var(--border-color)", "padding-top": "8px" }}>
+              {info()!.releaseBody}
+            </div>
+          </Show>
+        </div>
       </Show>
     </div>
   );
