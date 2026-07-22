@@ -30,6 +30,11 @@ const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(5);
 /// oldest entries (by insertion order) are evicted to stay within
 /// this limit, preventing unbounded growth during long sessions.
 const MAX_CACHED_SIZES: usize = 500;
+/// Maximum number of size-computation jobs waiting in the channel. When
+/// the user rapidly navigates between many folders this prevents the
+/// pending queue from growing without bound — old jobs for folders no
+/// longer visible are silently dropped at the sender side.
+const MAX_PENDING_JOBS: usize = 20;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -250,10 +255,21 @@ fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
     if !pending.insert(job.path.clone()) {
         return false;
     }
-    drop(pending);
-
-    if let Some(sender) = state.size_cache.job_sender.lock().unwrap().as_ref() {
-        let _ = sender.send(job);
+    // Still holding `pending` while trying to send — if the channel is
+    // full we atomically back out by removing from `pending`. Otherwise a
+    // path stuck in `pending` with no job in the channel would make
+    // get_folder_size report Pending forever for that path.
+    let sent = state
+        .size_cache
+        .job_sender
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|sender| sender.try_send(job).is_ok())
+        .unwrap_or(false);
+    if !sent {
+        pending.remove(&job.path);
+        return false;
     }
     true
 }
@@ -365,7 +381,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
 /// watcher. Call once during app setup; `get_folder_size` enqueues specific
 /// directories on demand.
 pub fn init(app: &AppHandle) {
-    let (tx, rx) = mpsc::channel::<SizeJob>();
+    let (tx, rx) = mpsc::sync_channel::<SizeJob>(MAX_PENDING_JOBS);
     let receiver = Arc::new(Mutex::new(rx));
 
     {
