@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -6,7 +7,7 @@ use tokio::sync::Mutex;
 use crate::{
     configs::Config,
     fs::{SortDirection, SortKey},
-    sizecache::SizeCacheState,
+    sizecache::{CachedSize, SizeCacheState},
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
@@ -120,6 +121,8 @@ pub struct Settings {
     pub plugin_settings: std::collections::HashMap<String, serde_json::Value>,
     #[serde(default)]
     pub disabled_plugins: Vec<String>,
+    #[serde(default)]
+    pub folder_sizes: HashMap<String, CachedSize>,
 }
 
 impl Default for Settings {
@@ -143,6 +146,7 @@ impl Default for Settings {
             show_progress_when_idle: false,
             plugin_settings: std::collections::HashMap::new(),
             disabled_plugins: Vec::new(),
+            folder_sizes: HashMap::new(),
         }
     }
 }
