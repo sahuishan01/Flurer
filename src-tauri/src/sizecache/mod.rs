@@ -255,6 +255,8 @@ fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
     if !pending.insert(job.path.clone()) {
         return false;
     }
+    // Snapshot path before job is moved into try_send.
+    let path = job.path.clone();
     // Still holding `pending` while trying to send — if the channel is
     // full we atomically back out by removing from `pending`. Otherwise a
     // path stuck in `pending` with no job in the channel would make
@@ -268,7 +270,7 @@ fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
         .map(|sender| sender.try_send(job).is_ok())
         .unwrap_or(false);
     if !sent {
-        pending.remove(&job.path);
+        pending.remove(&path);
         return false;
     }
     true
