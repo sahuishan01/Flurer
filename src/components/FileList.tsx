@@ -197,7 +197,11 @@ export function FileList(props: FileListProps) {
 
   function markFolderPending(path: string) {
     setFolderSizes((prev) => {
-      const next = new Map(prev).set(path, "pending");
+      // Don't overwrite if progress events already arrived (the worker
+      // can emit folder-size-updated before the invoke() response lands).
+      const existing = prev.get(path);
+      if (existing && typeof existing === "object") return prev;
+      const next = new Map(prev).set(path, { size: 0, done: false });
       if (next.size > MAX_FOLDER_SIZES) {
         const keys = [...next.keys()];
         for (let i = 0; i < keys.length - MAX_FOLDER_SIZES; i++) {
@@ -224,14 +228,6 @@ export function FileList(props: FileListProps) {
   function renderSizeCell(entry: DirEntry) {
     if (!entry.isDir) return formatBytes(entry.size);
     const state = folderSizes().get(entry.path);
-    if (state === "pending") {
-      return (
-        <span class="size-calculating">
-          Calculating
-          <RefreshIcon size={12} class="size-loading-spinner" />
-        </span>
-      );
-    }
     if (state && typeof state === "object") {
       const formatted = formatBytes(state.size);
       if (state.done) {

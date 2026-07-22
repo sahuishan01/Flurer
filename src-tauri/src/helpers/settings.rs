@@ -12,7 +12,7 @@ use crate::state::{AppState, Settings};
 // is namespaced by version so a future breaking settings-schema change can't
 // corrupt or silently truncate an older install's file — each version gets
 // its own settings.json.
-fn config_root() -> Result<PathBuf, String> {
+pub fn config_root() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
     Ok(home.join(".config").join("flurer"))
 }
