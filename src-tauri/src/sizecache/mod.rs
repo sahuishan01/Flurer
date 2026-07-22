@@ -316,12 +316,29 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             let app_clone = app.clone();
             let path_clone = path_str.clone();
 
-            // Throttle progress events to once every 250ms
+            // Throttle progress events to once every 250ms, but emit the
+            // first update immediately so the user sees a running total
+            // right away instead of a blank "Calculating" for several
+            // hundred milliseconds on large folders.
             let mut last_emit = std::time::Instant::now();
             let mut current_size = 0u64;
+            let mut first = true;
             
             let mut on_progress = |bytes_added: u64| {
                 current_size += bytes_added;
+                if first {
+                    first = false;
+                    let _ = app_clone.emit(
+                        "folder-size-updated",
+                        FolderSizeUpdate {
+                            path: path_clone.clone(),
+                            size: current_size,
+                            done: false,
+                        },
+                    );
+                    last_emit = std::time::Instant::now();
+                    return;
+                }
                 let now = std::time::Instant::now();
                 if now.duration_since(last_emit) >= std::time::Duration::from_millis(250) {
                     let _ = app_clone.emit(

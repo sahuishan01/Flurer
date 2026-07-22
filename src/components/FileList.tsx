@@ -145,6 +145,14 @@ export function FileList(props: FileListProps) {
   createEffect(() => {
     const list = entries();
     const paths = new Set(list.filter((e) => e.isDir).map((e) => e.path));
+    // Read known state BEFORE cleaning — SolidJS batches signal writes
+    // inside effects, so `untrack` after `setFolderSizes` would see the
+    // old (pre-cleanup) state and miss newly-visible folders entirely.
+    const known = untrack(folderSizes);
+    for (const entry of list) {
+      if (entry.isDir && !known.has(entry.path)) fetchFolderSize(entry.path);
+    }
+    // Then clean stale entries that are no longer in the listing.
     setFolderSizes((prev) => {
       const next = new Map(prev);
       for (const key of next.keys()) {
@@ -152,10 +160,6 @@ export function FileList(props: FileListProps) {
       }
       return next;
     });
-    const known = untrack(folderSizes);
-    for (const entry of list) {
-      if (entry.isDir && !known.has(entry.path)) fetchFolderSize(entry.path);
-    }
   });
 
   onMount(() => {
