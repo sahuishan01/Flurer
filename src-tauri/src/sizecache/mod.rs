@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode, Debouncer};
@@ -67,9 +67,22 @@ struct SizeJob {
     tracking: Option<TrackedJob>,
 }
 
+/// A cached folder size with the directory's modification time at the moment
+/// it was computed, so we can skip revalidation on restart when nothing
+/// changed.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct CachedSize {
+    pub size: u64,
+    /// Unix-epoch seconds of the directory's `mtime` when this entry was
+    /// computed. 0 means "unknown" (legacy entry from before this field was
+    /// introduced); these always trigger a silent revalidation once.
+    #[serde(default)]
+    pub dir_mtime: i64,
+}
+
 #[derive(Default)]
 pub struct SizeCacheState {
-    sizes: Mutex<HashMap<PathBuf, u64>>,
+    sizes: Mutex<HashMap<PathBuf, CachedSize>>,
     // Paths queued or currently being computed by a worker thread, so a
     // folder already in flight isn't enqueued twice.
     pending: Mutex<HashSet<PathBuf>>,
@@ -85,35 +98,71 @@ pub struct SizeCacheState {
 
 #[derive(Serialize, Deserialize, Default)]
 struct PersistedSizeCache {
-    sizes: HashMap<String, u64>,
+    sizes: HashMap<String, CachedSize>,
 }
 
-fn load_persisted_sizes() -> HashMap<PathBuf, u64> {
+fn load_persisted_sizes() -> HashMap<PathBuf, CachedSize> {
     let Ok(path) = size_cache_path() else {
         return HashMap::new();
     };
     let Ok(data) = fs::read_to_string(&path) else {
         return HashMap::new();
     };
-    let Ok(persisted) = serde_json::from_str::<PersistedSizeCache>(&data) else {
-        return HashMap::new();
-    };
-    persisted.sizes.into_iter().map(|(path, size)| (PathBuf::from(path), size)).collect()
+    // Try the current format first (CachedSize entries with mtime), then
+    // fall back to the legacy flat format (string -> u64) for a clean
+    // upgrade path — old cache files aren't lost on update.
+    if let Ok(persisted) = serde_json::from_str::<PersistedSizeCache>(&data) {
+        return persisted
+            .sizes
+            .into_iter()
+            .map(|(path, entry)| (PathBuf::from(path), entry))
+            .collect();
+    }
+    #[derive(Deserialize)]
+    struct Legacy {
+        sizes: HashMap<String, u64>,
+    }
+    if let Ok(legacy) = serde_json::from_str::<Legacy>(&data) {
+        return legacy
+            .sizes
+            .into_iter()
+            .map(|(path, size)| (PathBuf::from(path), CachedSize { size, dir_mtime: 0 }))
+            .collect();
+    }
+    HashMap::new()
+}
+
+// Reads the directory's current mtime (rounded to whole seconds); returns 0
+// when the read fails (same as a legacy entry with unknown mtime).
+fn dir_mtime_secs(path: &Path) -> i64 {
+    fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 // Drops entries for folders that no longer exist so the cache file doesn't
 // grow forever with paths the user deleted long ago.
-fn save_persisted_sizes(sizes: &HashMap<PathBuf, u64>) {
+fn save_persisted_sizes(sizes: &HashMap<PathBuf, CachedSize>) {
     let Ok(path) = size_cache_path() else {
         return;
     };
-    let persisted = PersistedSizeCache {
-        sizes: sizes
-            .iter()
-            .filter(|(path, _)| path.is_dir())
-            .map(|(path, &size)| (path.to_string_lossy().to_string(), size))
-            .collect(),
-    };
+    // Refresh mtime for each directory before saving — the cached mtime may
+    // be stale if the folder changed during the session (the debounced
+    // watcher will have triggered a recompute, so the mtime is updated
+    // alongside the size).  For folders that haven't changed this is a
+    // lightweight stat call.
+    let sizes: HashMap<String, CachedSize> = sizes
+        .iter()
+        .filter(|(path, _)| path.is_dir())
+        .map(|(path, entry)| {
+            let mtime = dir_mtime_secs(path).max(entry.dir_mtime);
+            (path.to_string_lossy().to_string(), CachedSize { size: entry.size, dir_mtime: mtime })
+        })
+        .collect();
+    let persisted = PersistedSizeCache { sizes };
     let Ok(data) = serde_json::to_string(&persisted) else {
         return;
     };
@@ -272,11 +321,15 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             let mut subdirs = HashMap::new();
             let size = compute_dir_size_recursive(&job.path, &mut on_progress, &mut subdirs);
             let state = app.state::<AppState>();
+            // Snapshot current mtime right after the walk, so the persisted
+            // mtime won't be newer than the computed size.
+            let mtime = dir_mtime_secs(&job.path);
             {
                 let mut cache = state.size_cache.sizes.lock().unwrap();
-                cache.insert(job.path.clone(), size);
+                cache.insert(job.path.clone(), CachedSize { size, dir_mtime: mtime });
                 for (subdir_path, subdir_size) in subdirs {
-                    cache.insert(subdir_path, subdir_size);
+                    let sub_mtime = dir_mtime_secs(&subdir_path);
+                    cache.insert(subdir_path, CachedSize { size: subdir_size, dir_mtime: sub_mtime });
                 }
                 // Evict oldest entries when the cache exceeds the cap
                 // to prevent unbounded growth during long sessions.
@@ -400,17 +453,31 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
     // holding it through the watched_roots check and enqueue() below.
     let cached = state.size_cache.sizes.lock().unwrap().get(&path_buf).copied();
     if let Some(cached) = cached {
-        // A value loaded from the persisted cache — or computed earlier this
-        // session but never watched — may be stale if the folder changed
-        // while the app was closed. Return it immediately for a fast/instant
-        // result, but silently revalidate in the background; once that
-        // finishes the path is watched, so this only ever fires once per
-        // path per app run.
-        let already_watching = state.size_cache.watched_roots.lock().unwrap().iter().any(|p| p == &path_buf);
-        if !already_watching {
-            enqueue(&state, path_buf.clone());
+        // Persisted cache entries (loaded on startup) have a known mtime.
+        // If the folder's mtime on disk is _still_ the same, the size is
+        // valid and we can skip the silent revalidation entirely.
+        // Legacy entries with dir_mtime == 0 always trigger a revalidation
+        // once, which is harmless — after that they're watched and updated
+        // live.
+        let mtime_matches = cached.dir_mtime > 0
+            && fs::metadata(&path_buf)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64 == cached.dir_mtime)
+                .unwrap_or(false);
+        if !mtime_matches {
+            // Folder changed (or we don't know its mtime from a legacy
+            // cache file) — silently revalidate in the background. Return
+            // the cached value immediately for a fast first paint; once
+            // the recompute finishes this path is watched live.
+            let already_watching =
+                state.size_cache.watched_roots.lock().unwrap().iter().any(|p| p == &path_buf);
+            if !already_watching {
+                enqueue(&state, path_buf.clone());
+            }
         }
-        return Ok(FolderSizeResponse::Ready { size: cached });
+        return Ok(FolderSizeResponse::Ready { size: cached.size });
     }
 
     // Genuinely uncached — the frontend is about to show a "Calculating…"
