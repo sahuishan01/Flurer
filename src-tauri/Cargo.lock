@@ -1116,7 +1116,7 @@ dependencies = [
 
 [[package]]
 name = "flurer"
-version = "0.4.43"
+version = "0.4.44"
 dependencies = [
  "base64 0.22.1",
  "chrono",
