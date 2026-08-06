@@ -1,6 +1,7 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
-import { EnterIcon, PencilIcon, StarIcon } from "./icons";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { EnterIcon, FolderIcon, StarIcon } from "./icons";
 import { pathSegments } from "../lib/fs";
+import { clampPopoverPosition } from "../lib/popover";
 
 type ExplorerPathBarProps = {
   path: string;
@@ -12,34 +13,80 @@ type ExplorerPathBarProps = {
 };
 
 export function ExplorerPathBar(props: ExplorerPathBarProps) {
-  const [editing, setEditing] = createSignal(false);
+  const [open, setOpen] = createSignal(false);
+  const [popoverPos, setPopoverPos] = createSignal<Record<string, string>>({});
+  let containerRef: HTMLDivElement | undefined;
   let inputRef: HTMLInputElement | undefined;
+  let anchorRect: DOMRect | undefined;
 
   // Navigating away (breadcrumb click, sidebar, back/forward) should always
-  // drop back to the breadcrumb view rather than leaving a stale edit form
-  // pointed at whatever the user was mid-typing.
+  // close the overlay rather than leaving it open pointed at a stale path.
   createEffect(() => {
     props.path;
-    setEditing(false);
+    setOpen(false);
   });
 
-  function startEditing() {
+  function positionPopover(panelEl: HTMLDivElement) {
+    if (!anchorRect) return;
+    setPopoverPos(clampPopoverPosition(anchorRect, panelEl.getBoundingClientRect()));
+  }
+
+  function openPopover(btn: HTMLElement) {
+    anchorRect = btn.getBoundingClientRect();
     props.onPathInputChange(props.path);
-    setEditing(true);
+    setOpen(true);
     queueMicrotask(() => inputRef?.focus());
   }
 
+  function handlePointerDown(e: MouseEvent) {
+    if (containerRef && !containerRef.contains(e.target as Node)) setOpen(false);
+  }
+  onMount(() => document.addEventListener("mousedown", handlePointerDown));
+  onCleanup(() => document.removeEventListener("mousedown", handlePointerDown));
+
   return (
-    <div class="explorer-path-bar">
-      <Show
-        when={!editing()}
-        fallback={
+    <div class="explorer-path-bar" ref={containerRef}>
+      <button
+        type="button"
+        class="icon-btn"
+        classList={{ active: open() }}
+        title={props.path}
+        aria-label="Go to path"
+        aria-expanded={open()}
+        onClick={(e) => (open() ? setOpen(false) : openPopover(e.currentTarget))}
+      >
+        <FolderIcon size={16} />
+      </button>
+
+      <Show when={open()}>
+        <div class="path-popover" style={popoverPos()} ref={(el) => positionPopover(el)}>
+          <div class="breadcrumb">
+            <For each={pathSegments(props.path)}>
+              {(segment, index) => (
+                <>
+                  <Show when={index() > 0}>
+                    <span class="breadcrumb-sep">›</span>
+                  </Show>
+                  <button
+                    type="button"
+                    class="breadcrumb-segment"
+                    onClick={() => {
+                      props.onNavigate(segment.path);
+                      setOpen(false);
+                    }}
+                  >
+                    {segment.label}
+                  </button>
+                </>
+              )}
+            </For>
+          </div>
           <form
             class="path-form"
             onSubmit={(e) => {
               e.preventDefault();
               props.onNavigate(props.pathInput);
-              setEditing(false);
+              setOpen(false);
             }}
           >
             <input
@@ -48,38 +95,13 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
               value={props.pathInput}
               onInput={(e) => props.onPathInputChange(e.currentTarget.value)}
               onKeyDown={(e) => {
-                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Escape") setOpen(false);
               }}
             />
             <button type="submit" class="icon-btn" title="Go" aria-label="Go">
               <EnterIcon size={16} />
             </button>
           </form>
-        }
-      >
-        <div class="breadcrumb" onClick={startEditing}>
-          <For each={pathSegments(props.path)}>
-            {(segment, index) => (
-              <>
-                <Show when={index() > 0}>
-                  <span class="breadcrumb-sep">›</span>
-                </Show>
-                <button
-                  type="button"
-                  class="breadcrumb-segment"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.onNavigate(segment.path);
-                  }}
-                >
-                  {segment.label}
-                </button>
-              </>
-            )}
-          </For>
-          <button type="button" class="icon-btn breadcrumb-edit-btn" title="Edit path" aria-label="Edit path">
-            <PencilIcon size={13} />
-          </button>
         </div>
       </Show>
 

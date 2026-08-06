@@ -1,6 +1,7 @@
-import type { JSX } from "solid-js";
+import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
+import { clampPopoverPosition } from "../lib/popover";
 
 type CommandBarProps = {
   canGoBack: boolean;
@@ -20,6 +21,29 @@ type CommandBarProps = {
 };
 
 export function CommandBar(props: CommandBarProps) {
+  const [searchOpen, setSearchOpen] = createSignal(false);
+  const [popoverPos, setPopoverPos] = createSignal<Record<string, string>>({});
+  let containerRef: HTMLDivElement | undefined;
+  let inputRef: HTMLInputElement | undefined;
+  let anchorRect: DOMRect | undefined;
+
+  function positionPopover(panelEl: HTMLDivElement) {
+    if (!anchorRect) return;
+    setPopoverPos(clampPopoverPosition(anchorRect, panelEl.getBoundingClientRect()));
+  }
+
+  function openSearch(btn: HTMLElement) {
+    anchorRect = btn.getBoundingClientRect();
+    setSearchOpen(true);
+    queueMicrotask(() => inputRef?.focus());
+  }
+
+  function handlePointerDown(e: MouseEvent) {
+    if (containerRef && !containerRef.contains(e.target as Node)) setSearchOpen(false);
+  }
+  onMount(() => document.addEventListener("mousedown", handlePointerDown));
+  onCleanup(() => document.removeEventListener("mousedown", handlePointerDown));
+
   return (
     <div class="command-bar" data-bg-lightness={props["data-bg-lightness"]}>
       <div class="command-bar-nav">
@@ -39,15 +63,38 @@ export function CommandBar(props: CommandBarProps) {
 
       <div class="command-bar-slot">{props.viewControls}</div>
 
-      <div class="search-field">
-        <SearchIcon size={15} />
-        <input
-          type="text"
-          class="search-input"
-          placeholder="Search…"
-          value={props.searchQuery}
-          onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
-        />
+      <div class="search-trigger" ref={containerRef}>
+        <button
+          type="button"
+          class="icon-btn"
+          classList={{ active: searchOpen() || props.searchQuery.length > 0 }}
+          title="Search"
+          aria-label="Search"
+          aria-expanded={searchOpen()}
+          onClick={(e) => (searchOpen() ? setSearchOpen(false) : openSearch(e.currentTarget))}
+        >
+          <SearchIcon size={16} />
+        </button>
+
+        <Show when={searchOpen()}>
+          <div class="search-popover" style={popoverPos()} ref={(el) => positionPopover(el)}>
+            <div class="search-field">
+              <SearchIcon size={15} />
+              <input
+                ref={inputRef}
+                type="text"
+                class="search-input"
+                placeholder="Search…"
+                value={props.searchQuery}
+                onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchOpen(false);
+                  if (e.key === "Enter") setSearchOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </Show>
       </div>
 
       <button
