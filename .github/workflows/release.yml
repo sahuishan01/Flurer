@@ -14,6 +14,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags — the changelog step below diffs against
+          # the previous tag, which a shallow (depth-1) checkout wouldn't
+          # have.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -55,17 +60,39 @@ jobs:
           $version = $tag.TrimStart('v')
           echo "version=$version" >> $env:GITHUB_OUTPUT
 
+      # GitHub's generate_release_notes (tried first) builds its "What's
+      # Changed" body from merged PRs, but this repo commits straight to
+      # main with no PR flow — it only ever produced a bare compare-link
+      # footer with no actual content. Build the changelog from commit
+      # subjects between the previous tag and this one instead, which is
+      # meaningful regardless of PR usage.
+      - name: Generate changelog
+        id: changelog
+        shell: pwsh
+        run: |
+          # @(...) forces this to always be an array, even when there's
+          # only a single tag — PowerShell otherwise unwraps a one-line
+          # external command output to a bare string, which breaks
+          # [Array]::IndexOf below on this repo's very first release.
+          $tags = @(git tag --sort=-v:refname)
+          $currentIndex = [Array]::IndexOf($tags, "${{ github.ref_name }}")
+          $prevTag = if ($currentIndex -ge 0 -and $currentIndex + 1 -lt $tags.Length) { $tags[$currentIndex + 1] } else { $null }
+          $range = if ($prevTag) { "$prevTag..${{ github.ref_name }}" } else { "${{ github.ref_name }}" }
+
+          $log = git log $range --pretty=format:"- %s" --no-merges |
+            Where-Object { $_ -notmatch '^- bump version' }
+          $changelog = if ($log) { ($log -join "`n") } else { "No notable changes." }
+
+          "changelog<<CHANGELOG_EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $changelog | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "CHANGELOG_EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: Flurer ${{ steps.version.outputs.version }}
           tag_name: ${{ github.ref_name }}
-          # Auto-generates a "What's Changed" body from commits/PRs since
-          # the previous tag. Without this the release body is empty, and
-          # since the in-app updater (UpdatesView.tsx) displays releaseBody
-          # verbatim, that meant every "Update available" screen showed no
-          # release notes at all — not a rendering bug, just nothing to show.
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: false
           files: |
