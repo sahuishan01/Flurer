@@ -275,6 +275,7 @@ pub async fn copy_items(app: AppHandle, sources: Vec<String>, destination_dir: S
     })
     .await
     .map_err(|e| format!("Background task failed: {e}"))?;
+    log_batch_result("copy_items", &result);
     if !is_cancelled(task_id, &cancelled) {
         if let Err(e) = &result {
             emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
@@ -367,6 +368,7 @@ pub async fn move_items(app: AppHandle, sources: Vec<String>, destination_dir: S
     })
     .await
     .map_err(|e| format!("Background task failed: {e}"))?;
+    log_batch_result("move_items", &result);
     if !is_cancelled(task_id, &cancelled) {
         if let Err(e) = &result {
             emit_progress(&app, task_id, &label, 0, 1, true, Some(e.clone()), false);
@@ -419,8 +421,34 @@ pub async fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchRes
     })
     .await
     .map_err(|e| format!("Background task failed: {e}"))?;
+    log_batch("delete_items", &result);
     cleanup_task(task_id);
     Ok(result)
+}
+
+// Logs a batch fs operation's per-item failures — the whole batch still
+// "succeeds" (returns Ok) even when some items failed, so this is the only
+// place that outcome gets recorded anywhere. Worth a trace for debugging a
+// user's "some of my files didn't move" report.
+fn log_batch(op: &str, batch: &BatchResult) {
+    if !batch.failed.is_empty() {
+        log::warn!(
+            "{op}: {} succeeded, {} failed: {:?}",
+            batch.succeeded.len(),
+            batch.failed.len(),
+            batch.failed,
+        );
+    }
+}
+
+// Logs a batch fs operation's outcome when the whole batch can fail outright
+// (e.g. the background task itself panicked, or the destination directory
+// vanished) in addition to the per-item failures `log_batch` covers.
+fn log_batch_result(op: &str, result: &Result<BatchResult, String>) {
+    match result {
+        Err(e) => log::error!("{op} failed: {e}"),
+        Ok(batch) => log_batch(op, batch),
+    }
 }
 
 #[tauri::command]
@@ -437,7 +465,10 @@ pub fn rename_item(path: String, new_name: String) -> Result<String, String> {
         return Err("An item with this name already exists".to_string());
     }
 
-    fs::rename(&src_path, &dest_path).map_err(|e| e.to_string())?;
+    fs::rename(&src_path, &dest_path).map_err(|e| {
+        log::error!("rename_item {path} -> {new_name} failed: {e}");
+        e.to_string()
+    })?;
     Ok(dest_path.to_string_lossy().to_string())
 }
 
@@ -459,7 +490,10 @@ pub fn create_folder(parent_dir: String, name: String) -> Result<String, String>
         return Err("An item with this name already exists".to_string());
     }
 
-    fs::create_dir(&dest_path).map_err(|e| e.to_string())?;
+    fs::create_dir(&dest_path).map_err(|e| {
+        log::error!("create_folder {} in {parent_dir} failed: {e}", name);
+        e.to_string()
+    })?;
     Ok(dest_path.to_string_lossy().to_string())
 }
 

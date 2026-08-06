@@ -43,11 +43,13 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
         .header("User-Agent", USER_AGENT)
         .send()
         .await
+        .inspect_err(|e| log::error!("check_for_updates: GitHub API request failed: {e}"))
         .map_err(|e| format!("GitHub API request failed: {e}"))?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
+        log::error!("check_for_updates: GitHub API returned {status}: {body}");
         return Err(format!("GitHub API returned {status}: {body}"));
     }
 
@@ -86,6 +88,8 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
         .unwrap_or("")
         .to_string();
 
+    log::info!("check_for_updates: current={current_version} latest={latest_version} has_update={has_update}");
+
     Ok(UpdateInfo {
         latest_version,
         current_version: current_version.to_string(),
@@ -98,15 +102,18 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
 
 #[tauri::command]
 pub async fn download_and_install_update(url: String) -> Result<(), String> {
+    log::info!("download_and_install_update: starting download from {url}");
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
         .header("User-Agent", USER_AGENT)
         .send()
         .await
+        .inspect_err(|e| log::error!("download_and_install_update: request failed: {e}"))
         .map_err(|e| format!("Download request failed: {e}"))?;
 
     if !resp.status().is_success() {
+        log::error!("download_and_install_update: HTTP {}", resp.status());
         return Err(format!("Download returned HTTP {}", resp.status()));
     }
 
@@ -125,10 +132,14 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
     let bytes = resp
         .bytes()
         .await
+        .inspect_err(|e| log::error!("download_and_install_update: failed to read download stream: {e}"))
         .map_err(|e| format!("Failed to read download stream: {e}"))?;
 
     tokio::fs::write(&output_path, &bytes)
         .await
+        .inspect_err(|e| {
+            log::error!("download_and_install_update: failed to write {}: {e}", output_path.display())
+        })
         .map_err(|e| format!("Failed to write installer to disk: {e}"))?;
 
     // Launch the installer
@@ -146,6 +157,11 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
     };
 
     child
-        .map(|_| ())
-        .map_err(|e| format!("Failed to launch installer: {e}"))
+        .map(|_| {
+            log::info!("download_and_install_update: launched installer {installer_path} ({total_size} bytes)");
+        })
+        .map_err(|e| {
+            log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
+            format!("Failed to launch installer: {e}")
+        })
 }
