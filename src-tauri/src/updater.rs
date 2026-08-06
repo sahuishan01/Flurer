@@ -65,17 +65,22 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
     let latest_version = tag_name.trim_start_matches('v').to_string();
     let has_update = version_greater(&latest_version, &current_version);
 
-    // Find the first MSI or NSIS installer asset
+    // Prefer the NSIS .exe over the .msi: the NSIS installer is configured
+    // with installMode "both", letting the user choose a per-user or
+    // per-machine install; the MSI is hardcoded per-machine-only with no
+    // choice. release.yml happens to list the .msi asset before the .exe,
+    // so picking "whichever comes first" (the previous behavior) silently
+    // favored the installer with no choice — find() over the .exe first,
+    // and only fall back to .msi if a release genuinely has no .exe asset.
     let assets = release["assets"].as_array().ok_or("No assets found")?;
-    let download_url = assets
-        .iter()
-        .find(|a| {
-            a["name"]
-                .as_str()
-                .map(|n| n.ends_with(".msi") || n.ends_with(".exe"))
-                .unwrap_or(false)
-        })
-        .and_then(|a| a["browser_download_url"].as_str().map(String::from))
+    let find_by_suffix = |suffix: &str| {
+        assets
+            .iter()
+            .find(|a| a["name"].as_str().map(|n| n.ends_with(suffix)).unwrap_or(false))
+            .and_then(|a| a["browser_download_url"].as_str().map(String::from))
+    };
+    let download_url = find_by_suffix(".exe")
+        .or_else(|| find_by_suffix(".msi"))
         .ok_or("No installer asset found in the latest release")?;
 
     let release_url = release["html_url"]

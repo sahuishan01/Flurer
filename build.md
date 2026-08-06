@@ -18,6 +18,12 @@ the bundlers configured in `src-tauri/tauri.conf.json` (`bundle.targets:
 Both are built by CI on every tagged release and attached to the GitHub
 Release (`.github/workflows/release.yml`).
 
+**If you want the per-user/per-machine choice, download the `.exe`, not
+the `.msi`.** The MSI has no such choice — see below. The in-app updater
+(`check_for_updates` in `src-tauri/src/updater.rs`) always prefers the
+`.exe` asset for this reason; it only falls back to `.msi` if a release
+genuinely has no `.exe` attached.
+
 ## Install scope (per-user vs. per-machine)
 
 The NSIS installer is configured with:
