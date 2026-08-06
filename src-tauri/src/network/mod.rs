@@ -316,8 +316,11 @@ pub async fn search_wallpapers(
         return Err(format!("Unsplash search failed with status {status}"));
     }
 
+    // No rename_all here — this deserializes Unsplash's own response shape,
+    // which uses snake_case ("total_pages"), not our outward-facing
+    // camelCase convention. WallpaperSearchPage below is what gets
+    // serialized back to the frontend and correctly stays camelCase.
     #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
     struct SearchResponse {
         results: Vec<WallpaperSearchResult>,
         total_pages: u32,

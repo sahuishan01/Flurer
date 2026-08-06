@@ -60,6 +60,12 @@ jobs:
         with:
           name: Flurer ${{ steps.version.outputs.version }}
           tag_name: ${{ github.ref_name }}
+          # Auto-generates a "What's Changed" body from commits/PRs since
+          # the previous tag. Without this the release body is empty, and
+          # since the in-app updater (UpdatesView.tsx) displays releaseBody
+          # verbatim, that meant every "Update available" screen showed no
+          # release notes at all — not a rendering bug, just nothing to show.
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: |

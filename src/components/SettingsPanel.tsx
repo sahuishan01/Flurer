@@ -34,6 +34,9 @@ type SettingsPanelProps = {
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
+  onNextCategoryWallpaper: () => void;
+  onPrevCategoryWallpaper: () => void;
+  canGoPrevCategoryWallpaper: boolean;
   disabledPlugins: string[];
   onDisabledPluginsChange: (disabled: string[]) => void;
   pluginSettings: Record<string, any>;
@@ -108,6 +111,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
               wallpaper={props.wallpaper}
               wallpaperError={props.wallpaperError}
               onFetchWallpaper={props.onFetchWallpaper}
+              onNextCategoryWallpaper={props.onNextCategoryWallpaper}
+              onPrevCategoryWallpaper={props.onPrevCategoryWallpaper}
+              canGoPrevCategoryWallpaper={props.canGoPrevCategoryWallpaper}
             />
           </Show>
           <Show when={category() === "plugins"}>

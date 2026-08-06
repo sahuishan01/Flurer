@@ -96,6 +96,9 @@ type CustomizationSettingsProps = {
   wallpaper: Wallpaper | null;
   wallpaperError: string;
   onFetchWallpaper: (query: string) => void;
+  onNextCategoryWallpaper: () => void;
+  onPrevCategoryWallpaper: () => void;
+  canGoPrevCategoryWallpaper: boolean;
 };
 
 export function CustomizationSettings(props: CustomizationSettingsProps) {
@@ -383,6 +386,21 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                         </button>
                       )}
                     </For>
+                  </div>
+                )}
+
+                {props.background.unsplashMode === "autoRotateCategory" && (
+                  <div class="fixed-controls">
+                    <button
+                      type="button"
+                      disabled={!props.canGoPrevCategoryWallpaper}
+                      onClick={props.onPrevCategoryWallpaper}
+                    >
+                      ← Previous
+                    </button>
+                    <button type="button" onClick={props.onNextCategoryWallpaper}>
+                      Next →
+                    </button>
                   </div>
                 )}
 
