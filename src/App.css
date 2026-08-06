@@ -745,6 +745,246 @@ button.sidebar-drive,
     font-size: var(--text-caption);
 }
 
+/* Plugin Marketplace & shared settings-panel chrome — nested tinted+blurred
+   layers matching the rest of the app's material hierarchy (glass panel >
+   control inset > card), rather than the flat hardcoded backgrounds this
+   panel used to have. */
+
+.settings-section-header {
+    margin-bottom: 0.75em;
+}
+
+.settings-section-subtitle {
+    display: block;
+    margin-top: 0.2em;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+}
+
+.settings-error-alert {
+    margin-bottom: 1em;
+    padding: 0.6em 0.9em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--danger);
+    background-color: color-mix(in oklch, var(--danger) 15%, transparent);
+    color: var(--danger);
+    font-size: var(--text-secondary);
+}
+
+.plugin-install-section,
+.plugin-installed-section {
+    margin-bottom: 0.75em;
+    padding: 1em;
+    border-radius: var(--radius-md);
+    background-color: var(--control-bg);
+    backdrop-filter: blur(var(--control-blur));
+    -webkit-backdrop-filter: blur(var(--control-blur));
+    border: 1px solid var(--border-color);
+}
+
+.plugin-installed-section {
+    margin-bottom: 0;
+}
+
+.plugin-install-section h4,
+.plugin-installed-header h4 {
+    margin: 0 0 0.5em;
+    font-size: var(--text-label);
+    font-weight: 600;
+}
+
+.plugin-install-row {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+}
+
+.plugin-install-hint {
+    margin: 0.4em 0 0;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+}
+
+.plugin-installed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75em;
+}
+
+.plugin-installed-header h4 {
+    margin: 0;
+}
+
+.plugin-empty-state {
+    padding: 1.2em 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--text-secondary);
+}
+
+.plugin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.plugin-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75em;
+    padding: 0.75em;
+    border-radius: var(--radius-sm);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+}
+
+.plugin-card.has-update {
+    border-color: var(--accent);
+}
+
+.plugin-card.disabled {
+    opacity: 0.5;
+}
+
+.plugin-card-body {
+    min-width: 0;
+}
+
+.plugin-card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.plugin-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.plugin-status-dot.enabled {
+    background-color: var(--success);
+}
+
+.plugin-name {
+    font-size: var(--text-label);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.plugin-update-badge {
+    padding: 0.05em 0.5em;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-weight: 600;
+    background-color: var(--accent-soft);
+    color: var(--accent);
+}
+
+.plugin-meta {
+    margin-left: 1.15em;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-family: var(--text-mono);
+}
+
+.plugin-link-repo-btn {
+    margin: 0.3em 0 0 1.15em;
+    padding: 0.15em 0.6em;
+    font-size: var(--text-caption);
+}
+
+.plugin-link-repo-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0.3em 0 0 1.15em;
+    min-width: 0;
+}
+
+.plugin-link-repo-input {
+    flex: 1 1 200px;
+    min-width: 80px;
+    padding: 0.2em 0.5em;
+    font-size: var(--text-caption);
+    font-family: var(--text-mono);
+}
+
+.plugin-description {
+    margin: 0.15em 0 0 1.15em;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plugin-actions {
+    display: flex;
+    gap: 0.4em;
+    flex-shrink: 0;
+}
+
+.plugin-actions button {
+    padding: 0.3em 0.7em;
+    font-size: var(--text-caption);
+}
+
+.updates-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.updates-actions {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.75em;
+}
+
+.updates-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.btn-accent {
+    background-color: var(--accent-soft) !important;
+    color: var(--accent) !important;
+    border-color: var(--accent-border) !important;
+}
+
+.settings-success {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    color: var(--success);
+    font-size: var(--text-secondary);
+}
+
+.updates-meta {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    margin: 0.3em 0 0;
+}
+
+.updates-release-notes {
+    margin-top: 0.75em;
+    padding-top: 0.6em;
+    border-top: 1px solid var(--border-color);
+    font-size: var(--text-caption);
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow: auto;
+    line-height: 1.6;
+}
+
 .progress-indicator {
     position: relative;
 }
