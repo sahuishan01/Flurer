@@ -259,3 +259,78 @@ pub fn get_cached_wallpaper_image() -> Result<Option<CachedWallpaper>, String> {
 pub fn get_wallpaper_updated_at() -> Result<Option<u64>, String> {
     Ok(read_wallpaper_metadata().map(|m| m.updated_at_ms))
 }
+
+// A single Unsplash search result — deliberately lighter than `Wallpaper`:
+// no `local_data_url`, because browsing search results never downloads or
+// caches anything server-side. The frontend hotlinks `urls.thumb` directly
+// for the picker grid (same as the old hardcoded preset thumbnails did) and
+// only stores `urls.regular` in settings when the user adds one to their
+// list — it isn't fetched/cached until it's actually displayed as the live
+// background, same as every other fixed-list entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WallpaperSearchResult {
+    pub id: String,
+    pub description: Option<String>,
+    pub urls: WallpaperUrls,
+    pub user: WallpaperAuthor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WallpaperSearchPage {
+    pub results: Vec<WallpaperSearchResult>,
+    pub total_pages: u32,
+}
+
+// Powers the "From Fixed List" picker: a paginated, 10-per-page Unsplash
+// search the user can browse and multi-select from, rather than only being
+// able to pick one random photo at a time via `get_wallpaper`.
+#[tauri::command]
+pub async fn search_wallpapers(
+    state: State<'_, AppState>,
+    query: String,
+    page: u32,
+) -> Result<WallpaperSearchPage, String> {
+    let client_id = resolve_unsplash_api_key(&state.config)
+        .ok_or_else(|| "Unsplash isn't configured yet — add an API key in Settings".to_string())?;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("https://api.unsplash.com/search/photos")
+        .query(&[
+            ("client_id", client_id.as_str()),
+            ("query", query.as_str()),
+            ("page", &page.max(1).to_string()),
+            ("per_page", "10"),
+            ("orientation", "landscape"),
+        ])
+        .send()
+        .await
+        .inspect_err(|e| log::error!("search_wallpapers({query:?}, page {page}): request failed: {e}"))
+        .map_err(|e| e.to_string())?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        log::error!("search_wallpapers({query:?}, page {page}): HTTP {status}");
+        return Err(format!("Unsplash search failed with status {status}"));
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SearchResponse {
+        results: Vec<WallpaperSearchResult>,
+        total_pages: u32,
+    }
+
+    let parsed = response
+        .json::<SearchResponse>()
+        .await
+        .inspect_err(|e| log::error!("search_wallpapers({query:?}, page {page}): failed to parse response: {e}"))
+        .map_err(|e| e.to_string())?;
+
+    Ok(WallpaperSearchPage {
+        results: parsed.results,
+        total_pages: parsed.total_pages,
+    })
+}

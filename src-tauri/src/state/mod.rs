@@ -55,7 +55,11 @@ pub struct BackgroundSettings {
     pub gradient_direction: String,
     pub solid_color: String,
     pub unsplash_mode: UnsplashMode,
-    pub unsplash_category: Option<String>,
+    // Multiple categories, so "auto rotate from category" can cycle across
+    // all of them instead of being pinned to one. `#[serde(default)]` at
+    // the struct level means settings saved before this was plural just
+    // deserialize this as empty rather than failing to load.
+    pub unsplash_categories: Vec<String>,
     pub unsplash_fixed_list: Vec<String>,
     pub unsplash_change_frequency_ms: u64,
 }
@@ -70,7 +74,7 @@ impl Default for BackgroundSettings {
             gradient_direction: "to bottom right".to_string(),
             solid_color: "#1f2937".to_string(),
             unsplash_mode: UnsplashMode::default(),
-            unsplash_category: None,
+            unsplash_categories: Vec::new(),
             unsplash_fixed_list: Vec::new(),
             unsplash_change_frequency_ms: 5 * 60 * 1000,
         }

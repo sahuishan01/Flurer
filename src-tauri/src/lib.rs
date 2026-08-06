@@ -16,7 +16,7 @@ use fs::{
     move_items, rename_item, search_directory,
 };
 use helpers::settings::{get_settings, load_settings, set_settings};
-use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at};
+use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
 use sizecache::{get_folder_size, recompute_folder_size};
 use tauri::Manager;
 use tokio::sync::Mutex;
@@ -61,6 +61,7 @@ pub fn run() {
             fetch_wallpaper_image,
             get_cached_wallpaper_image,
             get_wallpaper_updated_at,
+            search_wallpapers,
             list_directory,
             copy_items,
             move_items,
