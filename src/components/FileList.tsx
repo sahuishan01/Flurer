@@ -71,14 +71,12 @@ export function FileList(props: FileListProps) {
   // resolve, keyed by absolute path so entries from different folders
   // (e.g. search results) don't collide.
   const [folderSizes, setFolderSizes] = createSignal<Map<string, "pending" | { size: number; done: boolean }>>(new Map());
-  const [loading, setLoading] = createSignal(false);
 
   function isSearching(): boolean {
     return props.searchQuery.trim().length > 0;
   }
 
   async function refresh() {
-    setLoading(true);
     setEntries([]);
     const currentPathReq = props.path;
     const currentSearchQueryReq = props.searchQuery;
@@ -111,14 +109,6 @@ export function FileList(props: FileListProps) {
         currentSearchRecursiveReq === props.searchRecursive
       ) {
         setError(String(err));
-      }
-    } finally {
-      if (
-        currentPathReq === props.path &&
-        currentSearchQueryReq === props.searchQuery &&
-        currentSearchRecursiveReq === props.searchRecursive
-      ) {
-        setLoading(false);
       }
     }
   }

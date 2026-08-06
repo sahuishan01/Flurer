@@ -462,7 +462,7 @@ function App() {
   // the app doesn't strand them on the settings page.
   createEffect(() => {
     const view = mainView();
-    if (view === "settings") return;
+    if (view !== "explorer" && view !== "graph") return;
     if (settings.lastMainView !== view) {
       setSettings("lastMainView", view);
       persistSettings();
@@ -621,7 +621,7 @@ function App() {
   }
 
   function appReady(): boolean {
-    return settingsLoaded();
+    return settingsLoaded() && !wallpaperPending();
   }
 
   return (

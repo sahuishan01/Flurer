@@ -1,7 +1,6 @@
 import { createMemo, createSignal, For, Show, onMount } from "solid-js";
 import {
   pluginRegistry,
-  registeredPlugins,
   installPluginFromGithub,
   installPluginFromZip,
   uninstallPlugin,
@@ -458,7 +457,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                             </button>
                           }
                         >
-                          <div style={{ "margin-left": "16px", "margin-top": "4px", display: "flex", gap: "6px", "align-items": "center" }}>
+                          <div style={{ "margin-left": "16px", "margin-top": "4px", display: "flex", gap: "6px", "align-items": "center", "min-width": 0 }}>
                             <input
                               type="text"
                               placeholder="owner/repo"
@@ -472,7 +471,8 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                                 border: "1px solid var(--border-strong)",
                                 background: "var(--bg-color, #1a1a2e)",
                                 color: "var(--text-color)",
-                                width: "200px",
+                                flex: "1 1 200px",
+                                "min-width": "80px",
                                 "font-family": "Space Mono, monospace",
                               }}
                             />

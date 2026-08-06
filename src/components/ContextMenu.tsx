@@ -1,4 +1,4 @@
-import { For, onCleanup, onMount, type JSX } from "solid-js";
+import { For, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 
 export type ContextMenuItem = {
@@ -24,6 +24,7 @@ type ContextMenuProps = {
 
 export function ContextMenu(props: ContextMenuProps) {
   let ref: HTMLDivElement | undefined;
+  const [pos, setPos] = createSignal({ left: props.x, top: props.y });
 
   function handlePointerDown(e: MouseEvent) {
     if (ref && !ref.contains(e.target as Node)) props.onDismiss();
@@ -36,6 +37,20 @@ export function ContextMenu(props: ContextMenuProps) {
   onMount(() => {
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+
+    if (ref) {
+      const rect = ref.getBoundingClientRect();
+      const margin = 4;
+      let left = props.x;
+      let top = props.y;
+      if (left + rect.width > window.innerWidth - margin) {
+        left = Math.max(margin, window.innerWidth - rect.width - margin);
+      }
+      if (top + rect.height > window.innerHeight - margin) {
+        top = Math.max(margin, window.innerHeight - rect.height - margin);
+      }
+      setPos({ left, top });
+    }
   });
 
   onCleanup(() => {
@@ -53,7 +68,7 @@ export function ContextMenu(props: ContextMenuProps) {
       <div
         ref={ref}
         class="context-menu"
-        style={{ left: `${props.x}px`, top: `${props.y}px` }}
+        style={{ left: `${pos().left}px`, top: `${pos().top}px` }}
         onMouseEnter={() => props.onMouseEnter?.()}
         onMouseLeave={() => props.onMouseLeave?.()}
       >
