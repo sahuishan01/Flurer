@@ -550,23 +550,30 @@ function App() {
     if (bg.backgroundType !== "unsplash") return;
     if (!wallpaperCacheChecked()) return;
 
-    const identity = JSON.stringify([bg.unsplashMode, bg.unsplashCategory, bg.unsplashFixedList]);
+    const identity = JSON.stringify([bg.unsplashMode, bg.unsplashCategories, bg.unsplashFixedList]);
     const isExplicitChange = previousWallpaperIdentity !== null && previousWallpaperIdentity !== identity;
     previousWallpaperIdentity = identity;
 
     if (bg.unsplashMode === "fixed") {
       // "Fixed" has no refresh schedule (see the Settings UI) — only fetch
       // when there's truly nothing to show yet; otherwise it stays put until
-      // the user clicks "Get new wallpaper".
+      // the user clicks "Get new wallpaper". Uses the first selected
+      // category (if any) purely as a search hint for that one photo — the
+      // full category list only matters for auto-rotation below.
       if (!wallpaper() && !cachedWallpaperImage()) {
-        getWallpaper(bg.unsplashCategory || "nature");
+        getWallpaper(bg.unsplashCategories[0] || "nature");
       }
       return;
     }
 
     if (bg.unsplashMode === "autoRotateCategory") {
-      const category = bg.unsplashCategory || "nature";
-      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, [category], () => getWallpaper(category));
+      const categories = bg.unsplashCategories.length ? bg.unsplashCategories : ["nature"];
+      let index = 0;
+      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, categories, () => {
+        const category = categories[index % categories.length];
+        index += 1;
+        return getWallpaper(category);
+      });
       return;
     }
 

@@ -740,6 +740,11 @@ button.sidebar-drive,
     color: var(--danger);
 }
 
+.settings-hint {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+}
+
 .progress-indicator {
     position: relative;
 }
@@ -1208,6 +1213,71 @@ button.sidebar-drive,
     aspect-ratio: 1;
     object-fit: cover;
     border-radius: 6px;
+}
+
+.fixed-list-builder {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+}
+
+.wallpaper-search-form {
+    display: flex;
+    gap: 0.5em;
+}
+
+.wallpaper-search-form input {
+    flex: 1;
+    min-width: 0;
+}
+
+.wallpaper-search-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8em;
+    font-size: var(--text-secondary);
+    color: var(--text-secondary);
+}
+
+.fixed-list-saved {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding-top: 0.6em;
+    border-top: 1px solid var(--border-color);
+}
+
+.fixed-list-saved h4 {
+    margin: 0;
+    font-size: var(--text-secondary);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.image-option.saved-image {
+    position: relative;
+    cursor: default;
+}
+
+.image-remove-btn {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border-radius: 50%;
+    border: none;
+    background: var(--danger);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
 }
 
 a {

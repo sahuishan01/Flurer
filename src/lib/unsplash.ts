@@ -47,38 +47,31 @@ export const UNSPLASH_ROTATE_CATEGORIES = [
   "minimal",
 ];
 
-export const UNSPLASH_FIXED_IMAGES = [
-  {
-    id: "forest",
-    label: "Forest",
-    url: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
-  },
-  {
-    id: "mountain",
-    label: "Mountain",
-    url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-  },
-  {
-    id: "ocean",
-    label: "Ocean",
-    url: "https://images.unsplash.com/photo-1505142468610-359e7d316be0",
-  },
-  {
-    id: "city",
-    label: "City",
-    url: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df",
-  },
-  {
-    id: "space",
-    label: "Space",
-    url: "https://images.unsplash.com/photo-1451187580459-43490279c0fa",
-  },
-  {
-    id: "desert",
-    label: "Desert",
-    url: "https://images.unsplash.com/photo-1509316785289-025f5b846b35",
-  },
-];
+// A single Unsplash search result — what search_wallpapers returns per
+// photo. No local_data_url: browsing search results never downloads or
+// caches anything, unlike the live background — the thumbnail is hotlinked
+// directly for the picker grid, and only the regular-size URL gets stored
+// in settings if the user adds it to their fixed list.
+export type WallpaperSearchResult = {
+  id: string;
+  description: string | null;
+  urls: {
+    raw: string;
+    full: string;
+    regular: string;
+    small: string;
+    thumb: string;
+  };
+  user: {
+    name: string;
+    username: string;
+  };
+};
+
+export type WallpaperSearchPage = {
+  results: WallpaperSearchResult[];
+  totalPages: number;
+};
 
 // The monitor's resolution, not the app window's current size — sizing the
 // Unsplash request off window.innerWidth/innerHeight meant every resize

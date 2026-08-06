@@ -1,4 +1,5 @@
-import { createSignal, For } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
 import {
   FONT_FAMILY_PRESETS,
@@ -10,10 +11,11 @@ import {
 } from "../lib/settings";
 import {
   sizedUnsplashUrl,
-  UNSPLASH_FIXED_IMAGES,
   UNSPLASH_FREQUENCY_OPTIONS,
   UNSPLASH_ROTATE_CATEGORIES,
   type Wallpaper,
+  type WallpaperSearchPage,
+  type WallpaperSearchResult,
 } from "../lib/unsplash";
 
 const THUMBNAIL_SIZE = 160;
@@ -106,6 +108,40 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   function handleSaveApiKey() {
     props.onSaveUnsplashApiKey(apiKeyInput());
     setApiKeyInput("");
+  }
+
+  // Search state for the "From Fixed List" picker. Kept local to this
+  // component rather than lifted into App-level settings — it's transient
+  // browsing state, not something that needs to persist or survive a
+  // restart the way the resulting unsplashFixedList does.
+  const [wallpaperQuery, setWallpaperQuery] = createSignal("");
+  const [wallpaperSearchPage, setWallpaperSearchPage] = createSignal(1);
+  const [wallpaperResults, setWallpaperResults] = createSignal<WallpaperSearchResult[]>([]);
+  const [wallpaperTotalPages, setWallpaperTotalPages] = createSignal(0);
+  const [wallpaperSearching, setWallpaperSearching] = createSignal(false);
+  const [wallpaperSearchError, setWallpaperSearchError] = createSignal("");
+
+  async function runWallpaperSearch(page: number) {
+    const query = wallpaperQuery().trim();
+    if (!query) return;
+    setWallpaperSearching(true);
+    setWallpaperSearchError("");
+    try {
+      const result = await invoke<WallpaperSearchPage>("search_wallpapers", { query, page });
+      setWallpaperResults(result.results);
+      setWallpaperTotalPages(result.totalPages);
+      setWallpaperSearchPage(page);
+    } catch (err) {
+      setWallpaperSearchError(String(err));
+    } finally {
+      setWallpaperSearching(false);
+    }
+  }
+
+  function toggleFixedListUrl(url: string, checked: boolean) {
+    const list = props.background.unsplashFixedList;
+    const next = checked ? [...list, url] : list.filter((u) => u !== url);
+    props.onBackgroundChange({ unsplashFixedList: next });
   }
 
   return (
@@ -288,7 +324,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
 
             {props.background.unsplashMode === "fixed" && (
               <div class="fixed-controls">
-                <button type="button" onClick={() => props.onFetchWallpaper(props.background.unsplashCategory || "nature")}>
+                <button type="button" onClick={() => props.onFetchWallpaper(props.background.unsplashCategories[0] || "nature")}>
                   Get Wallpaper
                 </button>
               </div>
@@ -328,38 +364,113 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 </label>
 
                 {props.background.unsplashMode === "autoRotateCategory" && (
-                  <select
-                    value={props.background.unsplashCategory ?? ""}
-                    onChange={(e) => props.onBackgroundChange({ unsplashCategory: e.currentTarget.value })}
-                  >
-                    <option value="" disabled>
-                      Choose a category
-                    </option>
-                    <For each={UNSPLASH_ROTATE_CATEGORIES}>{(cat) => <option value={cat}>{cat}</option>}</For>
-                  </select>
+                  <div class="option-group">
+                    <For each={UNSPLASH_ROTATE_CATEGORIES}>
+                      {(cat) => (
+                        <button
+                          type="button"
+                          classList={{
+                            "option-btn": true,
+                            active: props.background.unsplashCategories.includes(cat),
+                          }}
+                          onClick={() => {
+                            const list = props.background.unsplashCategories;
+                            const next = list.includes(cat) ? list.filter((c) => c !== cat) : [...list, cat];
+                            props.onBackgroundChange({ unsplashCategories: next });
+                          }}
+                        >
+                          {cat}
+                        </button>
+                      )}
+                    </For>
+                  </div>
                 )}
 
                 {props.background.unsplashMode === "autoRotateList" && (
-                  <div class="image-grid">
-                    <For each={UNSPLASH_FIXED_IMAGES}>
-                      {(img) => (
-                        <label class="image-option">
-                          <input
-                            type="checkbox"
-                            checked={props.background.unsplashFixedList.includes(img.url)}
-                            onChange={(e) => {
-                              const list = props.background.unsplashFixedList;
-                              const next = e.currentTarget.checked
-                                ? [...list, img.url]
-                                : list.filter((u) => u !== img.url);
-                              props.onBackgroundChange({ unsplashFixedList: next });
-                            }}
-                          />
-                          <img src={sizedUnsplashUrl(img.url, THUMBNAIL_SIZE, THUMBNAIL_SIZE)} alt={img.label} />
-                          <span>{img.label}</span>
-                        </label>
-                      )}
-                    </For>
+                  <div class="fixed-list-builder">
+                    <form
+                      class="wallpaper-search-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        runWallpaperSearch(1);
+                      }}
+                    >
+                      <input
+                        type="text"
+                        placeholder="Search Unsplash…"
+                        value={wallpaperQuery()}
+                        onInput={(e) => setWallpaperQuery(e.currentTarget.value)}
+                        disabled={!props.hasUnsplashApiKey}
+                      />
+                      <button type="submit" disabled={!props.hasUnsplashApiKey || !wallpaperQuery().trim() || wallpaperSearching()}>
+                        {wallpaperSearching() ? "Searching…" : "Search"}
+                      </button>
+                    </form>
+
+                    {!props.hasUnsplashApiKey && <p class="settings-hint">Add an Unsplash API key above to search.</p>}
+                    {wallpaperSearchError() && <p class="settings-error">{wallpaperSearchError()}</p>}
+
+                    <Show when={wallpaperResults().length > 0}>
+                      <div class="image-grid">
+                        <For each={wallpaperResults()}>
+                          {(img) => (
+                            <label class="image-option">
+                              <input
+                                type="checkbox"
+                                checked={props.background.unsplashFixedList.includes(img.urls.regular)}
+                                onChange={(e) => toggleFixedListUrl(img.urls.regular, e.currentTarget.checked)}
+                              />
+                              <img src={img.urls.thumb} alt={img.description ?? "Unsplash photo"} loading="lazy" />
+                              <span>{img.user.name}</span>
+                            </label>
+                          )}
+                        </For>
+                      </div>
+
+                      <div class="wallpaper-search-pagination">
+                        <button
+                          type="button"
+                          disabled={wallpaperSearchPage() <= 1 || wallpaperSearching()}
+                          onClick={() => runWallpaperSearch(wallpaperSearchPage() - 1)}
+                        >
+                          Prev
+                        </button>
+                        <span>
+                          Page {wallpaperSearchPage()} of {wallpaperTotalPages()}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={wallpaperSearchPage() >= wallpaperTotalPages() || wallpaperSearching()}
+                          onClick={() => runWallpaperSearch(wallpaperSearchPage() + 1)}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </Show>
+
+                    <Show when={props.background.unsplashFixedList.length > 0}>
+                      <div class="fixed-list-saved">
+                        <h4>Saved images ({props.background.unsplashFixedList.length})</h4>
+                        <div class="image-grid">
+                          <For each={props.background.unsplashFixedList}>
+                            {(url) => (
+                              <div class="image-option saved-image">
+                                <button
+                                  type="button"
+                                  class="image-remove-btn"
+                                  title="Remove"
+                                  aria-label="Remove"
+                                  onClick={() => toggleFixedListUrl(url, false)}
+                                >
+                                  ×
+                                </button>
+                                <img src={sizedUnsplashUrl(url, THUMBNAIL_SIZE, THUMBNAIL_SIZE)} alt="Saved wallpaper" loading="lazy" />
+                              </div>
+                            )}
+                          </For>
+                        </div>
+                      </div>
+                    </Show>
                   </div>
                 )}
               </>

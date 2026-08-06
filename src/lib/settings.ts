@@ -14,7 +14,7 @@ export type BackgroundSettings = {
   gradientDirection: string;
   solidColor: string;
   unsplashMode: UnsplashMode;
-  unsplashCategory: string | null;
+  unsplashCategories: string[];
   unsplashFixedList: string[];
   unsplashChangeFrequencyMs: number;
 };
@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
     gradientDirection: "to bottom right",
     solidColor: "#1f2937",
     unsplashMode: "fixed",
-    unsplashCategory: null,
+    unsplashCategories: [],
     unsplashFixedList: [],
     unsplashChangeFrequencyMs: DEFAULT_UNSPLASH_FREQUENCY_MS,
   },
