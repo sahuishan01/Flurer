@@ -1,5 +1,6 @@
 type IconProps = {
   size?: number;
+  class?: string;
 };
 
 export function ExternalLinkIcon(props: IconProps) {
@@ -414,6 +415,7 @@ export function TrashIcon(props: IconProps) {
 export function RefreshIcon(props: IconProps) {
   return (
     <svg
+      class={props.class}
       width={props.size ?? 16}
       height={props.size ?? 16}
       viewBox="0 0 24 24"

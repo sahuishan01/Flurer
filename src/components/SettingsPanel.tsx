@@ -117,9 +117,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
               searchQuery={props.searchQuery}
             />
           </Show>
-          <Show when={category().startsWith("plugin-")}>
-            {() => {
-              const id = category().substring(7); // "plugin-".length is 7
+          <Show when={category().startsWith("plugin-") ? category() : undefined}>
+            {(pluginCategory) => {
+              const id = pluginCategory().substring(7); // "plugin-".length is 7
               const p = registeredPlugins().find((x) => x.id === id);
               if (!p || !p.settingsPanel) return null;
               return p.settingsPanel({

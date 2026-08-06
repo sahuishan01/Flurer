@@ -1330,6 +1330,9 @@ input[type="color"] {
     display: flex;
     flex-direction: column;
     min-width: 160px;
+    max-width: min(280px, calc(100vw - 8px));
+    max-height: calc(100vh - 8px);
+    overflow-y: auto;
     padding: 0.3em;
     border-radius: var(--radius-md);
     background-color: var(--panel-bg);
@@ -1389,6 +1392,8 @@ input[type="color"] {
 .modal-panel {
     min-width: 320px;
     max-width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
     border-radius: var(--radius-lg);
     background-color: rgba(var(--panel-rgb), var(--surface-opacity));
     backdrop-filter: blur(var(--surface-blur, 0));
@@ -1624,7 +1629,9 @@ button.danger:not(.context-menu-item):hover {
     display: flex;
     flex-direction: column;
     gap: 0.2em;
-    max-width: 320px;
+    max-width: min(320px, calc(100vw - 8px));
+    max-height: calc(100vh - 8px);
+    overflow-y: auto;
     padding: 0.6em 0.8em;
     border-radius: var(--radius-md);
     background-color: var(--panel-bg);

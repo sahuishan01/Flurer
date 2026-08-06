@@ -2,7 +2,7 @@ import { createSignal, Show, onMount } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { RefreshIcon, DownloadIcon } from "./icons";
+import { RefreshIcon } from "./icons";
 
 type UpdateInfo = {
   latestVersion: string;
