@@ -3,6 +3,7 @@ import { createStore, produce } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ActivityIcon } from "./icons";
+import { clampPopoverPosition } from "../lib/popover";
 
 type OperationProgress = {
   taskId: number;
@@ -50,23 +51,7 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
   // right-anchored offset can push the fixed-width panel off-screen.
   function positionPanel(panelEl: HTMLDivElement) {
     if (!anchorRect) return;
-    const margin = 8;
-    const rect = panelEl.getBoundingClientRect();
-    const width = rect.width || panelEl.offsetWidth;
-    const height = rect.height || panelEl.offsetHeight;
-
-    let left = anchorRect.right - width;
-    left = Math.min(left, window.innerWidth - width - margin);
-    left = Math.max(left, margin);
-
-    let top = anchorRect.bottom + 6;
-    if (top + height > window.innerHeight - margin) {
-      top = anchorRect.top - height - 6;
-    }
-    top = Math.min(top, window.innerHeight - height - margin);
-    top = Math.max(top, margin);
-
-    setPanelPos({ top: `${top}px`, left: `${left}px` });
+    setPanelPos(clampPopoverPosition(anchorRect, panelEl.getBoundingClientRect()));
   }
 
   onMount(() => {
