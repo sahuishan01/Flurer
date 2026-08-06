@@ -125,7 +125,26 @@ fn find_previous_settings(root: &Path, current_version: (u64, u64, u64)) -> Opti
 }
 
 fn read_settings_file(path: &Path) -> Option<Settings> {
-    fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok())
+    let contents = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            // NotFound is the expected, silent case (first launch, or no
+            // prior-version file to migrate from) — anything else (e.g.
+            // permissions, a half-written file) is worth a trace since it
+            // means we're silently falling back to default settings.
+            if e.kind() != std::io::ErrorKind::NotFound {
+                log::warn!("failed to read settings file {}: {e}", path.display());
+            }
+            return None;
+        }
+    };
+    match serde_json::from_str(&contents) {
+        Ok(settings) => Some(settings),
+        Err(e) => {
+            log::warn!("settings file {} is corrupt, falling back to defaults: {e}", path.display());
+            None
+        }
+    }
 }
 
 pub fn load_settings(app: &AppHandle) -> Settings {
@@ -158,8 +177,14 @@ pub fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String>
     let path = settings_path(app)?;
     let temp = path.with_extension("json.tmp");
     let data = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
-    fs::write(&temp, data).map_err(|e| e.to_string())?;
-    fs::rename(&temp, path).map_err(|e| e.to_string())?;
+    fs::write(&temp, data).map_err(|e| {
+        log::error!("failed to write settings temp file {}: {e}", temp.display());
+        e.to_string()
+    })?;
+    fs::rename(&temp, &path).map_err(|e| {
+        log::error!("failed to commit settings file {}: {e}", path.display());
+        e.to_string()
+    })?;
     Ok(())
 }
 

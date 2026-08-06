@@ -13,7 +13,8 @@ fn git(args: &[&str], repo_path: &str) -> Result<String, String> {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    cmd.output()
+    let result = cmd
+        .output()
         .map_err(|e| format!("Failed to run git: {e}"))
         .and_then(|out| {
             if out.status.success() {
@@ -22,7 +23,11 @@ fn git(args: &[&str], repo_path: &str) -> Result<String, String> {
                 let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
                 Err(if stderr.is_empty() { "git command failed".to_string() } else { stderr })
             }
-        })
+        });
+    if let Err(e) = &result {
+        log::error!("git {} (in {repo_path}) failed: {e}", args.join(" "));
+    }
+    result
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

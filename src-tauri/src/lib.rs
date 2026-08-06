@@ -2,6 +2,7 @@ mod configs;
 mod disks;
 mod fs;
 mod helpers;
+mod logging;
 mod network;
 mod plugins;
 mod progress;
@@ -35,6 +36,12 @@ use updater::{check_for_updates, download_and_install_update};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Must be first: installs the panic hook and file logger so any failure
+    // during setup below (or any panic for the rest of the process's life)
+    // is captured to %LOCALAPPDATA%/.flurer/{logs,crashes} instead of being
+    // lost to a terminal the packaged app doesn't have.
+    logging::init();
+
     tauri::Builder::default()
         .setup(|app| {
             let settings = load_settings(&app.handle());
