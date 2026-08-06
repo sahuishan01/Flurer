@@ -1,7 +1,7 @@
-import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { Show, type JSX } from "solid-js";
 import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
-import { clampPopoverPosition } from "../lib/popover";
+import { createPopover } from "../lib/popover";
 
 type CommandBarProps = {
   canGoBack: boolean;
@@ -21,28 +21,13 @@ type CommandBarProps = {
 };
 
 export function CommandBar(props: CommandBarProps) {
-  const [searchOpen, setSearchOpen] = createSignal(false);
-  const [popoverPos, setPopoverPos] = createSignal<Record<string, string>>({});
-  let containerRef: HTMLDivElement | undefined;
+  const { open: searchOpen, pos, containerRef, panelRef, toggle, close } = createPopover();
   let inputRef: HTMLInputElement | undefined;
-  let anchorRect: DOMRect | undefined;
-
-  function positionPopover(panelEl: HTMLDivElement) {
-    if (!anchorRect) return;
-    setPopoverPos(clampPopoverPosition(anchorRect, panelEl.getBoundingClientRect()));
-  }
 
   function openSearch(btn: HTMLElement) {
-    anchorRect = btn.getBoundingClientRect();
-    setSearchOpen(true);
-    queueMicrotask(() => inputRef?.focus());
+    toggle(btn);
+    if (searchOpen()) queueMicrotask(() => inputRef?.focus());
   }
-
-  function handlePointerDown(e: MouseEvent) {
-    if (containerRef && !containerRef.contains(e.target as Node)) setSearchOpen(false);
-  }
-  onMount(() => document.addEventListener("mousedown", handlePointerDown));
-  onCleanup(() => document.removeEventListener("mousedown", handlePointerDown));
 
   return (
     <div class="command-bar" data-bg-lightness={props["data-bg-lightness"]}>
@@ -71,13 +56,13 @@ export function CommandBar(props: CommandBarProps) {
           title="Search"
           aria-label="Search"
           aria-expanded={searchOpen()}
-          onClick={(e) => (searchOpen() ? setSearchOpen(false) : openSearch(e.currentTarget))}
+          onClick={(e) => openSearch(e.currentTarget)}
         >
           <SearchIcon size={16} />
         </button>
 
         <Show when={searchOpen()}>
-          <div class="search-popover" style={popoverPos()} ref={(el) => positionPopover(el)}>
+          <div class="search-popover" style={pos()} ref={panelRef}>
             <div class="search-field">
               <SearchIcon size={15} />
               <input
@@ -88,8 +73,7 @@ export function CommandBar(props: CommandBarProps) {
                 value={props.searchQuery}
                 onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setSearchOpen(false);
-                  if (e.key === "Enter") setSearchOpen(false);
+                  if (e.key === "Enter") close();
                 }}
               />
             </div>
