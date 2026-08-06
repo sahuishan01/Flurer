@@ -146,14 +146,10 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
     let installer_path = output_path.to_string_lossy().to_string();
     let is_msi = file_name.ends_with(".msi");
 
-    // Spawn a detached process so the installer runs even if the app closes
     let child = if is_msi {
-        std::process::Command::new("msiexec")
-            .args(["/i", &installer_path, "/promptrestart"])
-            .spawn()
+        launch_elevated("msiexec", &["/i", &installer_path, "/promptrestart"])
     } else {
-        std::process::Command::new(&installer_path)
-            .spawn()
+        launch_elevated(&installer_path, &[])
     };
 
     child
@@ -164,4 +160,42 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
             log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
             format!("Failed to launch installer: {e}")
         })
+}
+
+// Both bundle targets' installers request admin rights in their manifest
+// (the NSIS one since installMode "both" lets a user pick a per-machine
+// install; msiexec always does for a per-machine MSI). Spawning them with
+// `Command::spawn()` calls CreateProcess directly, which — unlike
+// ShellExecute — does NOT honor a "requireAdministrator" manifest: instead
+// of showing the UAC consent prompt, it fails outright with
+// ERROR_ELEVATION_REQUIRED (os error 740). Routing through PowerShell's
+// `Start-Process -Verb RunAs` uses ShellExecute internally, which is what
+// actually triggers the UAC dialog the way double-clicking the installer
+// in Explorer would.
+fn launch_elevated(path: &str, args: &[&str]) -> std::io::Result<std::process::Child> {
+    fn ps_quote(s: &str) -> String {
+        format!("'{}'", s.replace('\'', "''"))
+    }
+
+    let mut command = format!("Start-Process -FilePath {}", ps_quote(path));
+    if !args.is_empty() {
+        let arg_list = args.iter().map(|a| ps_quote(a)).collect::<Vec<_>>().join(",");
+        command.push_str(&format!(" -ArgumentList {arg_list}"));
+    }
+    command.push_str(" -Verb RunAs");
+
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command]);
+
+    // Prevent the PowerShell launcher itself from flashing a console
+    // window — the UAC prompt (and the installer's own UI) still show;
+    // this only hides the intermediate powershell.exe process.
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.spawn()
 }
