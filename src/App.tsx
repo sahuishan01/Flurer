@@ -30,6 +30,21 @@ function App() {
   const [searchRecursive, setSearchRecursive] = createSignal(false);
   const [wallpaper, setWallpaper] = createSignal<Wallpaper | null>(null);
   const [wallpaperError, setWallpaperError] = createSignal("");
+  // Browsing history for "auto rotate from category" — lets Prev/Next
+  // step through previously-shown photos (no refetch going back) or pull a
+  // fresh one going forward, independent of the scheduled auto-rotation
+  // timer. Also doubles as "what category is currently on screen", used to
+  // decide whether a category-selection edit should disturb the current
+  // wallpaper (see the background-driving effect below).
+  const [categoryWallpaperHistory, setCategoryWallpaperHistory] = createSignal<
+    { category: string; wallpaper: Wallpaper }[]
+  >([]);
+  const [categoryWallpaperIndex, setCategoryWallpaperIndex] = createSignal(-1);
+  const activeRotationCategory = () => {
+    const history = categoryWallpaperHistory();
+    const index = categoryWallpaperIndex();
+    return index >= 0 && index < history.length ? history[index].category : null;
+  };
   // Whether an Unsplash API key is configured — never the key itself. It's
   // stored via the OS credential store (see src-tauri/src/configs/mod.rs),
   // deliberately outside of Settings, so it's never round-tripped back to
@@ -336,6 +351,59 @@ function App() {
     }
   }
 
+  // Same underlying call as getWallpaper, but for "auto rotate from
+  // category" specifically — also records the fetch in categoryWallpaperHistory
+  // (dropping any forward history past the current point, same as a
+  // browser tab's back/forward stack after navigating somewhere new) so
+  // Prev/Next and the "don't disturb the current photo" check both have
+  // something to work from.
+  async function fetchCategoryWallpaper(category: string) {
+    setWallpaperError("");
+    try {
+      const result = await invoke<Wallpaper>("get_wallpaper", {
+        query: category,
+        width: windowSize.width,
+        height: windowSize.height,
+      });
+      setWallpaper(result);
+      const truncated = categoryWallpaperHistory().slice(0, categoryWallpaperIndex() + 1);
+      setCategoryWallpaperHistory([...truncated, { category, wallpaper: result }]);
+      setCategoryWallpaperIndex(truncated.length);
+    } catch (err) {
+      setWallpaperError(String(err));
+    }
+  }
+
+  // "I don't like this one" — Next either replays a photo already fetched
+  // ahead in history (no network call) or, once at the end of history,
+  // fetches a fresh photo for the next category in rotation. Prev always
+  // just replays — never fetches — since there's nothing "ahead" to fetch
+  // for going backwards.
+  function goToNextCategoryWallpaper() {
+    const history = categoryWallpaperHistory();
+    const index = categoryWallpaperIndex();
+    if (index < history.length - 1) {
+      const next = index + 1;
+      setCategoryWallpaperIndex(next);
+      setWallpaper(history[next].wallpaper);
+      return;
+    }
+    const categories = settings.background.unsplashCategories.length
+      ? settings.background.unsplashCategories
+      : ["nature"];
+    const current = activeRotationCategory();
+    const currentIdx = current ? categories.indexOf(current) : -1;
+    const nextCategory = categories[(currentIdx + 1 + categories.length) % categories.length];
+    fetchCategoryWallpaper(nextCategory);
+  }
+
+  function goToPrevCategoryWallpaper() {
+    const index = categoryWallpaperIndex();
+    if (index <= 0) return;
+    setCategoryWallpaperIndex(index - 1);
+    setWallpaper(categoryWallpaperHistory()[index - 1].wallpaper);
+  }
+
   // Downloads and caches (server-side) the image at `url`, returning a
   // data: URL — used for the fixed rotation list, where the image URL is
   // already known and doesn't need an Unsplash API lookup first.
@@ -568,11 +636,18 @@ function App() {
 
     if (bg.unsplashMode === "autoRotateCategory") {
       const categories = bg.unsplashCategories.length ? bg.unsplashCategories : ["nature"];
-      let index = 0;
-      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, isExplicitChange, categories, () => {
-        const category = categories[index % categories.length];
-        index += 1;
-        return getWallpaper(category);
+      const current = activeRotationCategory();
+      const currentStillSelected = current !== null && categories.includes(current);
+      // Selecting an additional category (or reordering the list) while the
+      // category currently on screen stays selected shouldn't yank the
+      // wallpaper out from under the user — it only changes what future
+      // rotations get to pick from. Only force an immediate swap when the
+      // category actually being shown right now was deselected.
+      const forceImmediate = isExplicitChange && !currentStillSelected;
+      let index = current ? categories.indexOf(current) : -1;
+      scheduleWallpaperRefresh(bg.unsplashChangeFrequencyMs, forceImmediate, categories, () => {
+        index = (index + 1) % categories.length;
+        return fetchCategoryWallpaper(categories[index]);
       });
       return;
     }
@@ -771,6 +846,9 @@ function App() {
                   wallpaper={wallpaper()}
                   wallpaperError={wallpaperError()}
                   onFetchWallpaper={getWallpaper}
+                  onNextCategoryWallpaper={goToNextCategoryWallpaper}
+                  onPrevCategoryWallpaper={goToPrevCategoryWallpaper}
+                  canGoPrevCategoryWallpaper={categoryWallpaperIndex() > 0}
                   disabledPlugins={settings.disabledPlugins}
                   onDisabledPluginsChange={updateDisabledPlugins}
                   pluginSettings={settings.pluginSettings}
