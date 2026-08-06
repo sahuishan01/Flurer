@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import {
@@ -74,6 +75,23 @@ export function FileList(props: FileListProps) {
 
   function isSearching(): boolean {
     return props.searchQuery.trim().length > 0;
+  }
+
+  // Directories navigate the explorer itself; files hand off to whatever
+  // the OS has registered as the default handler for their type (Notepad
+  // for .txt, the browser for .html, …) — the same as double-clicking a
+  // file in Windows Explorer. tauri-plugin-opener's openPath shells out to
+  // the OS's own "open" verb rather than us maintaining any file-type map.
+  async function openEntry(entry: DirEntry) {
+    if (entry.isDir) {
+      props.onNavigate(entry.path);
+      return;
+    }
+    try {
+      await openPath(entry.path);
+    } catch (err) {
+      setError(String(err));
+    }
   }
 
   async function refresh() {
@@ -553,10 +571,10 @@ export function FileList(props: FileListProps) {
                   tabIndex={0}
                   role="row"
                   onClick={(e) => handleRowClick(e, entry, index())}
-                  onDblClick={() => entry.isDir && props.onNavigate(entry.path)}
+                  onDblClick={() => openEntry(entry)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      if (entry.isDir) props.onNavigate(entry.path);
+                      openEntry(entry);
                     } else if (e.key === " ") {
                       e.preventDefault();
                       handleRowClick(e as unknown as MouseEvent, entry, index());
