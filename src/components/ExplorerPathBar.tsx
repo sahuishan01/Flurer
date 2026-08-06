@@ -1,7 +1,7 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, For, Show } from "solid-js";
 import { EnterIcon, FolderIcon, StarIcon } from "./icons";
 import { pathSegments } from "../lib/fs";
-import { clampPopoverPosition } from "../lib/popover";
+import { createPopover } from "../lib/popover";
 
 type ExplorerPathBarProps = {
   path: string;
@@ -13,36 +13,23 @@ type ExplorerPathBarProps = {
 };
 
 export function ExplorerPathBar(props: ExplorerPathBarProps) {
-  const [open, setOpen] = createSignal(false);
-  const [popoverPos, setPopoverPos] = createSignal<Record<string, string>>({});
-  let containerRef: HTMLDivElement | undefined;
+  const { open, pos, containerRef, panelRef, toggle, close } = createPopover();
   let inputRef: HTMLInputElement | undefined;
-  let anchorRect: DOMRect | undefined;
 
   // Navigating away (breadcrumb click, sidebar, back/forward) should always
   // close the overlay rather than leaving it open pointed at a stale path.
   createEffect(() => {
     props.path;
-    setOpen(false);
+    close();
   });
 
-  function positionPopover(panelEl: HTMLDivElement) {
-    if (!anchorRect) return;
-    setPopoverPos(clampPopoverPosition(anchorRect, panelEl.getBoundingClientRect()));
-  }
-
   function openPopover(btn: HTMLElement) {
-    anchorRect = btn.getBoundingClientRect();
-    props.onPathInputChange(props.path);
-    setOpen(true);
-    queueMicrotask(() => inputRef?.focus());
+    toggle(btn);
+    if (open()) {
+      props.onPathInputChange(props.path);
+      queueMicrotask(() => inputRef?.focus());
+    }
   }
-
-  function handlePointerDown(e: MouseEvent) {
-    if (containerRef && !containerRef.contains(e.target as Node)) setOpen(false);
-  }
-  onMount(() => document.addEventListener("mousedown", handlePointerDown));
-  onCleanup(() => document.removeEventListener("mousedown", handlePointerDown));
 
   return (
     <div class="explorer-path-bar" ref={containerRef}>
@@ -53,13 +40,13 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
         title={props.path}
         aria-label="Go to path"
         aria-expanded={open()}
-        onClick={(e) => (open() ? setOpen(false) : openPopover(e.currentTarget))}
+        onClick={(e) => openPopover(e.currentTarget)}
       >
         <FolderIcon size={16} />
       </button>
 
       <Show when={open()}>
-        <div class="path-popover" style={popoverPos()} ref={(el) => positionPopover(el)}>
+        <div class="path-popover" style={pos()} ref={panelRef}>
           <div class="breadcrumb">
             <For each={pathSegments(props.path)}>
               {(segment, index) => (
@@ -72,7 +59,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
                     class="breadcrumb-segment"
                     onClick={() => {
                       props.onNavigate(segment.path);
-                      setOpen(false);
+                      close();
                     }}
                   >
                     {segment.label}
@@ -86,7 +73,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
             onSubmit={(e) => {
               e.preventDefault();
               props.onNavigate(props.pathInput);
-              setOpen(false);
+              close();
             }}
           >
             <input
@@ -94,9 +81,6 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
               class="path-input"
               value={props.pathInput}
               onInput={(e) => props.onPathInputChange(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setOpen(false);
-              }}
             />
             <button type="submit" class="icon-btn" title="Go" aria-label="Go">
               <EnterIcon size={16} />
