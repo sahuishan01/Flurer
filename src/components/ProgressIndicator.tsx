@@ -42,6 +42,32 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
   const [open, setOpen] = createSignal(false);
   const [panelPos, setPanelPos] = createSignal<Record<string, string>>({});
   let ref: HTMLDivElement | undefined;
+  let anchorRect: DOMRect | undefined;
+
+  // Positions the panel against the toggle button's rect, then clamps it
+  // to the viewport — the button can end up anywhere (it wraps to a new
+  // row on narrow windows, sometimes hugging the left edge), so a naive
+  // right-anchored offset can push the fixed-width panel off-screen.
+  function positionPanel(panelEl: HTMLDivElement) {
+    if (!anchorRect) return;
+    const margin = 8;
+    const rect = panelEl.getBoundingClientRect();
+    const width = rect.width || panelEl.offsetWidth;
+    const height = rect.height || panelEl.offsetHeight;
+
+    let left = anchorRect.right - width;
+    left = Math.min(left, window.innerWidth - width - margin);
+    left = Math.max(left, margin);
+
+    let top = anchorRect.bottom + 6;
+    if (top + height > window.innerHeight - margin) {
+      top = anchorRect.top - height - 6;
+    }
+    top = Math.min(top, window.innerHeight - height - margin);
+    top = Math.max(top, margin);
+
+    setPanelPos({ top: `${top}px`, left: `${left}px` });
+  }
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
@@ -92,10 +118,13 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
           onClick={() => {
             const next = !open();
             if (next && ref) {
-              const rect = ref.getBoundingClientRect();
+              anchorRect = ref.getBoundingClientRect();
+              // Provisional position (pre-measurement) so nothing flashes at
+              // the origin for a frame; positionPanel() below corrects it
+              // against the panel's real, rendered size once it mounts.
               setPanelPos({
-                top: `${rect.bottom + 6}px`,
-                right: `${window.innerWidth - rect.right}px`,
+                top: `${anchorRect.bottom + 6}px`,
+                left: `${Math.max(8, anchorRect.right - 260)}px`,
               });
             }
             setOpen(next);
@@ -108,7 +137,21 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
         </button>
 
         <Show when={open()}>
-          <div class="progress-panel" style={panelPos()}>
+          <div
+            class="progress-panel"
+            style={panelPos()}
+            ref={(el) => {
+              positionPanel(el);
+              const onResize = () => {
+                // The toggle button itself may have reflowed (e.g. wrapped
+                // to a new row) along with the window, so re-anchor first.
+                if (ref) anchorRect = ref.getBoundingClientRect();
+                positionPanel(el);
+              };
+              window.addEventListener("resize", onResize);
+              onCleanup(() => window.removeEventListener("resize", onResize));
+            }}
+          >
             <For each={list()}>
               {(task) => (
                 <div class="progress-task">
