@@ -28,6 +28,8 @@ type SettingsPanelProps = {
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
   onShowProgressWhenIdleChange: (show: boolean) => void;
+  globalShortcut: string;
+  onGlobalShortcutChange: (shortcut: string) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -105,6 +107,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onSidebarTooltipDelayMsChange={props.onSidebarTooltipDelayMsChange}
               showProgressWhenIdle={props.showProgressWhenIdle}
               onShowProgressWhenIdleChange={props.onShowProgressWhenIdleChange}
+              globalShortcut={props.globalShortcut}
+              onGlobalShortcutChange={props.onGlobalShortcutChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}
               onSaveUnsplashApiKey={props.onSaveUnsplashApiKey}
               apiKeyError={props.apiKeyError}

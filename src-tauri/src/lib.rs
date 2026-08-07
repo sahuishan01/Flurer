@@ -6,6 +6,7 @@ mod logging;
 mod network;
 mod plugins;
 mod progress;
+mod shortcuts;
 mod sizecache;
 mod state;
 mod updater;
@@ -45,6 +46,12 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let settings = load_settings(&app.handle());
+            // Settings::default() (and its serde field default) already
+            // resolve a missing/never-saved value to shortcuts::DEFAULT_SHORTCUT
+            // — an empty string here can only mean the user explicitly
+            // cleared it to turn the shortcut off, which register() treats
+            // as a no-op rather than silently falling back to the default.
+            shortcuts::register(&app.handle(), &settings.global_shortcut);
             let config = Config::load();
             app.manage(AppState {
                 settings: Mutex::new(settings),
@@ -56,6 +63,15 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        shortcuts::show_and_focus_main_window(app);
+                    }
+                })
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             get_wallpaper,
             fetch_wallpaper_image,

@@ -127,6 +127,19 @@ pub struct Settings {
     pub disabled_plugins: Vec<String>,
     #[serde(default)]
     pub folder_sizes: HashMap<String, CachedSize>,
+    // OS-wide hotkey that brings the window to front/focus from anywhere,
+    // even when Flurer isn't focused (or is minimized). Defaults to
+    // Ctrl+Alt+E, both here (for settings files predating this field) and
+    // in Default::default() below. An explicit empty string means "no
+    // shortcut" (user disabled it) and is left as-is, not silently
+    // replaced with the default — see shortcuts::register/unregister,
+    // which both treat "" as a no-op.
+    #[serde(default = "default_global_shortcut")]
+    pub global_shortcut: String,
+}
+
+fn default_global_shortcut() -> String {
+    "Ctrl+Alt+E".to_string()
 }
 
 impl Default for Settings {
@@ -151,6 +164,7 @@ impl Default for Settings {
             plugin_settings: std::collections::HashMap::new(),
             disabled_plugins: Vec::new(),
             folder_sizes: HashMap::new(),
+            global_shortcut: default_global_shortcut(),
         }
     }
 }

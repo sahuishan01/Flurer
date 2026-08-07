@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
 import {
+  DEFAULT_GLOBAL_SHORTCUT,
   FONT_FAMILY_PRESETS,
   GRADIENT_DIRECTIONS,
   GRADIENT_PRESETS,
@@ -64,7 +65,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "tooltip", "hover", "delay", "progress"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -90,6 +91,8 @@ type CustomizationSettingsProps = {
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
   onShowProgressWhenIdleChange: (show: boolean) => void;
+  globalShortcut: string;
+  onGlobalShortcutChange: (shortcut: string) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -111,6 +114,36 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   function handleSaveApiKey() {
     props.onSaveUnsplashApiKey(apiKeyInput());
     setApiKeyInput("");
+  }
+
+  // Global shortcut recorder — captures the next key combo pressed while
+  // "recording" and formats it into the "Ctrl+Alt+E" style string the Rust
+  // side's shortcut parser expects, rather than making the user type a
+  // syntax they'd have to already know.
+  const [recordingShortcut, setRecordingShortcut] = createSignal(false);
+
+  function formatShortcutFromEvent(e: KeyboardEvent): string | null {
+    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return null;
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Super");
+    if (parts.length === 0) return null; // require at least one modifier
+    parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+    return parts.join("+");
+  }
+
+  function handleShortcutRecorderKeyDown(e: KeyboardEvent) {
+    e.preventDefault();
+    if (e.key === "Escape") {
+      setRecordingShortcut(false);
+      return;
+    }
+    const shortcut = formatShortcutFromEvent(e);
+    if (!shortcut) return;
+    props.onGlobalShortcutChange(shortcut);
+    setRecordingShortcut(false);
   }
 
   // Search state for the "From Fixed List" picker. Kept local to this
@@ -611,6 +644,35 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           />
           Always show progress indicator
         </label>
+
+        <div class="shortcut-control">
+          <span class="shortcut-label">Global shortcut to open Flurer</span>
+          <div class="shortcut-recorder-row">
+            <button
+              type="button"
+              class="shortcut-recorder"
+              classList={{ recording: recordingShortcut() }}
+              onClick={() => setRecordingShortcut(true)}
+              onKeyDown={(e) => recordingShortcut() && handleShortcutRecorderKeyDown(e)}
+              onBlur={() => setRecordingShortcut(false)}
+            >
+              {recordingShortcut()
+                ? "Press a key combo… (Esc to cancel)"
+                : props.globalShortcut || "Click to set a shortcut"}
+            </button>
+            <Show when={props.globalShortcut}>
+              <button type="button" class="danger" onClick={() => props.onGlobalShortcutChange("")}>
+                Clear
+              </button>
+            </Show>
+            <Show when={props.globalShortcut !== DEFAULT_GLOBAL_SHORTCUT}>
+              <button type="button" onClick={() => props.onGlobalShortcutChange(DEFAULT_GLOBAL_SHORTCUT)}>
+                Reset
+              </button>
+            </Show>
+          </div>
+          <p class="settings-hint">Works even when Flurer isn't focused. Click the field, then press the key combo you want.</p>
+        </div>
       </section>
       )}
     </div>
