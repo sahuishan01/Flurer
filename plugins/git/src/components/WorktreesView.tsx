@@ -95,7 +95,7 @@ export function WorktreesView() {
                   </div>
                 </div>
                 <div style={{ "font-size": "11px", color: "var(--text-muted, #888)", "font-family": "Space Mono, monospace" }}>
-                  HEAD: {wt.head.slice(0, 7)}
+                  HEAD: {wt.head?.slice(0, 7) ?? "N/A"}
                 </div>
               </div>
             );

@@ -1,7 +1,7 @@
 import { Show, Switch, Match, createMemo } from "solid-js";
 import { useGit } from "../context";
 import { basename } from "../utils";
-import { GitIcon, RefreshIcon, PullIcon, PushIcon, FetchIcon, CloseIcon, BranchIcon, Button, TabBar } from "./shared";
+import { GitIcon, RefreshIcon, PullIcon, PushIcon, FetchIcon, CloseIcon, BranchIcon, Button, TabBar, BranchMultiSelect, DiffCompareModal } from "./shared";
 import { S } from "../styles";
 import { ChangesView } from "./ChangesView";
 import { DiffView } from "./DiffView";
@@ -12,8 +12,8 @@ import { StashView } from "./StashView";
 import { WorktreesView } from "./WorktreesView";
 
 const TABS = [
-  { id: "changes", label: "Changes" },
   { id: "graph", label: "Graph" },
+  { id: "changes", label: "Changes" },
   { id: "branches", label: "Branches" },
   { id: "history", label: "History" },
   { id: "diff", label: "Diff" },
@@ -50,7 +50,7 @@ export function RepoView(props: RepoViewProps) {
   );
 
   return (
-    <div style={{ height: "100%", display: "flex", "flex-direction": "column", overflow: "hidden" }}>
+    <div style={{ height: "100%", width: "100%", display: "flex", "flex-direction": "column", overflow: "hidden", "box-sizing": "border-box" }}>
       <div style={{ ...S.section, "border-bottom": "1px solid var(--border-strong)", "flex-shrink": 0 }}>
         <div style={S.toolbar}>
           <Button onClick={props.onClose} size="sm" title="Close tab">
@@ -71,6 +71,7 @@ export function RepoView(props: RepoViewProps) {
                     <span style={{ opacity: 0.7, "font-weight": 400 }}>↑{s().ahead} ↓{s().behind}</span>
                   </Show>
                 </span>
+                <BranchMultiSelect />
                 <Button variant="secondary" size="sm" onClick={ctx.pull} disabled={ctx.loading()}>
                   <PullIcon size={14} /> Pull
                 </Button>
@@ -105,10 +106,10 @@ export function RepoView(props: RepoViewProps) {
         </div>
       </Show>
 
-      <div style={{ flex: 1, overflow: "auto" }}>
-        <Switch>
-          <Match when={ctx.activeView() === "changes"}><ChangesView /></Match>
+      <div style={{ flex: 1, width: "100%", overflow: "auto", "box-sizing": "border-box" }}>
+        <Switch fallback={<GraphView />}>
           <Match when={ctx.activeView() === "graph"}><GraphView /></Match>
+          <Match when={ctx.activeView() === "changes"}><ChangesView /></Match>
           <Match when={ctx.activeView() === "branches"}><BranchesView /></Match>
           <Match when={ctx.activeView() === "history"}><HistoryView /></Match>
           <Match when={ctx.activeView() === "diff"}><DiffView /></Match>
@@ -116,6 +117,7 @@ export function RepoView(props: RepoViewProps) {
           <Match when={ctx.activeView() === "worktrees"}><WorktreesView /></Match>
         </Switch>
       </div>
+      <DiffCompareModal />
     </div>
   );
 }

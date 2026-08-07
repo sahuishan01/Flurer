@@ -1,4 +1,4 @@
-import { createContext, useContext, createSignal, onMount, type Accessor, type JSX, type ParentProps } from "solid-js";
+import { createContext, useContext, createSignal, createMemo, onMount, type Accessor, type JSX, type ParentProps } from "solid-js";
 import { saveRecentRepo } from "./utils";
 import * as git from "./git";
 import type {
@@ -17,7 +17,10 @@ interface GitContextValue {
   status: Accessor<GitStatus | null>;
   branches: Accessor<GitBranch[]>;
   commits: Accessor<GitCommit[]>;
+  historyHasMore: Accessor<boolean>;
   graph: Accessor<GitGraphEntry[]>;
+  graphHasMore: Accessor<boolean>;
+  graphLoading: Accessor<boolean>;
   stashes: Accessor<GitStashEntry[]>;
   worktrees: Accessor<GitWorktree[]>;
   commitDetail: Accessor<GitCommitDetail | null>;
@@ -25,9 +28,12 @@ interface GitContextValue {
   selectedDiffFile: Accessor<string | null>;
   selectDiffFile: (path: string | null) => void;
   diffResult: Accessor<GitDiff | null>;
-  diffMode: Accessor<"staged" | "unstaged" | "commit">;
+  diffMode: Accessor<"staged" | "unstaged" | "commit" | "compare">;
   diffCommitHash: Accessor<string | null>;
-  setDiffMode: (mode: "staged" | "unstaged" | "commit") => void;
+  compareSourceHash: Accessor<string | null>;
+  setCompareSourceHash: (hash: string | null) => void;
+  diffCompareCommits: Accessor<{ from: string; to: string } | null>;
+  setDiffMode: (mode: "staged" | "unstaged" | "commit" | "compare") => void;
 
   loading: Accessor<boolean>;
   error: Accessor<string | null>;
@@ -53,13 +59,26 @@ interface GitContextValue {
   stashDrop: (index: number) => Promise<void>;
   addWorktree: (path: string, branch?: string) => Promise<void>;
   removeWorktree: (path: string) => Promise<void>;
-  loadDiff: (filePath: string, mode: "staged" | "unstaged" | "commit", commitHash?: string) => Promise<void>;
+  loadDiff: (filePath: string, mode: "staged" | "unstaged" | "commit" | "compare", commitHash?: string) => Promise<void>;
+  loadDiffCompare: (fromHash: string, toHash: string, filePath?: string) => Promise<void>;
+  loadDiffWithCurrent: (commitHash: string, filePath?: string) => Promise<void>;
+  loadDiffWithWorkingTree: (commitHash: string, filePath?: string) => Promise<void>;
+  diffPromptHash: Accessor<string | null>;
+  openDiffPrompt: (hash: string) => void;
+  closeDiffPrompt: () => void;
   loadGraph: () => Promise<void>;
+  loadMoreGraph: () => Promise<void>;
   loadHistory: (maxCount: number) => Promise<void>;
+  loadMoreHistory: () => Promise<void>;
   loadBranches: () => Promise<void>;
   loadStashes: () => Promise<void>;
   loadWorktrees: () => Promise<void>;
   showCommitDetail: (hash: string) => Promise<void>;
+  closeCommitDetail: () => void;
+  selectedBranches: Accessor<string[]>;
+  isAllBranchesSelected: Accessor<boolean>;
+  toggleBranchSelection: (branchName: string) => void;
+  selectAllBranches: () => void;
 }
 
 const GitContext = createContext<GitContextValue>();
@@ -71,33 +90,55 @@ export function useGit(): GitContextValue {
 }
 
 export function GitProvider(props: ParentProps & { initialPath?: string | null }) {
-  const [activeView, setActiveView] = createSignal<GitView>("dashboard");
+  const [activeView, setActiveView] = createSignal<GitView>(props.initialPath ? "graph" : "dashboard");
   const [repoPath, setRepoPath] = createSignal<string | null>(props.initialPath ?? null);
   const [status, setStatus] = createSignal<GitStatus | null>(null);
   const [branches, setBranches] = createSignal<GitBranch[]>([]);
   const [commits, setCommits] = createSignal<GitCommit[]>([]);
+  const [historyHasMore, setHistoryHasMore] = createSignal(true);
+  let historyPage = 0;
   const [graph, setGraph] = createSignal<GitGraphEntry[]>([]);
+  const [graphHasMore, setGraphHasMore] = createSignal(true);
+  const [graphLoading, setGraphLoading] = createSignal(false);
+  let graphPage = 0; // non-reactive page counter for --skip
   const [stashes, setStashes] = createSignal<GitStashEntry[]>([]);
   const [worktrees, setWorktrees] = createSignal<GitWorktree[]>([]);
+  const [selectedBranches, setSelectedBranches] = createSignal<string[]>(["all"]);
+
+  const isAllBranchesSelected = createMemo(() => {
+    const sb = selectedBranches();
+    return sb.length === 0 || sb.includes("all");
+  });
   const [commitDetail, setCommitDetail] = createSignal<GitCommitDetail | null>(null);
   const [selectedDiffFile, setSelectedDiffFile] = createSignal<string | null>(null);
   const [diffResult, setDiffResult] = createSignal<GitDiff | null>(null);
-  const [diffMode, setDiffMode] = createSignal<"staged" | "unstaged" | "commit">("unstaged");
+  const [diffMode, setDiffMode] = createSignal<"staged" | "unstaged" | "commit" | "compare">("unstaged");
   const [diffCommitHash, setDiffCommitHash] = createSignal<string | null>(null);
+  const [compareSourceHash, setCompareSourceHash] = createSignal<string | null>(null);
+  const [diffCompareCommits, setDiffCompareCommits] = createSignal<{ from: string; to: string } | null>(null);
+  const [diffPromptHash, setDiffPromptHash] = createSignal<string | null>(null);
+
+  function openDiffPrompt(hash: string) {
+    setDiffPromptHash(hash);
+  }
+
+  function closeDiffPrompt() {
+    setDiffPromptHash(null);
+  }
+
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [toast, setToast] = createSignal<{ message: string; type: "success" | "error" } | null>(null);
   const [shellAvail, setShellAvail] = createSignal(false);
 
-  let toastTimer: ReturnType<typeof setTimeout> | null = null;
-
   onMount(() => {
     if (props.initialPath) {
-      setRepoPath(props.initialPath);
-      refresh();
+      openRepo(props.initialPath);
     }
     setShellAvail(git.hasShellPlugin());
   });
+
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });
@@ -115,8 +156,9 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
       setStatus(s);
       saveRecentRepo(path, s.branch);
       try {
-        const c = await git.gitLog(path, 50);
+        const c = await git.gitLog(path, 100);
         setCommits(c);
+        setHistoryHasMore(c.length >= 100);
       } catch {}
       try {
         const b = await git.gitBranches(path);
@@ -134,14 +176,17 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
 
   function openRepo(path: string) {
     setRepoPath(path);
-    setActiveView("changes");
+    setActiveView("graph");
     setGraph([]);
+    setGraphHasMore(true);
+    setGraphLoading(false);
     setStashes([]);
     setWorktrees([]);
     setCommitDetail(null);
     setSelectedDiffFile(null);
     setDiffResult(null);
     refresh();
+    loadGraph();
   }
 
   function backToDashboard() {
@@ -150,6 +195,8 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
     setBranches([]);
     setCommits([]);
     setGraph([]);
+    setGraphHasMore(true);
+    setGraphLoading(false);
     setStashes([]);
     setWorktrees([]);
     setCommitDetail(null);
@@ -347,10 +394,18 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
     await loadWorktrees();
   }
 
-  async function loadDiff(filePath: string, mode: "staged" | "unstaged" | "commit", commitHash?: string) {
-    setSelectedDiffFile(filePath);
+  let diffReqId = 0;
+
+  async function loadDiff(filePath: string, mode: "staged" | "unstaged" | "commit" | "compare", commitHash?: string) {
+    const myReq = ++diffReqId;
+    setSelectedDiffFile(filePath === "." ? null : filePath);
     setDiffMode(mode);
     setDiffCommitHash(commitHash ?? null);
+    if (mode === "commit" && commitHash) {
+      setDiffCompareCommits({ from: `${commitHash.slice(0, 7)}~1`, to: commitHash.slice(0, 7) });
+    } else if (mode === "staged" || mode === "unstaged") {
+      setDiffCompareCommits(null);
+    }
     setDiffResult(null);
     const p = repoPath();
     if (!p) return;
@@ -363,31 +418,169 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
       } else {
         diff = await git.gitDiff(p, filePath);
       }
+      if (myReq !== diffReqId) return;
       setDiffResult(diff);
       if (activeView() !== "diff") setActiveView("diff");
     } catch (err) {
+      if (myReq !== diffReqId) return;
       showToast(`Failed to load diff: ${err}`, "error");
     }
   }
 
-  async function loadGraph() {
+  async function loadDiffCompare(fromHash: string, toHash: string, filePath: string = ".") {
+    const myReq = ++diffReqId;
+    setSelectedDiffFile(filePath === "." ? null : filePath);
+    setDiffMode("compare");
+    setDiffCommitHash(toHash);
+    setDiffCompareCommits({ from: fromHash, to: toHash });
+    setDiffResult(null);
     const p = repoPath();
     if (!p) return;
     try {
-      const g = await git.gitGraph(p, 200);
-      setGraph(g);
+      const diff = await git.gitDiffBetween(p, fromHash, toHash, filePath);
+      if (myReq !== diffReqId) return;
+      setDiffResult(diff);
+      if (activeView() !== "diff") setActiveView("diff");
     } catch (err) {
-      showToast(`Failed to load graph: ${err}`, "error");
+      if (myReq !== diffReqId) return;
+      showToast(`Failed to load diff comparison: ${err}`, "error");
     }
   }
 
-  async function loadHistory(maxCount: number) {
+  async function loadDiffWithCurrent(commitHash: string, filePath: string = ".") {
+    const myReq = ++diffReqId;
+    setSelectedDiffFile(filePath === "." ? null : filePath);
+    setDiffMode("compare");
+    setDiffCommitHash(commitHash);
+    setDiffCompareCommits({ from: commitHash, to: "HEAD" });
+    setDiffResult(null);
     const p = repoPath();
     if (!p) return;
     try {
-      const c = await git.gitLog(p, maxCount);
+      const diff = await git.gitDiffBetween(p, commitHash, "HEAD", filePath);
+      if (myReq !== diffReqId) return;
+      setDiffResult(diff);
+      if (activeView() !== "diff") setActiveView("diff");
+    } catch (err) {
+      if (myReq !== diffReqId) return;
+      showToast(`Failed to load diff with current: ${err}`, "error");
+    }
+  }
+
+  async function loadDiffWithWorkingTree(commitHash: string, filePath: string = ".") {
+    const myReq = ++diffReqId;
+    setSelectedDiffFile(filePath === "." ? null : filePath);
+    setDiffMode("compare");
+    setDiffCommitHash(commitHash);
+    setDiffCompareCommits({ from: commitHash, to: "Working Tree" });
+    setDiffResult(null);
+    const p = repoPath();
+    if (!p) return;
+    try {
+      const diff = await git.gitDiffCommitWithWorkingTree(p, commitHash, filePath);
+      if (myReq !== diffReqId) return;
+      setDiffResult(diff);
+      if (activeView() !== "diff") setActiveView("diff");
+    } catch (err) {
+      if (myReq !== diffReqId) return;
+      showToast(`Failed to load diff with working tree: ${err}`, "error");
+    }
+  }
+
+  const GRAPH_PAGE_SIZE = 1000;
+
+  async function loadGraph(overrideBranches?: string[]) {
+    const p = repoPath();
+    if (!p) return;
+    const bList = overrideBranches ?? selectedBranches();
+    setGraphLoading(true);
+    graphPage = 0;
+    try {
+      const g = await git.gitGraph(p, GRAPH_PAGE_SIZE, 0, bList);
+      setGraph(g);
+      graphPage = 1;
+      setGraphHasMore(g.length >= GRAPH_PAGE_SIZE);
+    } catch (err) {
+      showToast(`Failed to load graph: ${err}`, "error");
+    } finally {
+      setGraphLoading(false);
+    }
+  }
+
+  async function loadMoreGraph() {
+    const p = repoPath();
+    if (!p || graphLoading() || !graphHasMore()) return;
+    setGraphLoading(true);
+    try {
+      const g = await git.gitGraph(p, GRAPH_PAGE_SIZE, graphPage * GRAPH_PAGE_SIZE, selectedBranches());
+      if (g.length > 0) {
+        setGraph([...graph(), ...g]);
+        graphPage++;
+      }
+      setGraphHasMore(g.length >= GRAPH_PAGE_SIZE);
+    } catch (err) {
+      showToast(`Failed to load more graph: ${err}`, "error");
+    } finally {
+      setGraphLoading(false);
+    }
+  }
+
+  const HISTORY_PAGE_SIZE = 100;
+  let historyLoading = false;
+
+  async function loadHistory(maxCount: number = 100, overrideBranches?: string[]) {
+    const p = repoPath();
+    if (!p) return;
+    const bList = overrideBranches ?? selectedBranches();
+    try {
+      const c = await git.gitLog(p, maxCount, 0, bList);
       setCommits(c);
+      setHistoryHasMore(c.length >= maxCount);
     } catch {}
+  }
+
+  async function loadMoreHistory() {
+    const p = repoPath();
+    if (!p || !historyHasMore() || historyLoading) return;
+    historyLoading = true;
+    try {
+      const offset = commits().length;
+      const c = await git.gitLog(p, HISTORY_PAGE_SIZE, offset, selectedBranches());
+      if (c.length > 0) {
+        setCommits((prev) => [...prev, ...c]);
+      }
+      setHistoryHasMore(c.length >= HISTORY_PAGE_SIZE);
+    } catch {} finally {
+      historyLoading = false;
+    }
+  }
+
+  function selectAllBranches() {
+    setSelectedBranches(["all"]);
+    refreshHistoryAndGraph(["all"]);
+  }
+
+  function toggleBranchSelection(branchName: string) {
+    if (branchName === "all") {
+      selectAllBranches();
+      return;
+    }
+
+    const current = selectedBranches().filter((b) => b !== "all");
+    let next: string[];
+    if (current.includes(branchName)) {
+      next = current.filter((b) => b !== branchName);
+      if (next.length === 0) next = ["all"];
+    } else {
+      next = [...current, branchName];
+    }
+    setSelectedBranches(next);
+    refreshHistoryAndGraph(next);
+  }
+
+  async function refreshHistoryAndGraph(branchesToUse?: string[]) {
+    await loadGraph(branchesToUse);
+    await loadHistory(100, branchesToUse);
   }
 
   async function loadBranches() {
@@ -426,20 +619,28 @@ export function GitProvider(props: ParentProps & { initialPath?: string | null }
     } catch {}
   }
 
+  function closeCommitDetail() {
+    setCommitDetail(null);
+  }
+
   const ctx: GitContextValue = {
     activeView, switchView,
     repoPath, openRepo, backToDashboard,
-    status, branches, commits, graph, stashes, worktrees, commitDetail,
+    status, branches, commits, historyHasMore, graph, graphHasMore, graphLoading,
+    stashes, worktrees, commitDetail,
+    selectedBranches, isAllBranchesSelected, toggleBranchSelection, selectAllBranches,
     selectedDiffFile, selectDiffFile: setSelectedDiffFile,
-    diffResult, diffMode, diffCommitHash, setDiffMode,
+    diffResult, diffMode, diffCommitHash, compareSourceHash, setCompareSourceHash, diffCompareCommits, setDiffMode,
     loading, error, toast, shellAvailable: shellAvail,
     refresh, stage, unstage, stageAll, unstageAll, commit,
     push, pull, fetchRemote,
     createBranch, deleteBranch, checkout, merge, cherryPick,
     stash, stashPop, stashDrop,
     addWorktree, removeWorktree,
-    loadDiff, loadGraph, loadHistory, loadBranches, loadStashes, loadWorktrees,
-    showCommitDetail,
+    loadDiff, loadDiffCompare, loadDiffWithCurrent, loadDiffWithWorkingTree,
+    diffPromptHash, openDiffPrompt, closeDiffPrompt,
+    loadGraph, loadMoreGraph, loadHistory, loadMoreHistory, loadBranches, loadStashes, loadWorktrees,
+    showCommitDetail, closeCommitDetail,
   };
 
   return <GitContext.Provider value={ctx}>{props.children}</GitContext.Provider>;

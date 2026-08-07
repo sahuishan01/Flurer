@@ -36,7 +36,15 @@ export interface GitGraphEntry {
   refs: string[];
 }
 
+export interface DiffFile {
+  oldPath: string;
+  newPath: string;
+  hunks: DiffHunk[];
+  binary?: boolean;
+}
+
 export interface GitDiff {
+  files?: DiffFile[];
   hunks: DiffHunk[];
 }
 
@@ -62,7 +70,7 @@ export interface GitStashEntry {
 
 export interface GitWorktree {
   path: string;
-  head: string;
+  head?: string;
   branch: string | null;
   locked: boolean;
 }

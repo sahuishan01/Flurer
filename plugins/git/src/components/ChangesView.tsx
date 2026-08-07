@@ -78,7 +78,7 @@ export function ChangesView() {
             <For each={untrackedFiles()}>
               {(f) => (
                 <div style={S.fileRow}>
-                  <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+                  <span style={{ cursor: "pointer", flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }} onClick={() => handleFileClick(f.path, false)}>
                     <span style={{ color: "#f87171", "font-family": "Space Mono, monospace", "margin-right": "8px", "font-size": "12px" }}>?</span>
                     {f.path}
                   </span>
