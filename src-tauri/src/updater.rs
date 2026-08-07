@@ -147,19 +147,27 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
         })
         .map_err(|e| format!("Failed to write installer to disk: {e}"))?;
 
-    // Launch the installer
+    // Launch the installer silently — no wizard pages, no "Next/Next/Finish"
+    // popup. This is separate from the UAC consent prompt below: that's a
+    // Windows security gate on elevation itself, not part of the
+    // installer's own UI, and silent mode doesn't (and shouldn't) suppress
+    // it. NSIS's /S skips every page and reuses the existing install
+    // location (its RestorePreviousInstallLocation logic already does that
+    // for an in-place upgrade, silent or not). MSI's /quiet does the same;
+    // /norestart avoids a surprise reboot even if the installer would
+    // otherwise want one — Flurer isn't the kind of app that needs one.
     let installer_path = output_path.to_string_lossy().to_string();
     let is_msi = file_name.ends_with(".msi");
 
     let child = if is_msi {
-        launch_elevated("msiexec", &["/i", &installer_path, "/promptrestart"])
+        launch_elevated("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
     } else {
-        launch_elevated(&installer_path, &[])
+        launch_elevated(&installer_path, &["/S"])
     };
 
     child
         .map(|_| {
-            log::info!("download_and_install_update: launched installer {installer_path} ({total_size} bytes)");
+            log::info!("download_and_install_update: launched silent installer {installer_path} ({total_size} bytes)");
         })
         .map_err(|e| {
             log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
