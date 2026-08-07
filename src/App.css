@@ -330,6 +330,7 @@ body {
 .explorer-view {
     display: flex;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
 }
@@ -338,18 +339,32 @@ body {
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
 }
 
+/* .view-stack/.view-pane are flex items on the row axis (view-rail |
+   sidebar | view-stack) as well as the column axis further in — each level
+   here previously only set min-height: 0, which stops row content from
+   collapsing vertically but does nothing for width. A flex item's default
+   min-width is auto (never smaller than its content), so a wide descendant
+   like .settings-content or .plugin-card just pushed every ancestor in this
+   chain wider than the window instead of shrinking — and because
+   .explorer-view/.explorer-content have overflow: hidden, that overflow was
+   silently clipped rather than scrolled. min-width: 0 here lets the chain
+   actually shrink to the space it's given, so the overflow:auto containers
+   further in (.settings-content, .file-list) can do their job. */
 .view-stack {
     display: flex;
     flex: 1;
+    min-width: 0;
     min-height: 0;
 }
 
 .view-pane {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     flex-direction: column;
     overflow: auto;
@@ -859,8 +874,13 @@ button.sidebar-drive,
 
 .plugin-install-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5em;
     align-items: center;
+}
+
+.plugin-install-row input {
+    min-width: 120px;
 }
 
 .plugin-install-hint {
@@ -895,6 +915,7 @@ button.sidebar-drive,
 
 .plugin-card {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 0.75em;
@@ -913,6 +934,13 @@ button.sidebar-drive,
 }
 
 .plugin-card-body {
+    /* flex-basis lets the body claim the row on its own when
+       .plugin-actions wraps below it (narrow widths) instead of both
+       fighting over a shared row too tight for either — see the
+       .plugin-card flex-wrap comment above. min-width: 0 lets it actually
+       shrink below its content's intrinsic width so plugin-description's
+       ellipsis can kick in rather than overflowing. */
+    flex: 1 1 200px;
     min-width: 0;
 }
 
@@ -1456,6 +1484,15 @@ button.sidebar-drive,
    spaced. */
 .settings-content {
     flex: 1;
+    /* Flex items default to min-width: auto, i.e. never smaller than their
+       content's intrinsic width — with non-wrapping descendants (plugin
+       action buttons, install-row inputs) that content can be wider than
+       the panel, and without this the item just pushes .settings-panel-body
+       wider instead of scrolling, which then gets silently clipped by that
+       ancestor's own overflow: hidden. min-width: 0 lets this flex item
+       actually shrink to the space it's given so its own overflow: auto
+       below can do its job. */
+    min-width: 0;
     overflow: auto;
     padding: 1em;
     background-color: rgba(var(--panel-rgb), var(--surface-opacity));
