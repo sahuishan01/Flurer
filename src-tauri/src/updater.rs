@@ -106,7 +106,7 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
 }
 
 #[tauri::command]
-pub async fn download_and_install_update(url: String) -> Result<(), String> {
+pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> Result<(), String> {
     log::info!("download_and_install_update: starting download from {url}");
     let client = reqwest::Client::new();
     let resp = client
@@ -160,19 +160,31 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
     let is_msi = file_name.ends_with(".msi");
 
     let child = if is_msi {
-        launch_elevated("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
+        launch_elevated_and_relaunch("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
     } else {
-        launch_elevated(&installer_path, &["/S"])
+        launch_elevated_and_relaunch(&installer_path, &["/S"])
     };
 
-    child
-        .map(|_| {
-            log::info!("download_and_install_update: launched silent installer {installer_path} ({total_size} bytes)");
-        })
-        .map_err(|e| {
+    match child {
+        Ok(_) => {
+            log::info!("download_and_install_update: launched silent installer {installer_path} ({total_size} bytes), app will exit and relaunch once it's done");
+            // The watcher script we just spawned already waits for the
+            // installer and relaunches us — our own job here is done. Exit
+            // now rather than waiting for the installer's "close the
+            // running app" step to force us closed: that step is a
+            // property of the bundler's generated installer, not something
+            // this code controls or can rely on being present for both
+            // targets, whereas exiting ourselves is deterministic and also
+            // guarantees our own file handles (the running exe/DLLs) are
+            // released before the installer tries to overwrite them.
+            app.exit(0);
+            Ok(())
+        }
+        Err(e) => {
             log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
-            format!("Failed to launch installer: {e}")
-        })
+            Err(format!("Failed to launch installer: {e}"))
+        }
+    }
 }
 
 // Both bundle targets' installers request admin rights in their manifest
@@ -185,7 +197,15 @@ pub async fn download_and_install_update(url: String) -> Result<(), String> {
 // `Start-Process -Verb RunAs` uses ShellExecute internally, which is what
 // actually triggers the UAC dialog the way double-clicking the installer
 // in Explorer would.
-fn launch_elevated(path: &str, args: &[&str]) -> std::io::Result<std::process::Child> {
+//
+// Also chains `-Wait` plus a second Start-Process that relaunches the
+// currently-running exe once the installer exits — so the user doesn't
+// have to notice Flurer closed and go find it again. This whole PowerShell
+// invocation is spawned detached (see CREATE_NO_WINDOW below) specifically
+// so it survives our own process exiting moments later (see the app.exit
+// call above): a child process is NOT killed when its parent exits on
+// Windows unless a Job Object says otherwise, and we never set one up.
+fn launch_elevated_and_relaunch(path: &str, args: &[&str]) -> std::io::Result<std::process::Child> {
     fn ps_quote(s: &str) -> String {
         format!("'{}'", s.replace('\'', "''"))
     }
@@ -195,7 +215,19 @@ fn launch_elevated(path: &str, args: &[&str]) -> std::io::Result<std::process::C
         let arg_list = args.iter().map(|a| ps_quote(a)).collect::<Vec<_>>().join(",");
         command.push_str(&format!(" -ArgumentList {arg_list}"));
     }
-    command.push_str(" -Verb RunAs");
+    command.push_str(" -Verb RunAs -Wait");
+
+    match std::env::current_exe() {
+        Ok(current_exe) => {
+            command.push_str(&format!("; Start-Process -FilePath {}", ps_quote(&current_exe.to_string_lossy())));
+        }
+        Err(e) => {
+            // Non-fatal: the update still installs, it just won't
+            // auto-relaunch — log it so a report of "it didn't reopen"
+            // has a matching entry in the log file to explain why.
+            log::error!("download_and_install_update: could not resolve current_exe, won't auto-relaunch: {e}");
+        }
+    }
 
     let mut cmd = std::process::Command::new("powershell");
     cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command]);

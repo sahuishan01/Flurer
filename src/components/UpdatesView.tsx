@@ -95,7 +95,7 @@ export function UpdatesView() {
         <Show when={canUpdate()}>
           <p class="settings-hint">
             Installs silently in the background (you'll still see Windows' permission prompt) — no setup wizard. Flurer
-            will close during the update; reopen it once it's done.
+            closes during the update and reopens on its own once it's done.
           </p>
         </Show>
       </div>

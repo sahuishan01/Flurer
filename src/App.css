@@ -1422,6 +1422,9 @@ button.sidebar-drive,
     padding: 1em;
 }
 
+/* No border — matches the borderless grouping the file manager itself uses
+   (e.g. .sidebar-drive: a tinted surface distinguishes it, not an outline).
+   The translucent background + radius still group each section visually. */
 .settings-section {
     margin-bottom: 1em;
     padding: 0.75em 1em;
@@ -1429,7 +1432,6 @@ button.sidebar-drive,
     background-color: rgba(var(--panel-rgb), var(--surface-opacity));
     backdrop-filter: blur(var(--surface-blur, 0));
     -webkit-backdrop-filter: blur(var(--surface-blur, 0));
-    border: 1px solid var(--border-color);
 }
 
 .settings-section h3 {
