@@ -1130,6 +1130,35 @@ button.sidebar-drive,
     color: var(--text-color);
 }
 
+.shortcut-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    margin-top: 0.75em;
+}
+
+.shortcut-label {
+    font-size: var(--text-label);
+}
+
+.shortcut-recorder-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.shortcut-recorder {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-family: var(--text-mono);
+}
+
+.shortcut-recorder.recording {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
 .file-list {
     flex: 1;
     overflow: auto;

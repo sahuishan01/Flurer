@@ -277,6 +277,15 @@ function App() {
     persistSettings();
   }
 
+  // The actual OS-level (un)registration happens backend-side, inside
+  // set_settings itself (it diffs the previous vs. new value) — this just
+  // needs to get the new value persisted the same way every other setting
+  // is, not make a separate dedicated call.
+  function updateGlobalShortcut(shortcut: string) {
+    setSettings("globalShortcut", shortcut);
+    persistSettings();
+  }
+
   function updatePluginSettings(pluginId: string, patch: any) {
     const current = settings.pluginSettings?.[pluginId] ?? {};
     setSettings("pluginSettings", pluginId, { ...current, ...patch });
@@ -840,6 +849,8 @@ function App() {
                   onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
                   showProgressWhenIdle={settings.showProgressWhenIdle}
                   onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
+                  globalShortcut={settings.globalShortcut}
+                  onGlobalShortcutChange={updateGlobalShortcut}
                   hasUnsplashApiKey={hasUnsplashApiKey()}
                   onSaveUnsplashApiKey={saveUnsplashApiKey}
                   apiKeyError={apiKeyError()}

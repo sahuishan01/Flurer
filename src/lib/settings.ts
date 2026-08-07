@@ -48,7 +48,12 @@ export type Settings = {
   showProgressWhenIdle: boolean;
   pluginSettings: Record<string, any>;
   disabledPlugins: string[];
+  // OS-wide hotkey that brings Flurer to front/focus from anywhere, even
+  // when it isn't focused or is minimized. Empty string means disabled.
+  globalShortcut: string;
 };
+
+export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
 
 export const DEFAULT_SETTINGS: Settings = {
   wallpaper: null,
@@ -80,6 +85,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showProgressWhenIdle: false,
   pluginSettings: {},
   disabledPlugins: [],
+  globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

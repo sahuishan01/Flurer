@@ -200,7 +200,13 @@ pub async fn set_settings(
     settings: Settings,
 ) -> Result<(), String> {
     save_settings(&app, &settings)?;
-    *state.settings.lock().await = settings;
+    let mut guard = state.settings.lock().await;
+    // This command fires on every settings save (debounced from the
+    // frontend), not just ones that touch the shortcut — reregister() is a
+    // no-op when the value didn't actually change, so this doesn't
+    // unregister/register on every unrelated setting tweak.
+    crate::shortcuts::reregister(&app, &guard.global_shortcut, &settings.global_shortcut);
+    *guard = settings;
     Ok(())
 }
 
