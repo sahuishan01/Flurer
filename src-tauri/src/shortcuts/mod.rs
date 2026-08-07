@@ -1,4 +1,5 @@
-use tauri::{AppHandle, Manager};
+use std::sync::atomic::{AtomicU32, Ordering};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 // Ctrl+Alt+E rather than something like Ctrl+Shift+F (common "find" binding)
@@ -45,6 +46,8 @@ pub fn reregister(app: &AppHandle, previous: &str, next: &str) {
 
 // Brings the main window to the front and focuses it — restoring it first
 // if it was minimized, since `show()` alone doesn't undo that on Windows.
+// Used by the tray's "Show Flurer" item, which is a "bring the app back"
+// action, not "open another one".
 pub fn show_and_focus_main_window(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -52,6 +55,35 @@ pub fn show_and_focus_main_window(app: &AppHandle) {
     let _ = window.unminimize();
     let _ = window.show();
     let _ = window.set_focus();
+}
+
+static SPAWNED_WINDOW_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+// What the global shortcut actually triggers: a brand-new, independent
+// window every press — the same "always opens another one" behavior as
+// Windows Explorer's Win+E, rather than just refocusing whatever's already
+// open. Deliberately not the "main" window/label: that one stays hidden
+// permanently as the tray-residency anchor (see tray::setup) and is never
+// meant to be shown directly by this path. Each spawned window is otherwise
+// a full, independent instance of the app — same shared backend state
+// (settings, size cache, …) via AppState, but its own navigation history
+// and UI state client-side, exactly like separate Explorer windows.
+pub fn spawn_new_window(app: &AppHandle) {
+    let id = SPAWNED_WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let label = format!("flurer-{id}");
+    let result = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+        .title("flurer")
+        .inner_size(800.0, 600.0)
+        .transparent(true)
+        .visible(true)
+        .build();
+
+    match result {
+        Ok(window) => {
+            let _ = window.set_focus();
+        }
+        Err(e) => log::error!("failed to spawn new window {label:?}: {e}"),
+    }
 }
 
 // The other half of the tray-residency behavior in src/tray — closing the

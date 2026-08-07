@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the main window — grants all plugins access to shell execution and core APIs",
-  "windows": ["main"],
+  "description": "Default capability for the main window and every window spawned by the global shortcut — grants all plugins access to shell execution and core APIs",
+  "windows": ["main", "flurer-*"],
   "permissions": [
     "core:default",
     "opener:default",

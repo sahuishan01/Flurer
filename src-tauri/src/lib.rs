@@ -77,8 +77,11 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
+                    // Always opens a new window, same as Explorer's Win+E —
+                    // see shortcuts::spawn_new_window for why this isn't
+                    // show_and_focus_main_window.
                     if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        shortcuts::show_and_focus_main_window(app);
+                        shortcuts::spawn_new_window(app);
                     }
                 })
                 .build(),
