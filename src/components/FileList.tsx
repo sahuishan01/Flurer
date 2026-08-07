@@ -6,19 +6,24 @@ import { openPath } from "@tauri-apps/plugin-opener";
 import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
+import { PropertiesDialog } from "./PropertiesDialog";
 import {
   ClipboardIcon,
   CopyIcon,
   FileIcon,
+  FilePlusIcon,
   FolderIcon,
   FolderPlusIcon,
+  InfoIcon,
   PencilIcon,
   RefreshIcon,
   ScissorsIcon,
   StarIcon,
   TrashIcon,
+  UndoIcon,
 } from "./icons";
 import {
+  baseName,
   formatBytes,
   parentDir,
   type BatchResult,
@@ -56,10 +61,82 @@ function sortIndicator(active: boolean, direction: SortDirection): string {
   return direction === "ascending" ? " ▲" : " ▼";
 }
 
+type FolderSizeState = "pending" | { size: number; done: boolean };
+
+// Module-level, so it survives FileList unmounting — ExplorerView (and
+// therefore FileList) is torn down whenever the user switches to Settings
+// or the Storage graph (see the "Views are mounted and unmounted on
+// toggle" comment in App.tsx), which used to reset the size map back to
+// empty on every remount. The backend's own cache was already fast, but
+// starting from an empty Map meant every row briefly rendered as blank/
+// pending again while the fresh invoke() calls resolved — visible as sizes
+// being "recalculated" even though nothing was actually re-walked. Reading
+// straight from this cache on mount skips that round trip entirely for any
+// folder already known.
+const persistentFolderSizes = new Map<string, FolderSizeState>();
+
+type UndoAction =
+  | { type: "rename"; from: string; to: string }
+  | { type: "move"; items: { from: string; to: string }[] }
+  | { type: "create"; path: string };
+
 export function FileList(props: FileListProps) {
   const [entries, setEntries] = createSignal<DirEntry[]>([]);
   const [error, setError] = createSignal("");
   const [opError, setOpError] = createSignal("");
+
+  // Delete already has a safety net (Recycle Bin), so undo here is scoped to
+  // the operations that don't: rename, move (cut/paste and drag), and the
+  // New folder/New file placeholder. Copy is deliberately excluded — it's
+  // non-destructive, there's nothing at the original location to restore.
+  // Single-slot rather than a full stack: layering "undo the undo" etc. is
+  // more state than a file manager toast needs, and matches how most
+  // desktop apps' inline undo toasts already behave (Explorer, Gmail).
+  const [undoAction, setUndoAction] = createSignal<UndoAction | null>(null);
+  let undoTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function pushUndo(action: UndoAction) {
+    clearTimeout(undoTimer);
+    setUndoAction(action);
+    undoTimer = setTimeout(() => setUndoAction(null), 8000);
+  }
+
+  function undoLabel(action: UndoAction): string {
+    if (action.type === "rename") return `Renamed "${baseName(action.from)}"`;
+    if (action.type === "create") return `Created "${baseName(action.path)}"`;
+    return action.items.length > 1 ? `Moved ${action.items.length} items` : `Moved "${baseName(action.items[0].from)}"`;
+  }
+
+  async function performUndo() {
+    const action = undoAction();
+    if (!action) return;
+    clearTimeout(undoTimer);
+    setUndoAction(null);
+    setOpError("");
+    try {
+      if (action.type === "rename") {
+        await invoke<string>("rename_item", { path: action.to, newName: baseName(action.from) });
+      } else if (action.type === "create") {
+        await invoke<BatchResult>("delete_items", { paths: [action.path] });
+      } else {
+        // Group by original parent so items that came from the same folder
+        // move back together in one call — different parents just mean a
+        // couple more calls, not a correctness issue.
+        const byParent = new Map<string, string[]>();
+        for (const { from, to } of action.items) {
+          const list = byParent.get(parentDir(from)) ?? [];
+          list.push(to);
+          byParent.set(parentDir(from), list);
+        }
+        for (const [parent, sources] of byParent) {
+          await invoke<BatchResult>("move_items", { sources, destinationDir: parent });
+        }
+      }
+      refresh();
+    } catch (err) {
+      setOpError(String(err));
+    }
+  }
 
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = createSignal<number | null>(null);
@@ -68,12 +145,13 @@ export function FileList(props: FileListProps) {
   const [renamingPath, setRenamingPath] = createSignal<string | null>(null);
   const [renameValue, setRenameValue] = createSignal("");
   const [deleteTargets, setDeleteTargets] = createSignal<string[] | null>(null);
+  const [propertiesTarget, setPropertiesTarget] = createSignal<string | null>(null);
 
   // Folder sizes are computed lazily in the background by the Rust size
   // cache (never blocking the listing itself) and pushed here as they
   // resolve, keyed by absolute path so entries from different folders
   // (e.g. search results) don't collide.
-  const [folderSizes, setFolderSizes] = createSignal<Map<string, "pending" | { size: number; done: boolean }>>(new Map());
+  const [folderSizes, setFolderSizes] = createSignal<Map<string, FolderSizeState>>(new Map(persistentFolderSizes));
 
   function isSearching(): boolean {
     return props.searchQuery.trim().length > 0;
@@ -168,6 +246,7 @@ export function FileList(props: FileListProps) {
       for (const key of next.keys()) {
         if (!paths.has(key)) next.delete(key);
       }
+      syncPersistentFolderSizes(next);
       return next;
     });
   });
@@ -205,6 +284,15 @@ export function FileList(props: FileListProps) {
 
   const MAX_FOLDER_SIZES = 500;
 
+  // Mirrors the eviction cap onto the module-level cache too, so a folder
+  // dropped here (session ranged over too many folders) is also dropped
+  // from what a future remount reads from — otherwise the two could drift
+  // and the persistent cache would just grow unbounded across remounts.
+  function syncPersistentFolderSizes(next: Map<string, FolderSizeState>) {
+    persistentFolderSizes.clear();
+    for (const [key, value] of next) persistentFolderSizes.set(key, value);
+  }
+
   function markFolderPending(path: string) {
     setFolderSizes((prev) => {
       // Don't overwrite if progress events already arrived (the worker
@@ -218,6 +306,7 @@ export function FileList(props: FileListProps) {
           next.delete(keys[i]);
         }
       }
+      syncPersistentFolderSizes(next);
       return next;
     });
   }
@@ -231,6 +320,7 @@ export function FileList(props: FileListProps) {
           next.delete(keys[i]);
         }
       }
+      syncPersistentFolderSizes(next);
       return next;
     });
   }
@@ -346,7 +436,8 @@ export function FileList(props: FileListProps) {
 
     setOpError("");
     try {
-      await invoke<string>("rename_item", { path, newName });
+      const newPath = await invoke<string>("rename_item", { path, newName });
+      pushUndo({ type: "rename", from: path, to: newPath });
       refresh();
     } catch (err) {
       setOpError(String(err));
@@ -358,17 +449,33 @@ export function FileList(props: FileListProps) {
   }
 
   async function startNewFolder() {
+    await createNewEntry("create_folder", "New folder");
+  }
+
+  async function startNewFile() {
+    await createNewEntry("create_file", "New file.txt");
+  }
+
+  // Shared by New folder/New file: pick a name that doesn't collide with
+  // anything already listed (appending " (2)", " (3)", … the same way
+  // Explorer does), create it, then drop straight into the rename input so
+  // the user can immediately type the real name over the placeholder.
+  async function createNewEntry(command: "create_folder" | "create_file", defaultName: string) {
     setOpError("");
     const existingNames = new Set(entries().map((e) => e.name));
-    let name = "New folder";
+    let name = defaultName;
     let suffix = 2;
+    const dotIndex = defaultName.lastIndexOf(".");
+    const stem = dotIndex > 0 ? defaultName.slice(0, dotIndex) : defaultName;
+    const ext = dotIndex > 0 ? defaultName.slice(dotIndex) : "";
     while (existingNames.has(name)) {
-      name = `New folder (${suffix})`;
+      name = `${stem} (${suffix})${ext}`;
       suffix++;
     }
 
     try {
-      const newPath = await invoke<string>("create_folder", { parentDir: props.path, name });
+      const newPath = await invoke<string>(command, { parentDir: props.path, name });
+      pushUndo({ type: "create", path: newPath });
       await refresh();
       setRenamingPath(newPath);
       setRenameValue(name);
@@ -400,6 +507,15 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  // Mirrors the backend's own dest_dir.join(file_name) (see move_items_inner/
+  // copy_items_inner) so the frontend can compute where an item landed
+  // without a round trip — needed to build undo entries, since BatchResult
+  // only reports back the original source paths, not the destinations.
+  function joinDestPath(destinationDir: string, sourcePath: string): string {
+    const withSep = /[\\/]$/.test(destinationDir) ? destinationDir : `${destinationDir}\\`;
+    return `${withSep}${baseName(sourcePath)}`;
+  }
+
   async function pasteClipboard() {
     const clip = props.clipboard;
     if (!clip) return;
@@ -417,6 +533,12 @@ export function FileList(props: FileListProps) {
       if (clip.mode === "cut") {
         const remaining = clip.paths.filter((p) => !result.succeeded.includes(p));
         props.onClipboardChange(remaining.length > 0 ? { mode: "cut", paths: remaining } : null);
+        if (result.succeeded.length > 0) {
+          pushUndo({
+            type: "move",
+            items: result.succeeded.map((from) => ({ from, to: joinDestPath(props.path, from) })),
+          });
+        }
       }
       refresh();
     } catch (err) {
@@ -470,6 +592,12 @@ export function FileList(props: FileListProps) {
       if (res.failed.length > 0) {
         setOpError(res.failed.map((f) => `${f.path}: ${f.error}`).join("; "));
       }
+      if (mode === "move" && res.succeeded.length > 0) {
+        pushUndo({
+          type: "move",
+          items: res.succeeded.map((from) => ({ from, to: joinDestPath(destination, from) })),
+        });
+      }
       refresh();
     } catch (err) {
       setOpError(String(err));
@@ -494,6 +622,7 @@ export function FileList(props: FileListProps) {
     if (menu.targetPath === null) {
       return [
         { label: "New folder", icon: <FolderPlusIcon size={15} />, onSelect: startNewFolder },
+        { label: "New file", icon: <FilePlusIcon size={15} />, onSelect: startNewFile },
         { label: "Paste", icon: <ClipboardIcon size={15} />, onSelect: pasteClipboard, disabled: !canPaste },
       ];
     }
@@ -547,6 +676,12 @@ export function FileList(props: FileListProps) {
         disabled: !hasSelection,
         danger: true,
       },
+      {
+        label: "Properties",
+        icon: <InfoIcon size={15} />,
+        onSelect: () => setPropertiesTarget(menu.targetPath),
+        disabled: selected().size !== 1,
+      },
     ];
   }
 
@@ -576,7 +711,41 @@ export function FileList(props: FileListProps) {
     } else if (mod && e.key.toLowerCase() === "a") {
       e.preventDefault();
       setSelected(new Set(entries().map((en) => en.path)));
+    } else if (!mod && !e.altKey && e.key.length === 1 && /[\p{L}\p{N}]/u.test(e.key)) {
+      // Explorer-style type-ahead: typing jumps to the next entry whose name
+      // starts with what's been typed so far, same letter repeated cycles
+      // through every match instead of just re-selecting the first one.
+      typeAheadJump(e.key);
     }
+  }
+
+  let typeAheadBuffer = "";
+  let typeAheadTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function typeAheadJump(char: string) {
+    clearTimeout(typeAheadTimer);
+    typeAheadBuffer += char.toLowerCase();
+    typeAheadTimer = setTimeout(() => {
+      typeAheadBuffer = "";
+    }, 700);
+
+    const list = sortedEntries();
+    if (list.length === 0) return;
+
+    // Search starting just after the currently-focused row (wrapping
+    // around) so pressing the same letter repeatedly cycles forward through
+    // every match, rather than always landing back on the first one.
+    const currentIndex = lastClickedIndex();
+    const startIndex = currentIndex !== null ? currentIndex + 1 : 0;
+    const ordered = [...list.slice(startIndex), ...list.slice(0, startIndex)];
+    const match = ordered.find((entry) => entry.name.toLowerCase().startsWith(typeAheadBuffer));
+    if (!match) return;
+
+    setSelected(new Set([match.path]));
+    setLastClickedIndex(list.indexOf(match));
+    document
+      .querySelector(`[data-row-path="${CSS.escape(match.path)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   }
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));
@@ -650,6 +819,7 @@ export function FileList(props: FileListProps) {
                   }}
                   tabIndex={0}
                   role="row"
+                  data-row-path={entry.path}
                   data-drop-path={entry.isDir ? entry.path : undefined}
                   onMouseDown={(e) => handleRowMouseDown(e, entry)}
                   onClick={(e) => handleRowClick(e, entry, index())}
@@ -727,6 +897,28 @@ export function FileList(props: FileListProps) {
             </button>
           </div>
         </Modal>
+      )}
+
+      {propertiesTarget() && (() => {
+        const target = entries().find((e) => e.path === propertiesTarget());
+        return (
+          <PropertiesDialog
+            path={propertiesTarget()!}
+            fileSize={target && !target.isDir ? target.size : null}
+            folderSizeState={() => folderSizes().get(propertiesTarget()!)}
+            onRecalculate={() => recalculateFolderSize(propertiesTarget()!)}
+            onClose={() => setPropertiesTarget(null)}
+          />
+        );
+      })()}
+
+      {undoAction() && (
+        <div class="undo-toast" role="status">
+          <span>{undoLabel(undoAction()!)}</span>
+          <button type="button" onClick={performUndo}>
+            <UndoIcon size={14} /> Undo
+          </button>
+        </div>
       )}
     </>
   );
