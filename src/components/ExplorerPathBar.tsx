@@ -1,6 +1,7 @@
-import { createEffect, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import { EnterIcon, FolderIcon, StarIcon } from "./icons";
-import { pathSegments } from "../lib/fs";
+import { parentDir, pathSegments, type DirEntry } from "../lib/fs";
 import { createPopover } from "../lib/popover";
 
 type ExplorerPathBarProps = {
@@ -27,7 +28,88 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
     toggle(btn);
     if (open()) {
       props.onPathInputChange(props.path);
+      setSuggestions([]);
       queueMicrotask(() => inputRef?.focus());
+    }
+  }
+
+  // Address-bar autocomplete: suggests subfolders of whatever's typed so
+  // far. Keyed by parent directory rather than the whole typed string so
+  // narrowing the partial segment (typing more letters after the last
+  // separator) reuses the same listing instead of re-invoking Rust on every
+  // keystroke.
+  const [suggestions, setSuggestions] = createSignal<string[]>([]);
+  const [highlightIndex, setHighlightIndex] = createSignal(-1);
+  let listingCache = new Map<string, string[]>();
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function joinPath(parent: string, name: string): string {
+    const withSep = /[\\/]$/.test(parent) ? parent : `${parent}\\`;
+    return `${withSep}${name}\\`;
+  }
+
+  async function loadSuggestions(value: string) {
+    const parent = parentDir(value);
+    if (!parent || parent === value) {
+      setSuggestions([]);
+      return;
+    }
+    const partial = value
+      .slice(parent.length)
+      .replace(/^[\\/]+/, "")
+      .toLowerCase();
+
+    let names = listingCache.get(parent);
+    if (names === undefined) {
+      try {
+        const entries = await invoke<DirEntry[]>("list_directory", {
+          path: parent,
+          sortKey: "name",
+          sortDirection: "ascending",
+        });
+        names = entries.filter((e) => e.isDir).map((e) => e.name);
+      } catch {
+        names = [];
+      }
+      listingCache.set(parent, names);
+    }
+
+    // Stale response guard: the input may have moved on to a different
+    // parent directory by the time this resolves.
+    if (parentDir(props.pathInput) !== parent) return;
+    const filtered = (partial ? names.filter((n) => n.toLowerCase().startsWith(partial)) : names).slice(0, 8);
+    setSuggestions(filtered);
+    setHighlightIndex(-1);
+  }
+
+  function handlePathInput(value: string) {
+    props.onPathInputChange(value);
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => loadSuggestions(value), 120);
+  }
+
+  function acceptSuggestion(name: string) {
+    const full = joinPath(parentDir(props.pathInput), name);
+    props.onPathInputChange(full);
+    setSuggestions([]);
+    props.onNavigate(full);
+    close();
+  }
+
+  function handleInputKeyDown(e: KeyboardEvent) {
+    const list = suggestions();
+    if (list.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => (i + 1) % list.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => (i <= 0 ? list.length - 1 : i - 1));
+    } else if (e.key === "Escape") {
+      setSuggestions([]);
+    } else if (e.key === "Enter" && highlightIndex() >= 0) {
+      e.preventDefault();
+      acceptSuggestion(list[highlightIndex()]);
     }
   }
 
@@ -73,6 +155,12 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
             class="path-form"
             onSubmit={(e) => {
               e.preventDefault();
+              const list = suggestions();
+              const idx = highlightIndex();
+              if (idx >= 0 && idx < list.length) {
+                acceptSuggestion(list[idx]);
+                return;
+              }
               props.onNavigate(props.pathInput);
               close();
             }}
@@ -81,12 +169,40 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
               ref={inputRef}
               class="path-input"
               value={props.pathInput}
-              onInput={(e) => props.onPathInputChange(e.currentTarget.value)}
+              onInput={(e) => handlePathInput(e.currentTarget.value)}
+              onKeyDown={handleInputKeyDown}
+              autocomplete="off"
+              spellcheck={false}
             />
             <button type="submit" class="icon-btn" title="Go" aria-label="Go">
               <EnterIcon size={16} />
             </button>
           </form>
+
+          <Show when={suggestions().length > 0}>
+            <ul class="path-suggestions" role="listbox">
+              <For each={suggestions()}>
+                {(name, index) => (
+                  <li
+                    role="option"
+                    aria-selected={highlightIndex() === index()}
+                    classList={{ highlighted: highlightIndex() === index() }}
+                    onMouseEnter={() => setHighlightIndex(index())}
+                    onMouseDown={(e) => {
+                      // mousedown, not click — fires before the input's blur,
+                      // so the popover doesn't close itself out from under
+                      // the click first.
+                      e.preventDefault();
+                      acceptSuggestion(name);
+                    }}
+                  >
+                    <FolderIcon size={13} />
+                    {name}
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
         </div>
       </Show>
 

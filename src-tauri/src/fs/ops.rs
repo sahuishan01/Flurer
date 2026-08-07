@@ -497,6 +497,70 @@ pub fn create_folder(parent_dir: String, name: String) -> Result<String, String>
     Ok(dest_path.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+pub fn create_file(parent_dir: String, name: String) -> Result<String, String> {
+    validate_filename(&name)?;
+
+    let dest_path = PathBuf::from(&parent_dir).join(&name);
+    if dest_path.exists() {
+        return Err("An item with this name already exists".to_string());
+    }
+
+    // Just an empty file — same as Explorer's "New > Text Document": the
+    // point is a blank starting point, not a specific initial format, so
+    // there's no content-type branching on the extension here.
+    fs::File::create(&dest_path).map_err(|e| {
+        log::error!("create_file {} in {parent_dir} failed: {e}", name);
+        e.to_string()
+    })?;
+    Ok(dest_path.to_string_lossy().to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathMetadata {
+    pub created: Option<u64>,
+    pub modified: Option<u64>,
+    pub accessed: Option<u64>,
+    pub readonly: bool,
+    pub is_dir: bool,
+    // Immediate children only (not recursive) — a full recursive count would
+    // duplicate the sizecache's own walk for no reason; the size shown in
+    // Properties already comes from there. This is just "how many things are
+    // directly in this folder", which os::read_dir gives for free.
+    pub item_count: Option<u64>,
+}
+
+#[tauri::command]
+pub fn get_path_metadata(path: String) -> Result<PathMetadata, String> {
+    let path_buf = PathBuf::from(&path);
+    let metadata = fs::metadata(&path_buf).map_err(|e| e.to_string())?;
+
+    let to_epoch_secs = |t: std::io::Result<std::time::SystemTime>| {
+        t.ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+    };
+
+    let item_count = if metadata.is_dir() {
+        fs::read_dir(&path_buf).ok().map(|entries| entries.count() as u64)
+    } else {
+        None
+    };
+
+    Ok(PathMetadata {
+        // `created()` isn't available on every platform/filesystem (NTFS
+        // has it, most Linux filesystems don't) — None just means the field
+        // is omitted from the dialog rather than shown as an error.
+        created: to_epoch_secs(metadata.created()),
+        modified: to_epoch_secs(metadata.modified()),
+        accessed: to_epoch_secs(metadata.accessed()),
+        readonly: metadata.permissions().readonly(),
+        is_dir: metadata.is_dir(),
+        item_count,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
