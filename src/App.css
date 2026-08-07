@@ -398,6 +398,34 @@ body {
     flex: 1;
 }
 
+/* --- Design pilot: warm-amber identity + Space Grotesk, scoped to the
+   sidebar and command bar only. The rest of the app keeps the existing
+   Windows-blue accent/system font until this is confirmed and rolled out
+   further — see docs/design or ask before extending the scope past these
+   two selectors. Redeclaring --accent (not just --accent-default) matters:
+   --accent inherits its RESOLVED value from :root, so overriding
+   --accent-default deeper in the tree wouldn't reach anything already
+   inheriting --accent itself. */
+.sidebar,
+.command-bar {
+    --accent: #C97F1F;
+    --accent-hover: #B06F1B;
+    --accent-active: #8F5915;
+    --accent-border: rgba(201, 127, 31, 0.25);
+    --accent-soft: rgba(201, 127, 31, 0.1);
+    --accent-bg-soft: rgba(201, 127, 31, 0.1);
+}
+
+[data-theme="dark"] .sidebar,
+[data-theme="dark"] .command-bar {
+    --accent: #E8A33D;
+    --accent-hover: #F0B15C;
+    --accent-active: #C97F1F;
+    --accent-border: rgba(232, 163, 61, 0.25);
+    --accent-soft: rgba(232, 163, 61, 0.12);
+    --accent-bg-soft: rgba(232, 163, 61, 0.12);
+}
+
 .sidebar {
     width: 200px;
     flex-shrink: 0;
@@ -421,6 +449,7 @@ body {
 }
 
 .sidebar-item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.6em;
@@ -442,6 +471,24 @@ body {
     color: var(--accent);
 }
 
+/* Signature: a graph-edge lead-in on the active item — Flurer's folder
+   graph view is the one thing genuinely unique to this app, so its
+   connecting-line motif carries through here instead of a generic
+   accent-filled pill. Grows from the vertical center on activation rather
+   than just appearing. */
+.sidebar-item.active::before {
+    content: "";
+    position: absolute;
+    left: -0.2em;
+    top: 50%;
+    width: 3px;
+    height: 60%;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: var(--accent);
+    transition: height 0.15s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
 .sidebar-icon {
     display: inline-flex;
 }
@@ -453,12 +500,29 @@ body {
 }
 
 .sidebar-section-label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
     padding: 0.3em 0.6em 0.2em;
+    font-family: var(--font-display);
     font-size: var(--text-section);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    opacity: 0.45;
+    opacity: 0.55;
+}
+
+/* A small angled notch ahead of the label — a quiet nod to a folder tab's
+   cut corner, not a literal folder icon. Restrained: low opacity, tiny. */
+.sidebar-section-label::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    background: var(--accent);
+    opacity: 0.55;
+    clip-path: polygon(0 100%, 0 25%, 40% 0, 100% 0, 100% 100%);
 }
 
 /* Recents/Favourites rows: same hover-scoping trick as .sidebar-drive below
@@ -2055,6 +2119,7 @@ button.danger:not(.context-menu-item):hover {
     }
 
     .sidebar-section-label {
+        display: block;
         font-size: 0;
         width: 100%;
         height: 1px;
@@ -2062,6 +2127,10 @@ button.danger:not(.context-menu-item):hover {
         background-color: var(--border-color);
         padding: 0;
         text-indent: -9999px;
+    }
+
+    .sidebar-section-label::before {
+        display: none;
     }
 
     .sidebar-empty-label {

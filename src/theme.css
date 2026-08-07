@@ -1,6 +1,42 @@
+/* Self-hosted rather than a Google Fonts CDN link — Flurer is a desktop
+   app that should work offline and not make an outbound request just to
+   render its own chrome. Space Grotesk ships as a variable font (one file
+   covers weights 500-700); Space Mono only needed at two static weights,
+   so those stay as separate files. Both licensed OFL. */
+@font-face {
+    font-family: "Space Grotesk";
+    font-weight: 500 700;
+    font-style: normal;
+    font-display: swap;
+    src: url("/fonts/space-grotesk-variable.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Space Mono";
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url("/fonts/space-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Space Mono";
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url("/fonts/space-mono-700.woff2") format("woff2");
+}
+
 :root {
     /* Fluent Design System Typography */
     --fluent-font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    /* Display face for headings/section labels — used with restraint (see
+       the .sidebar/.command-bar pilot scope in App.css), never for body
+       copy. Space Mono is the data face: paths, sizes, timestamps, hashes —
+       already what --text-mono was doing with a system stack; this makes
+       it a deliberate pairing instead of an incidental one. */
+    --font-display: "Space Grotesk", var(--fluent-font);
+    --font-data: "Space Mono", var(--text-mono, ui-monospace, monospace);
     --panel-rgb: 255, 255, 255;
     --panel-tint-rgb: 255, 255, 255;
     
