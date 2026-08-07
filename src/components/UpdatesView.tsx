@@ -85,13 +85,19 @@ export function UpdatesView() {
           </button>
           <Show when={canUpdate()}>
             <button type="button" class="btn-accent" onClick={downloadAndInstall} disabled={downloading()}>
-              {downloading() ? "Downloading…" : "Download & Install"}
+              {downloading() ? "Updating…" : "Update Now"}
             </button>
             <button type="button" onClick={openRelease}>
               View on GitHub
             </button>
           </Show>
         </div>
+        <Show when={canUpdate()}>
+          <p class="settings-hint">
+            Installs silently in the background (you'll still see Windows' permission prompt) — no setup wizard. Flurer
+            will close during the update; reopen it once it's done.
+          </p>
+        </Show>
       </div>
 
       <Show when={error()}>
