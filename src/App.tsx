@@ -473,6 +473,45 @@ function App() {
     applyHistoryEntry(h[index + 1], index + 1);
   }
 
+  // Alt+Left/Right and the mouse's side (back/forward) buttons — standard
+  // back/forward navigation in every browser and file manager, but nothing
+  // wires them up for free here: this app never does real page navigation
+  // (currentPath is just app state), so the webview's own browser-history
+  // handling for these has nothing to act on and silently does nothing.
+  // Routed to the same goBack/goForward the command bar's buttons use.
+  onMount(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goBack();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goForward();
+      }
+    }
+
+    // Mouse button indices: 3 = back (often "Mouse4"/XButton1), 4 = forward
+    // ("Mouse5"/XButton2). Handled on mouseup (not mousedown) so it fires
+    // on release the way click-driven navigation normally does.
+    function handleMouseUp(e: MouseEvent) {
+      if (e.button === 3) {
+        e.preventDefault();
+        goBack();
+      } else if (e.button === 4) {
+        e.preventDefault();
+        goForward();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mouseup", handleMouseUp);
+    onCleanup(() => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mouseup", handleMouseUp);
+    });
+  });
+
   function navigateTo(path: string) {
     setCurrentPath(path);
     setPathInput(path);
