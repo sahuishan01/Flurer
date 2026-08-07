@@ -1,7 +1,9 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import {
@@ -422,6 +424,58 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  // Starts a native OS drag session for a row press-and-move, rather than
+  // wiring HTML5 `draggable`/dragstart — see dnd.ts's startRowDrag comment
+  // for why the two can't be layered on the same gesture. A move threshold
+  // (rather than firing on mousedown itself) keeps an ordinary click/
+  // ctrl-click from being swallowed as a zero-distance drag.
+  function handleRowMouseDown(e: MouseEvent, entry: DirEntry) {
+    if (e.button !== 0 || renamingPath() === entry.path) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const dragPaths = selected().has(entry.path) && selected().size > 1 ? [...selected()] : [entry.path];
+    const mode: "copy" | "move" = e.ctrlKey || e.metaKey ? "copy" : "move";
+    let started = false;
+
+    function onMove(ev: MouseEvent) {
+      if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+      started = true;
+      cleanup();
+      void beginRowDrag(dragPaths, mode);
+    }
+    function cleanup() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", cleanup);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", cleanup);
+  }
+
+  // Only elements explicitly marked [data-drop-path] (folder rows here,
+  // sidebar/breadcrumb entries elsewhere) count as a drop target — a drop on
+  // a file row or blank list space is a no-op, matching how Explorer treats
+  // non-folder rows. A drop that lands outside our own window entirely
+  // (external app, Explorer, desktop) is left alone: the OS drag itself
+  // already handed the real files to whatever received it.
+  async function beginRowDrag(paths: string[], mode: "copy" | "move") {
+    try {
+      const { result, cursorPos } = await startRowDrag(paths, mode);
+      if (result !== "Dropped") return;
+      const target = await elementAtDropPoint(cursorPos);
+      const dropEl = target?.closest("[data-drop-path]") as HTMLElement | null;
+      const destination = dropEl?.dataset.dropPath;
+      if (!destination || paths.includes(destination)) return;
+      setOpError("");
+      const res = await transferItems(paths, destination, mode);
+      if (res.failed.length > 0) {
+        setOpError(res.failed.map((f) => `${f.path}: ${f.error}`).join("; "));
+      }
+      refresh();
+    } catch (err) {
+      setOpError(String(err));
+    }
+  }
+
   // All currently-selected directories (files in the selection are just
   // skipped) — lets Recalculate act on the whole multi-selection in one
   // click instead of only the single row that was right-clicked.
@@ -528,6 +582,32 @@ export function FileList(props: FileListProps) {
   onMount(() => document.addEventListener("keydown", handleKeyDown));
   onCleanup(() => document.removeEventListener("keydown", handleKeyDown));
 
+  // Drag-in from Explorer/desktop: unlike the internal-drag path above, the
+  // OS hands us real paths directly via this Tauri-core event rather than
+  // anything DOM-level, so there's no dragover/drop wiring on the rows for
+  // this direction — it fires for the whole window regardless of where the
+  // cursor lands, so always copies into whatever folder is currently open.
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type !== "drop") return;
+        setOpError("");
+        transferItems(event.payload.paths, props.path, "copy")
+          .then((res) => {
+            if (res.failed.length > 0) {
+              setOpError(res.failed.map((f) => `${f.path}: ${f.error}`).join("; "));
+            }
+            refresh();
+          })
+          .catch((err) => setOpError(String(err)));
+      })
+      .then((fn) => {
+        unlisten = fn;
+      });
+    onCleanup(() => unlisten?.());
+  });
+
   return (
     <>
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
@@ -570,6 +650,8 @@ export function FileList(props: FileListProps) {
                   }}
                   tabIndex={0}
                   role="row"
+                  data-drop-path={entry.isDir ? entry.path : undefined}
+                  onMouseDown={(e) => handleRowMouseDown(e, entry)}
                   onClick={(e) => handleRowClick(e, entry, index())}
                   onDblClick={() => openEntry(entry)}
                   onKeyDown={(e) => {

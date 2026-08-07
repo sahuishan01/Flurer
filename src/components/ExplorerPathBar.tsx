@@ -57,6 +57,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
                   <button
                     type="button"
                     class="breadcrumb-segment"
+                    data-drop-path={segment.path}
                     onClick={() => {
                       props.onNavigate(segment.path);
                       close();

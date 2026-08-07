@@ -73,6 +73,7 @@ function SidebarEntry(props: SidebarEntryProps) {
         class="sidebar-item"
         classList={{ active: props.active }}
         aria-label={baseName(props.path)}
+        data-drop-path={props.path}
         onClick={() => props.onNavigate(props.path)}
       >
         <span class="sidebar-icon">{props.icon}</span>
@@ -176,6 +177,7 @@ export function Sidebar(props: SidebarProps) {
             }}
             aria-label={driveLabel(volume)}
             data-tip={driveLabel(volume)}
+            data-drop-path={`${volume.driveLetter}\\`}
             onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
           >
             <div
@@ -251,6 +253,7 @@ export function Sidebar(props: SidebarProps) {
             classList={{ active: props.activeView === "explorer" && props.currentPath === entry.path }}
             aria-label={entry.path}
             data-tip={entry.path}
+            data-drop-path={entry.path}
             onClick={() => props.onSelectPath(entry.path)}
           >
             <span class="sidebar-icon">{ICONS[entry.label]?.() ?? <FolderIcon size={15} />}</span>
