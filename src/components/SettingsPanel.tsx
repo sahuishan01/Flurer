@@ -30,6 +30,8 @@ type SettingsPanelProps = {
   onShowProgressWhenIdleChange: (show: boolean) => void;
   globalShortcut: string;
   onGlobalShortcutChange: (shortcut: string) => void;
+  launchAtStartup: boolean;
+  onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -109,6 +111,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onShowProgressWhenIdleChange={props.onShowProgressWhenIdleChange}
               globalShortcut={props.globalShortcut}
               onGlobalShortcutChange={props.onGlobalShortcutChange}
+              launchAtStartup={props.launchAtStartup}
+              onLaunchAtStartupChange={props.onLaunchAtStartupChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}
               onSaveUnsplashApiKey={props.onSaveUnsplashApiKey}
               apiKeyError={props.apiKeyError}

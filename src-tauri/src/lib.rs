@@ -9,6 +9,7 @@ mod progress;
 mod shortcuts;
 mod sizecache;
 mod state;
+mod tray;
 mod updater;
 
 use disks::get_disk_topology;
@@ -52,6 +53,15 @@ pub fn run() {
             // cleared it to turn the shortcut off, which register() treats
             // as a no-op rather than silently falling back to the default.
             shortcuts::register(&app.handle(), &settings.global_shortcut);
+            tray::sync_autostart(&app.handle(), settings.launch_at_startup);
+            tray::setup(&app.handle())?;
+            // The window starts hidden (see tauri.conf.json) so a
+            // login-triggered autostart launch never flashes it open before
+            // we get a chance to check for --minimized — show it now unless
+            // that's how we were launched.
+            if !tray::launched_minimized() {
+                shortcuts::show_and_focus_main_window(&app.handle());
+            }
             let config = Config::load();
             app.manage(AppState {
                 settings: Mutex::new(settings),
@@ -63,6 +73,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {

@@ -286,6 +286,14 @@ function App() {
     persistSettings();
   }
 
+  // Same "backend diffs old vs new inside set_settings" shape as the
+  // shortcut above — this just gets the new value persisted, the actual
+  // Windows registry/startup-folder change happens backend-side.
+  function updateLaunchAtStartup(enabled: boolean) {
+    setSettings("launchAtStartup", enabled);
+    persistSettings();
+  }
+
   function updatePluginSettings(pluginId: string, patch: any) {
     const current = settings.pluginSettings?.[pluginId] ?? {};
     setSettings("pluginSettings", pluginId, { ...current, ...patch });
@@ -851,6 +859,8 @@ function App() {
                   onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
                   globalShortcut={settings.globalShortcut}
                   onGlobalShortcutChange={updateGlobalShortcut}
+                  launchAtStartup={settings.launchAtStartup}
+                  onLaunchAtStartupChange={updateLaunchAtStartup}
                   hasUnsplashApiKey={hasUnsplashApiKey()}
                   onSaveUnsplashApiKey={saveUnsplashApiKey}
                   apiKeyError={apiKeyError()}
