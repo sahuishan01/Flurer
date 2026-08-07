@@ -436,6 +436,24 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                     <button type="button" onClick={props.onNextCategoryWallpaper}>
                       Next →
                     </button>
+                    {/* Category rotation fetches a fresh random photo every
+                        interval, so anything the user likes here is one tick
+                        away from being replaced and gone for good — this is
+                        the only way to keep a specific one around. Saving
+                        just adds it to unsplashFixedList; it doesn't switch
+                        mode, so rotation keeps going undisturbed. */}
+                    <button
+                      type="button"
+                      disabled={!props.wallpaper || props.background.unsplashFixedList.includes(props.wallpaper.urls.regular)}
+                      onClick={() => {
+                        if (!props.wallpaper) return;
+                        toggleFixedListUrl(props.wallpaper.urls.regular, true);
+                      }}
+                    >
+                      {props.wallpaper && props.background.unsplashFixedList.includes(props.wallpaper.urls.regular)
+                        ? "Saved to Fixed List"
+                        : "Save to Fixed List"}
+                    </button>
                   </div>
                 )}
 
