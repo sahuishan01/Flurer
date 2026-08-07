@@ -673,7 +673,10 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               </button>
             </Show>
           </div>
-          <p class="settings-hint">Works even when Flurer isn't focused. Click the field, then press the key combo you want.</p>
+          <p class="settings-hint">
+            Opens a new window every time, like Explorer's Win+E — works even when Flurer isn't focused. Click the
+            field, then press the key combo you want.
+          </p>
         </div>
 
         <label class="checkbox-control">
