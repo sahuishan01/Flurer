@@ -7,6 +7,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use indexmap::IndexMap;
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode, Debouncer};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
@@ -26,15 +27,25 @@ const WORKER_COUNT: usize = 2;
 // cache has changed and, if so, writes it to disk — bounds worst-case data
 // loss on a forced close without persisting on every single computed size.
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(5);
-/// Soft cap on the in-memory folder-size cache. When exceeded the
-/// oldest entries (by insertion order) are evicted to stay within
-/// this limit, preventing unbounded growth during long sessions.
-const MAX_CACHED_SIZES: usize = 500;
+/// Soft cap on the in-memory folder-size cache. When exceeded the oldest
+/// entries (by true insertion order — see the IndexMap below) are evicted
+/// to stay within this limit. Raised from the original 500 now that Flurer
+/// stays resident in the tray (and optionally launches at startup) instead
+/// of running only as long as a window is open — a long-lived process can
+/// reasonably hold a bigger cache than a short one.
+const MAX_CACHED_SIZES: usize = 2000;
 /// Maximum number of size-computation jobs waiting in the channel. When
 /// the user rapidly navigates between many folders this prevents the
 /// pending queue from growing without bound — old jobs for folders no
 /// longer visible are silently dropped at the sender side.
 const MAX_PENDING_JOBS: usize = 20;
+/// Cap on simultaneously-watched folders — bounds OS file-watcher handle
+/// usage. Raised from an original 50 for the same reason as
+/// MAX_CACHED_SIZES: Flurer now stays resident (tray + optional launch at
+/// startup) instead of only watching for as long as one window session
+/// lasts, so it's worth affording more live folders before the oldest
+/// watch gets dropped in favor of a newer one.
+const MAX_WATCHED_ROOTS: usize = 300;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,7 +98,15 @@ pub struct CachedSize {
 
 #[derive(Default)]
 pub struct SizeCacheState {
-    sizes: Mutex<HashMap<PathBuf, CachedSize>>,
+    // IndexMap, not HashMap: eviction below assumes "the first N keys
+    // iterated are the oldest N inserted" — true for IndexMap (it preserves
+    // insertion order), NOT true for HashMap, whose iteration order is
+    // unspecified and effectively random per-process. With a plain HashMap
+    // this was evicting arbitrary entries instead of the oldest ones,
+    // occasionally dropping a folder's cache entry (and, with it, its
+    // membership in `sizes` that handle_debounced_events relies on to know
+    // which folders to keep live-updating) essentially at random.
+    sizes: Mutex<IndexMap<PathBuf, CachedSize>>,
     // Paths queued or currently being computed by a worker thread, so a
     // folder already in flight isn't enqueued twice.
     pending: Mutex<HashSet<PathBuf>>,
@@ -104,10 +123,10 @@ pub struct SizeCacheState {
 /// Loads persisted folder sizes from app settings. On the first run after
 /// upgrading from the old separate `size_cache.json`, migrates that file into
 /// settings and removes it.
-fn load_persisted_sizes(app: &AppHandle) -> HashMap<PathBuf, CachedSize> {
+fn load_persisted_sizes(app: &AppHandle) -> IndexMap<PathBuf, CachedSize> {
     let state = app.state::<AppState>();
     let settings = state.settings.blocking_lock();
-    let from_settings: HashMap<PathBuf, CachedSize> = settings
+    let from_settings: IndexMap<PathBuf, CachedSize> = settings
         .folder_sizes
         .iter()
         .map(|(p, s)| (PathBuf::from(p), *s))
@@ -128,15 +147,15 @@ fn load_persisted_sizes(app: &AppHandle) -> HashMap<PathBuf, CachedSize> {
         .map(|r| r.join("size_cache.json"))
         .ok();
     let Some(path) = legacy_path else {
-        return HashMap::new();
+        return IndexMap::new();
     };
     if !path.is_file() {
-        return HashMap::new();
+        return IndexMap::new();
     }
     let Ok(data) = fs::read_to_string(&path) else {
-        return HashMap::new();
+        return IndexMap::new();
     };
-    let migrated: Option<HashMap<PathBuf, CachedSize>> =
+    let migrated: Option<IndexMap<PathBuf, CachedSize>> =
         serde_json::from_str::<HashMap<String, LegacyEntry>>(&data)
             .ok()
             .map(|m| {
@@ -165,7 +184,7 @@ fn load_persisted_sizes(app: &AppHandle) -> HashMap<PathBuf, CachedSize> {
         let _ = fs::remove_file(&path);
         sizes
     } else {
-        HashMap::new()
+        IndexMap::new()
     }
 }
 
@@ -180,9 +199,24 @@ fn dir_mtime_secs(path: &Path) -> i64 {
         .unwrap_or(0)
 }
 
+// Removes the oldest entries once `cache` exceeds `max`, down to exactly
+// `max`. Relies on IndexMap's insertion-order iteration — `drain` on an
+// index range removes that slice and shifts the rest down, which both
+// targets the actually-oldest entries (a plain HashMap's iteration order
+// is unspecified) and preserves that order for the entries that remain
+// (IndexMap's own `.remove()` is `swap_remove` under the hood, which would
+// silently re-scramble order on every single call and undo the fix the
+// next time this ran).
+fn evict_oldest<V>(cache: &mut IndexMap<PathBuf, V>, max: usize) {
+    if cache.len() > max {
+        let excess = cache.len() - max;
+        cache.drain(0..excess);
+    }
+}
+
 // Drops entries for folders that no longer exist, then writes folder sizes
 // into `appstate.settings.folder_sizes` and persists settings to disk.
-fn save_persisted_sizes(app: &AppHandle, sizes: &HashMap<PathBuf, CachedSize>) {
+fn save_persisted_sizes(app: &AppHandle, sizes: &IndexMap<PathBuf, CachedSize>) {
     let sizes: HashMap<String, CachedSize> = sizes
         .iter()
         .filter(|(path, _)| path.is_dir())
@@ -306,12 +340,10 @@ fn start_watching(state: &AppState, path: &Path) {
     if roots.iter().any(|p| p == path) {
         return;
     }
-    // Keep at most 50 watched roots to avoid accumulating OS file
-    // watcher handles across the whole session. When the cap is
-    // reached the oldest watched root is dropped — its cached size
-    // stays in the map but won't auto-update on filesystem changes
-    // until the user visits that folder again.
-    if roots.len() >= 50 {
+    // When the cap is reached the oldest watched root is dropped — its
+    // cached size stays in the map but won't auto-update on filesystem
+    // changes until the user visits that folder again.
+    if roots.len() >= MAX_WATCHED_ROOTS {
         let removed = roots.remove(0);
         if let Some(debouncer) = state.size_cache.debouncer.lock().unwrap().as_mut() {
             let _ = debouncer.watcher().unwatch(&removed);
@@ -393,13 +425,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 }
                 // Evict oldest entries when the cache exceeds the cap
                 // to prevent unbounded growth during long sessions.
-                if cache.len() > MAX_CACHED_SIZES {
-                    let excess = cache.len() - MAX_CACHED_SIZES;
-                    let keys: Vec<PathBuf> = cache.keys().take(excess).cloned().collect();
-                    for key in keys {
-                        cache.remove(&key);
-                    }
-                }
+                evict_oldest(&mut cache, MAX_CACHED_SIZES);
             }
             state.size_cache.pending.lock().unwrap().remove(&job.path);
             *state.size_cache.dirty.lock().unwrap() = true;
@@ -570,6 +596,41 @@ mod tests {
     use super::*;
     use std::time::Instant;
     use tempfile::tempdir;
+
+    #[test]
+    fn evict_oldest_removes_lowest_index_entries_first() {
+        let mut cache: IndexMap<PathBuf, CachedSize> = IndexMap::new();
+        for i in 0..5 {
+            cache.insert(PathBuf::from(format!("/path{i}")), CachedSize { size: i, dir_mtime: 0 });
+        }
+
+        evict_oldest(&mut cache, 3);
+
+        assert_eq!(cache.len(), 3);
+        assert!(!cache.contains_key(&PathBuf::from("/path0")));
+        assert!(!cache.contains_key(&PathBuf::from("/path1")));
+        let keys: Vec<&PathBuf> = cache.keys().collect();
+        assert_eq!(keys, vec![&PathBuf::from("/path2"), &PathBuf::from("/path3"), &PathBuf::from("/path4")]);
+    }
+
+    #[test]
+    fn evict_oldest_survives_many_rounds_in_correct_order() {
+        // The scenario the original HashMap-based version got wrong: many
+        // insert-then-maybe-evict cycles over a long session (exactly what
+        // a long-running, tray-resident Flurer process does now) need every
+        // round to evict the entries that are actually oldest, not an
+        // arbitrary unspecified subset.
+        let mut cache: IndexMap<PathBuf, CachedSize> = IndexMap::new();
+        for i in 0..50u64 {
+            cache.insert(PathBuf::from(format!("/path{i}")), CachedSize { size: i, dir_mtime: 0 });
+            evict_oldest(&mut cache, 5);
+        }
+        let keys: Vec<PathBuf> = cache.keys().cloned().collect();
+        assert_eq!(
+            keys,
+            (45..50u64).map(|i| PathBuf::from(format!("/path{i}"))).collect::<Vec<_>>()
+        );
+    }
 
     #[test]
     fn compute_dir_size_sums_nested_files() {
