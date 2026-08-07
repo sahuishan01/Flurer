@@ -53,3 +53,13 @@ pub fn show_and_focus_main_window(app: &AppHandle) {
     let _ = window.show();
     let _ = window.set_focus();
 }
+
+// The other half of the tray-residency behavior in src/tray — closing the
+// window hides it rather than exiting the process, so the global shortcut
+// (and everything else that needs the app running) stays alive.
+pub fn hide_main_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.hide();
+}

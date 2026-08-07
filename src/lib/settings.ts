@@ -51,6 +51,9 @@ export type Settings = {
   // OS-wide hotkey that brings Flurer to front/focus from anywhere, even
   // when it isn't focused or is minimized. Empty string means disabled.
   globalShortcut: string;
+  // Launches Flurer minimized to the tray on login, so the shortcut above
+  // is live from boot instead of only after the app's been opened once.
+  launchAtStartup: boolean;
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -86,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginSettings: {},
   disabledPlugins: [],
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
+  launchAtStartup: false,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

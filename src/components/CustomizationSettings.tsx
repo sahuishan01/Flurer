@@ -65,7 +65,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -93,6 +93,8 @@ type CustomizationSettingsProps = {
   onShowProgressWhenIdleChange: (show: boolean) => void;
   globalShortcut: string;
   onGlobalShortcutChange: (shortcut: string) => void;
+  launchAtStartup: boolean;
+  onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -673,6 +675,19 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           </div>
           <p class="settings-hint">Works even when Flurer isn't focused. Click the field, then press the key combo you want.</p>
         </div>
+
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.launchAtStartup}
+            onChange={(e) => props.onLaunchAtStartupChange(e.currentTarget.checked)}
+          />
+          Launch at startup (minimized to the tray)
+        </label>
+        <p class="settings-hint">
+          Closing the window now minimizes to the tray instead of quitting, so the shortcut above keeps working. Enable
+          this too if you want it live from the moment you log in, not just after opening Flurer once.
+        </p>
       </section>
       )}
     </div>

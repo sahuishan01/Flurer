@@ -136,6 +136,13 @@ pub struct Settings {
     // which both treat "" as a no-op.
     #[serde(default = "default_global_shortcut")]
     pub global_shortcut: String,
+    // Whether Flurer launches (minimized to the tray) on login, so the
+    // global shortcut above is live from boot rather than only after the
+    // user has opened the app at least once that session. Off by default —
+    // this is an opt-in, not something we register on the user's behalf
+    // without asking.
+    #[serde(default)]
+    pub launch_at_startup: bool,
 }
 
 fn default_global_shortcut() -> String {
@@ -165,6 +172,7 @@ impl Default for Settings {
             disabled_plugins: Vec::new(),
             folder_sizes: HashMap::new(),
             global_shortcut: default_global_shortcut(),
+            launch_at_startup: false,
         }
     }
 }
