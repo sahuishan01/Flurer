@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
+import { BulkRenameDialog } from "./BulkRenameDialog";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import { PropertiesDialog } from "./PropertiesDialog";
@@ -78,7 +79,8 @@ const persistentFolderSizes = new Map<string, FolderSizeState>();
 type UndoAction =
   | { type: "rename"; from: string; to: string }
   | { type: "move"; items: { from: string; to: string }[] }
-  | { type: "create"; path: string };
+  | { type: "create"; path: string }
+  | { type: "bulkRename"; items: { from: string; to: string }[] };
 
 export function FileList(props: FileListProps) {
   const [entries, setEntries] = createSignal<DirEntry[]>([]);
@@ -104,6 +106,7 @@ export function FileList(props: FileListProps) {
   function undoLabel(action: UndoAction): string {
     if (action.type === "rename") return `Renamed "${baseName(action.from)}"`;
     if (action.type === "create") return `Created "${baseName(action.path)}"`;
+    if (action.type === "bulkRename") return `Renamed ${action.items.length} items`;
     return action.items.length > 1 ? `Moved ${action.items.length} items` : `Moved "${baseName(action.items[0].from)}"`;
   }
 
@@ -118,6 +121,16 @@ export function FileList(props: FileListProps) {
         await invoke<string>("rename_item", { path: action.to, newName: baseName(action.from) });
       } else if (action.type === "create") {
         await invoke<BatchResult>("delete_items", { paths: [action.path] });
+      } else if (action.type === "bulkRename") {
+        // Each item renamed independently, same as the forward operation —
+        // there's no batch rename command to group these into.
+        for (const { from, to } of action.items) {
+          try {
+            await invoke<string>("rename_item", { path: to, newName: baseName(from) });
+          } catch (err) {
+            setOpError((prev) => (prev ? `${prev}; ${String(err)}` : String(err)));
+          }
+        }
       } else {
         // Group by original parent so items that came from the same folder
         // move back together in one call — different parents just mean a
@@ -146,6 +159,7 @@ export function FileList(props: FileListProps) {
   const [renameValue, setRenameValue] = createSignal("");
   const [deleteTargets, setDeleteTargets] = createSignal<string[] | null>(null);
   const [propertiesTarget, setPropertiesTarget] = createSignal<string | null>(null);
+  const [bulkRenameOpen, setBulkRenameOpen] = createSignal(false);
 
   // Folder sizes are computed lazily in the background by the Rust size
   // cache (never blocking the listing itself) and pushed here as they
@@ -650,6 +664,15 @@ export function FileList(props: FileListProps) {
         onSelect: () => startRename(menu.targetPath!),
         disabled: selected().size !== 1,
       },
+      ...(selected().size > 1
+        ? [
+            {
+              label: `Bulk rename (${selected().size})`,
+              icon: <PencilIcon size={15} />,
+              onSelect: () => setBulkRenameOpen(true),
+            },
+          ]
+        : []),
       ...(dirPaths.length > 0
         ? [
             {
@@ -911,6 +934,24 @@ export function FileList(props: FileListProps) {
           />
         );
       })()}
+
+      {bulkRenameOpen() && (
+        <BulkRenameDialog
+          entries={sortedEntries().filter((e) => selected().has(e.path))}
+          onClose={() => setBulkRenameOpen(false)}
+          onRenamed={(renamed, failures) => {
+            setBulkRenameOpen(false);
+            if (renamed.length > 0) {
+              pushUndo({ type: "bulkRename", items: renamed });
+            }
+            if (failures.length > 0) {
+              setOpError(failures.map((f) => `${f.path}: ${f.error}`).join("; "));
+            }
+            setSelected(new Set(renamed.map((r) => r.to)));
+            refresh();
+          }}
+        />
+      )}
 
       {undoAction() && (
         <div class="undo-toast" role="status">
