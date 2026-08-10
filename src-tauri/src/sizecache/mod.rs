@@ -42,11 +42,6 @@ const MAX_CACHED_ROOTS: usize = 10_000;
 /// its subdirectories, the very folder that walk was for). Switching drives
 /// then found an empty cache and recomputed everything from scratch.
 const MAX_CACHED_SUBDIRS: usize = 50_000;
-/// Maximum number of size-computation jobs waiting in the channel. When
-/// the user rapidly navigates between many folders this prevents the
-/// pending queue from growing without bound — old jobs for folders no
-/// longer visible are silently dropped at the sender side.
-const MAX_PENDING_JOBS: usize = 20;
 /// Cap on simultaneously-watched folders — bounds OS file-watcher handle
 /// usage. Raised from an original 50 for the same reason as
 /// MAX_CACHED_ROOTS: Flurer now stays resident (tray + optional launch at
@@ -61,6 +56,7 @@ pub struct FolderSizeUpdate {
     pub path: String,
     pub size: u64,
     pub done: bool,
+    pub error: Option<String>,
 }
 
 /// `get_folder_size` never blocks on the recursive walk itself — it returns
@@ -128,7 +124,10 @@ pub struct SizeCacheState {
     // running.
     pending: Mutex<HashMap<PathBuf, Option<TrackedJob>>>,
     watched_roots: Mutex<Vec<PathBuf>>,
-    job_sender: Mutex<Option<mpsc::SyncSender<SizeJob>>>,
+    // The pending map deduplicates paths, so an unbounded sender can accept
+    // every visible folder from a large drive without silently dropping jobs
+    // when the two workers are busy.
+    job_sender: Mutex<Option<mpsc::Sender<SizeJob>>>,
     // Holding the debouncer keeps its background thread and OS watch handles
     // alive; dropping it silently stops all watching.
     debouncer: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
@@ -415,18 +414,48 @@ pub fn compute_dir_size_recursive<F>(
 where
     F: FnMut(u64),
 {
+    let mut unreadable = 0;
+    compute_dir_size_recursive_reported(path, on_progress, subdirs, &mut unreadable)
+}
+
+fn compute_dir_size_recursive_reported<F>(
+    path: &Path,
+    on_progress: &mut F,
+    subdirs: &mut HashMap<PathBuf, u64>,
+    unreadable: &mut u64,
+) -> u64
+where
+    F: FnMut(u64),
+{
     let mut total = 0u64;
     let Ok(read_dir) = fs::read_dir(path) else {
+        *unreadable += 1;
         return 0;
     };
 
-    for entry in read_dir.flatten() {
+    for entry in read_dir {
+        let Ok(entry) = entry else {
+            *unreadable += 1;
+            continue;
+        };
+        // Do not follow links/reparse points during a recursive walk. Windows
+        // junctions commonly point back into an ancestor (especially on
+        // secondary drives), which otherwise turns a size calculation into
+        // an endless recursion.
+        let Ok(file_type) = entry.file_type() else {
+            *unreadable += 1;
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
         let Ok(metadata) = entry.metadata() else {
+            *unreadable += 1;
             continue;
         };
         if metadata.is_dir() {
             let subdir_path = entry.path();
-            let subdir_size = compute_dir_size_recursive(&subdir_path, on_progress, subdirs);
+            let subdir_size = compute_dir_size_recursive_reported(&subdir_path, on_progress, subdirs, unreadable);
             subdirs.insert(subdir_path, subdir_size);
             total += subdir_size;
         } else {
@@ -457,29 +486,39 @@ fn folder_label(path: &Path) -> String {
 }
 
 /// Queues a path for background computation unless it's already queued or in
-/// progress. Returns whether it was newly queued.
+/// progress. The pending map deduplicates repeated listings and recalculates.
 fn enqueue(state: &AppState, path: PathBuf) -> bool {
-    enqueue_job(state, path, None)
+    matches!(enqueue_job(state, path, None), EnqueueResult::Queued)
 }
 
 /// Same as `enqueue`, but reports the computation through the unified
 /// operation-progress event — for computations the user is actually waiting
 /// on (a folder opened for the first time, or an explicit recalculate),
 /// as opposed to silent background revalidation.
-fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf) -> bool {
+fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<(), String> {
     let task_id = next_task_id();
     let label = format!("Calculating size — {}", folder_label(&path));
-    let queued = enqueue_job(state, path, Some(TrackedJob { task_id, label: label.clone() }));
-    if queued {
-        emit_progress(app, task_id, &label, 0, 0, false, None, true);
+    match enqueue_job(state, path, Some(TrackedJob { task_id, label: label.clone() })) {
+        EnqueueResult::Queued | EnqueueResult::Adopted => {
+            emit_progress(app, task_id, &label, 0, 0, false, None, true);
+            Ok(())
+        }
+        EnqueueResult::AlreadyPending => Ok(()),
+        EnqueueResult::Rejected => Err("Folder size worker is unavailable".to_string()),
     }
-    queued
 }
 
-/// Returns whether the caller should now show progress for this path —
-/// either because the walk was newly queued, or because an already-running
-/// silent walk just adopted the caller's tracking.
-fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) -> bool {
+enum EnqueueResult {
+    Queued,
+    Adopted,
+    AlreadyPending,
+    Rejected,
+}
+
+/// Distinguishes new work, adoption of an existing silent walk, duplicates,
+/// and a closed worker channel so callers never report Pending for a job that
+/// was not actually accepted.
+fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) -> EnqueueResult {
     let mut pending = state.size_cache.pending.lock().unwrap();
 
     if let Some(slot) = pending.get_mut(&path) {
@@ -492,29 +531,28 @@ fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) ->
         // asked for is already happening, it just wasn't visible.
         if slot.is_none() && tracking.is_some() {
             *slot = tracking;
-            return true;
+            return EnqueueResult::Adopted;
         }
-        return false;
+        return EnqueueResult::AlreadyPending;
     }
 
     pending.insert(path.clone(), tracking);
-    // Still holding `pending` while trying to send — if the channel is
-    // full we atomically back out by removing from `pending`. Otherwise a
-    // path stuck in `pending` with no job in the channel would make
-    // get_folder_size report Pending forever for that path.
+    // Still holding `pending` while trying to send — if the worker channel
+    // has been closed, atomically back out so the path cannot report Pending
+    // forever without a corresponding job.
     let sent = state
         .size_cache
         .job_sender
         .lock()
         .unwrap()
         .as_ref()
-        .map(|sender| sender.try_send(SizeJob { path: path.clone() }).is_ok())
+        .map(|sender| sender.send(SizeJob { path: path.clone() }).is_ok())
         .unwrap_or(false);
     if !sent {
         pending.remove(&path);
-        return false;
+        return EnqueueResult::Rejected;
     }
-    true
+    EnqueueResult::Queued
 }
 
 /// Registers a recursive watch covering `path`.
@@ -588,6 +626,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                             path: path_clone.clone(),
                             size: current_size,
                             done: false,
+                            error: None,
                         },
                     );
                     last_emit = std::time::Instant::now();
@@ -601,6 +640,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                             path: path_clone.clone(),
                             size: current_size,
                             done: false,
+                            error: None,
                         },
                     );
                     last_emit = now;
@@ -608,7 +648,8 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             };
 
             let mut subdirs = HashMap::new();
-            let size = compute_dir_size_recursive(&job.path, &mut on_progress, &mut subdirs);
+            let mut unreadable = 0;
+            let size = compute_dir_size_recursive_reported(&job.path, &mut on_progress, &mut subdirs, &mut unreadable);
             let state = app.state::<AppState>();
             // Snapshot current mtime right after the walk, so the persisted
             // mtime won't be newer than the computed size.
@@ -634,6 +675,9 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                     path: path_str,
                     size,
                     done: true,
+                    error: (unreadable > 0).then(|| {
+                        format!("Could not read {unreadable} item(s); the calculated size may be incomplete")
+                    }),
                 },
             );
             if let Some(TrackedJob { task_id, label }) = tracking {
@@ -648,7 +692,7 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
 /// watcher. Call once during app setup; `get_folder_size` enqueues specific
 /// directories on demand.
 pub fn init(app: &AppHandle) {
-    let (tx, rx) = mpsc::sync_channel::<SizeJob>(MAX_PENDING_JOBS);
+    let (tx, rx) = mpsc::channel::<SizeJob>();
     let receiver = Arc::new(Mutex::new(rx));
 
     {
@@ -730,6 +774,7 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
     if !path_buf.is_dir() {
         return Err(format!("{} is not a directory", path));
     }
+    fs::read_dir(&path_buf).map_err(|error| format!("Cannot read {}: {}", path_buf.display(), error))?;
 
     // A recompute (manual or silent revalidation, below) already has this
     // path in `pending` — report Pending instead of the cached value that's
@@ -770,7 +815,7 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
     // Genuinely uncached — the frontend is about to show a "Calculating…"
     // state for this, so it's worth surfacing in the unified progress panel
     // too, unlike the silent revalidation above.
-    enqueue_tracked(&app, &state, path_buf);
+    enqueue_tracked(&app, &state, path_buf)?;
     Ok(FolderSizeResponse::Pending)
 }
 
@@ -783,12 +828,13 @@ pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, 
     if !path_buf.is_dir() {
         return Err(format!("{} is not a directory", path));
     }
+    fs::read_dir(&path_buf).map_err(|error| format!("Cannot read {}: {}", path_buf.display(), error))?;
 
     // Enqueueing puts the path in `pending`, which is what makes
     // get_folder_size report Pending during the recompute (see above) —
     // without removing it from `sizes`, which handle_debounced_events needs
     // to keep recognizing this folder as one to watch for live changes.
-    enqueue_tracked(&app, &state, path_buf);
+    enqueue_tracked(&app, &state, path_buf)?;
     Ok(FolderSizeResponse::Pending)
 }
 
