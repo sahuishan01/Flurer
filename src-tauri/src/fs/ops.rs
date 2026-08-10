@@ -6,6 +6,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
@@ -560,6 +561,95 @@ pub fn get_path_metadata(path: String) -> Result<PathMetadata, String> {
         is_dir: metadata.is_dir(),
         item_count,
     })
+}
+
+const PREVIEW_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg"];
+const PREVIEW_TEXT_EXTENSIONS: &[&str] = &[
+    "txt", "md", "markdown", "json", "toml", "yaml", "yml", "xml", "csv", "log", "rs", "ts", "tsx", "js", "jsx",
+    "mjs", "cjs", "css", "html", "htm", "py", "sh", "bash", "zsh", "c", "h", "cpp", "hpp", "cc", "java", "kt",
+    "go", "rb", "php", "sql", "ini", "conf", "cfg", "env", "gitignore", "gitattributes", "lock",
+];
+
+// 8 MiB — comfortably covers a typical wallpaper-sized photo without
+// reading something enormous into memory just to show a thumbnail-sized
+// preview.
+const PREVIEW_MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+// 256 KiB — plenty for "does this file look like what I think it is",
+// which is the preview panel's actual job; anything larger gets a
+// truncated read rather than pulling a huge log file into memory.
+const PREVIEW_MAX_TEXT_BYTES: u64 = 256 * 1024;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum FilePreview {
+    // rename_all above only renames the variant tag ("kind"), not fields
+    // inside a struct variant — confirmed by testing this in isolation,
+    // since serde silently leaves data_url as-is otherwise instead of
+    // erroring. Needs its own explicit rename.
+    Image {
+        #[serde(rename = "dataUrl")]
+        data_url: String,
+    },
+    Text { content: String, truncated: bool },
+    // Distinguished from Unsupported so the frontend can say *why* nothing
+    // is shown ("too large to preview" vs. "no preview available") rather
+    // than one generic message covering both.
+    TooLarge,
+    Unsupported,
+}
+
+#[tauri::command]
+pub fn get_file_preview(path: String) -> Result<FilePreview, String> {
+    let path_buf = PathBuf::from(&path);
+    let metadata = fs::metadata(&path_buf).map_err(|e| e.to_string())?;
+    if metadata.is_dir() {
+        return Ok(FilePreview::Unsupported);
+    }
+
+    let ext = path_buf
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if PREVIEW_IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        if metadata.len() > PREVIEW_MAX_IMAGE_BYTES {
+            return Ok(FilePreview::TooLarge);
+        }
+        let bytes = fs::read(&path_buf).map_err(|e| e.to_string())?;
+        let mime = match ext.as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "bmp" => "image/bmp",
+            "ico" => "image/x-icon",
+            "svg" => "image/svg+xml",
+            _ => "application/octet-stream",
+        };
+        return Ok(FilePreview::Image {
+            data_url: format!("data:{mime};base64,{}", STANDARD.encode(&bytes)),
+        });
+    }
+
+    if PREVIEW_TEXT_EXTENSIONS.contains(&ext.as_str()) {
+        let truncated = metadata.len() > PREVIEW_MAX_TEXT_BYTES;
+        let mut file = fs::File::open(&path_buf).map_err(|e| e.to_string())?;
+        let cap = PREVIEW_MAX_TEXT_BYTES.min(metadata.len()) as usize;
+        let mut buf = vec![0u8; cap];
+        file.read_exact(&mut buf).map_err(|e| e.to_string())?;
+        // Lossy rather than a hard UTF-8 requirement: truncating at exactly
+        // PREVIEW_MAX_TEXT_BYTES can land mid-character for multi-byte
+        // UTF-8 text, and a file that isn't valid UTF-8 at all just isn't a
+        // text file worth previewing as one — either way, best-effort
+        // replacement characters beat failing the whole preview.
+        return Ok(FilePreview::Text {
+            content: String::from_utf8_lossy(&buf).into_owned(),
+            truncated,
+        });
+    }
+
+    Ok(FilePreview::Unsupported)
 }
 
 #[cfg(test)]
