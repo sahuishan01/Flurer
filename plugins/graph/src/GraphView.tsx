@@ -187,12 +187,20 @@ export function GraphView(props: GraphViewProps) {
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
-    listen<{ path: string; size: number; done: boolean }>("folder-size-updated", (event) => {
-      applyFolderSize(event.payload.path, event.payload.size, event.payload.done);
+    let disposed = false;
+    listen<{ path: string; size: number; done: boolean; error?: string | null }>("folder-size-updated", (event) => {
+      applyFolderSize(event.payload.path, event.payload.size, event.payload.done, event.payload.error);
     }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       unlisten = fn;
     });
-    onCleanup(() => unlisten?.());
+    onCleanup(() => {
+      disposed = true;
+      unlisten?.();
+    });
   });
 
   onMount(() => {
@@ -265,6 +273,7 @@ export function GraphView(props: GraphViewProps) {
       else markFolderPending(path);
     } catch (err) {
       console.error("Failed to compute folder size for", path, err);
+      markFolderError(path, String(err));
     }
   }
 
@@ -274,15 +283,25 @@ export function GraphView(props: GraphViewProps) {
       await invoke<FolderSizeResponse>("recompute_folder_size", { path });
     } catch (err) {
       console.error("Failed to recompute folder size for", path, err);
+      markFolderError(path, String(err));
     }
   }
 
   function markFolderPending(path: string) {
-    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, sizePending: true })));
+    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, sizePending: true, error: "" })));
   }
 
-  function applyFolderSize(path: string, size: number, done: boolean) {
-    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, size, sizePending: !done })));
+  function applyFolderSize(path: string, size: number, done: boolean, error?: string | null) {
+    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({
+      ...n,
+      size,
+      sizePending: !done,
+      error: error ?? "",
+    })));
+  }
+
+  function markFolderError(path: string, error: string) {
+    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, sizePending: false, error })));
   }
 
   function idDepth(id: string): number {

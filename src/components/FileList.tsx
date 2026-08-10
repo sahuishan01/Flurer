@@ -64,7 +64,7 @@ function sortIndicator(active: boolean, direction: SortDirection): string {
   return direction === "ascending" ? " ▲" : " ▼";
 }
 
-type FolderSizeState = "pending" | { size: number; done: boolean };
+type FolderSizeState = "pending" | { size: number; done: boolean; error?: string };
 
 // Module-level, so it survives FileList unmounting — ExplorerView (and
 // therefore FileList) is torn down whenever the user switches to Settings
@@ -281,18 +281,38 @@ export function FileList(props: FileListProps) {
     const list = entries();
     const known = untrack(folderSizes);
     for (const entry of list) {
-      if (entry.isDir && !known.has(entry.path)) fetchFolderSize(entry.path);
+      const state = known.get(entry.path);
+      // FileList is unmounted when Settings opens. If the backend finishes a
+      // walk while this listener is gone, the module-level cache keeps the
+      // stale pending state. Ask Rust again on remount so a completed walk is
+      // replayed as Ready instead of leaving the row spinning forever.
+      const pending = state === "pending" || (typeof state === "object" && !state.done);
+      if (entry.isDir && (!state || pending)) fetchFolderSize(entry.path);
     }
   });
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
-    listen<{ path: string; size: number; done: boolean }>("folder-size-updated", (event) => {
-      applyFolderSize(event.payload.path, event.payload.size, event.payload.done);
+    let disposed = false;
+    listen<{ path: string; size: number; done: boolean; error?: string | null }>("folder-size-updated", (event) => {
+      applyFolderSize(event.payload.path, event.payload.size, event.payload.done, event.payload.error);
     }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
       unlisten = fn;
+      // `listen()` is asynchronous. A very small/empty folder can finish
+      // between the invoke() call and listener registration, so replay any
+      // pending paths once the listener is definitely live.
+      for (const [path, state] of folderSizes()) {
+        if (state === "pending" || (typeof state === "object" && !state.done)) fetchFolderSize(path);
+      }
     });
-    onCleanup(() => unlisten?.());
+    onCleanup(() => {
+      disposed = true;
+      unlisten?.();
+    });
   });
 
   async function fetchFolderSize(path: string) {
@@ -302,6 +322,7 @@ export function FileList(props: FileListProps) {
       else markFolderPending(path);
     } catch (err) {
       console.error("Failed to compute folder size for", path, err);
+      markFolderError(path, String(err));
     }
   }
 
@@ -313,6 +334,7 @@ export function FileList(props: FileListProps) {
       await invoke<FolderSizeResponse>("recompute_folder_size", { path });
     } catch (err) {
       console.error("Failed to recompute folder size for", path, err);
+      markFolderError(path, String(err));
     }
   }
 
@@ -355,8 +377,16 @@ export function FileList(props: FileListProps) {
     });
   }
 
-  function applyFolderSize(path: string, size: number, done: boolean) {
-    setFolderSizes((prev) => touchAndTrim(new Map(prev), path, { size, done }));
+  function applyFolderSize(path: string, size: number, done: boolean, error?: string | null) {
+    setFolderSizes((prev) => touchAndTrim(new Map(prev), path, { size, done, ...(error ? { error } : {}) }));
+  }
+
+  function markFolderError(path: string, error: string) {
+    setFolderSizes((prev) => {
+      const existing = prev.get(path);
+      const size = existing && typeof existing === "object" ? existing.size : 0;
+      return touchAndTrim(new Map(prev), path, { size, done: true, error });
+    });
   }
 
   function renderSizeCell(entry: DirEntry) {
@@ -365,7 +395,7 @@ export function FileList(props: FileListProps) {
     if (state && typeof state === "object") {
       const formatted = formatBytes(state.size);
       if (state.done) {
-        return formatted;
+        return <span title={state.error}>{state.error && state.size === 0 ? "Unavailable" : formatted}</span>;
       } else {
         return (
           <span class="size-calculating">
