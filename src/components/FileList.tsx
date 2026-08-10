@@ -782,8 +782,15 @@ export function FileList(props: FileListProps) {
     return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
   }
 
+  function isPreviewTextTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest(".preview-panel-text") !== null;
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
-    if (isTypingTarget(document.activeElement)) return;
+    if (isTypingTarget(document.activeElement) || isPreviewTextTarget(e.target) || isPreviewTextTarget(document.activeElement)) return;
+    const selectionAnchor = window.getSelection()?.anchorNode;
+    const selectionElement = selectionAnchor instanceof Element ? selectionAnchor : selectionAnchor?.parentElement;
+    if (selectionElement?.closest(".preview-panel-text")) return;
 
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === "Delete") {
