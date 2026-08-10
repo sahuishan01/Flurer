@@ -7,6 +7,7 @@ import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
 import { BulkRenameDialog } from "./BulkRenameDialog";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
+import { PreviewPanel } from "./PreviewPanel";
 import { PropertiesDialog } from "./PropertiesDialog";
 import {
   ClipboardIcon,
@@ -153,6 +154,26 @@ export function FileList(props: FileListProps) {
 
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = createSignal<number | null>(null);
+
+  // Preview panel: shows automatically whenever exactly one file (not a
+  // folder — nothing to preview there) is selected, rather than needing a
+  // separate toggle threaded through ExplorerPathBar/App.tsx. Dismissing it
+  // only lasts until the selection actually changes to a new single file —
+  // reselecting the same file after dismissing keeps it closed, but
+  // selecting a different one reopens it, matching how most preview panes
+  // (VS Code's, Explorer's) treat "closed" as scoped to the current pick.
+  const [previewDismissed, setPreviewDismissed] = createSignal(false);
+  const previewPath = createMemo(() => {
+    const sel = selected();
+    if (sel.size !== 1) return null;
+    const [only] = sel;
+    const entry = entries().find((e) => e.path === only);
+    return entry && !entry.isDir ? entry.path : null;
+  });
+  createEffect(() => {
+    previewPath();
+    setPreviewDismissed(false);
+  });
 
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = createSignal<string | null>(null);
@@ -805,6 +826,8 @@ export function FileList(props: FileListProps) {
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
         {error() && <p class="file-list-error">{error()}</p>}
         {opError() && <p class="file-list-error">{opError()}</p>}
+        <div class="file-list-split">
+        <div class="file-list-table-wrap">
         <table class="file-table">
           <thead>
             <tr>
@@ -889,6 +912,12 @@ export function FileList(props: FileListProps) {
             </For>
           </tbody>
         </table>
+        </div>
+
+        <Show when={previewPath() && !previewDismissed()}>
+          <PreviewPanel path={previewPath()!} onClose={() => setPreviewDismissed(true)} />
+        </Show>
+        </div>
       </div>
 
       {/* Rendered outside .file-list on purpose: that container has its own
