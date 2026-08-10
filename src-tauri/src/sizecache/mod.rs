@@ -50,13 +50,10 @@ const MAX_TRACKED_FILES: usize = 250_000;
 // every debounce window. Do not start another fallback walk until this window
 // has elapsed; the final event after activity stops still gets processed.
 const WATCHER_FULL_RECOMPUTE_COOLDOWN: Duration = Duration::from_secs(3);
-/// Cap on simultaneously-watched folders — bounds OS file-watcher handle
-/// usage. Raised from an original 50 for the same reason as
-/// MAX_CACHED_ROOTS: Flurer now stays resident (tray + optional launch at
-/// startup) instead of only watching for as long as one window session
-/// lasts, so it's worth affording more live folders before the oldest
-/// watch gets dropped in favor of a newer one.
-const MAX_WATCHED_ROOTS: usize = 300;
+// Cap on simultaneously-watched filesystem roots. In normal use this is one
+// per mounted drive/volume, not one per folder: the event path itself is
+// propagated through cached parents in apply_incremental_file_event().
+const MAX_WATCHED_ROOTS: usize = 32;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,6 +85,7 @@ struct TrackedJob {
 
 struct SizeJob {
     path: PathBuf,
+    watcher_generation: Option<u64>,
 }
 
 /// A cached folder size with the directory's modification time at the moment
@@ -125,6 +123,7 @@ pub struct SizeCacheState {
     // to push out the entries in `roots` (see MAX_CACHED_SUBDIRS).
     subdirs: Mutex<IndexMap<PathBuf, CachedSize>>,
     tracked_files: Mutex<HashMap<PathBuf, u64>>,
+    watcher_generation: Mutex<u64>,
     watcher_recomputes: Mutex<HashMap<PathBuf, Instant>>,
     // Paths queued or currently being computed by a worker thread, so a
     // folder already in flight isn't walked twice. The value is the
@@ -151,6 +150,18 @@ pub struct SizeCacheState {
 
 pub fn invalidate_incremental_tracking(state: &AppState) {
     state.size_cache.tracked_files.lock().unwrap().clear();
+    *state.size_cache.watcher_generation.lock().unwrap() += 1;
+    state.size_cache.pending.lock().unwrap().retain(|_, tracking| tracking.is_some());
+
+    let watched = {
+        let mut roots = state.size_cache.watched_roots.lock().unwrap();
+        std::mem::take(&mut *roots)
+    };
+    if let Some(watcher) = state.size_cache.debouncer.lock().unwrap().as_mut() {
+        for root in watched {
+            let _ = watcher.unwatch(&root);
+        }
+    }
 }
 
 // The on-disk cache format. An ordered Vec rather than a map because the
@@ -734,6 +745,7 @@ fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) ->
         return EnqueueResult::AlreadyPending;
     }
 
+    let watcher_job = tracking.is_none();
     pending.insert(path.clone(), tracking);
     // Still holding `pending` while trying to send — if the worker channel
     // has been closed, atomically back out so the path cannot report Pending
@@ -744,7 +756,10 @@ fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) ->
         .lock()
         .unwrap()
         .as_ref()
-        .map(|sender| sender.send(SizeJob { path: path.clone() }).is_ok())
+        .map(|sender| {
+            let watcher_generation = watcher_job.then(|| *state.size_cache.watcher_generation.lock().unwrap());
+            sender.send(SizeJob { path: path.clone(), watcher_generation }).is_ok()
+        })
         .unwrap_or(false);
     if !sent {
         pending.remove(&path);
@@ -753,19 +768,19 @@ fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) ->
     EnqueueResult::Queued
 }
 
-/// Registers a recursive watch covering `path`.
-///
-/// Watches the *parent* rather than `path` itself, because a recursive
-/// watch on the parent already covers every sibling. Listing one folder
-/// asks for the size of all of its children, so watching each child
-/// individually burned one OS watch handle per row and blew through
-/// MAX_WATCHED_ROOTS after a handful of navigations — evicting watches for
-/// folders the user was still looking at. One watch per *visited* folder
-/// covers the same ground. Drive roots have no parent and are watched
-/// directly.
+/// Registers one recursive watch for the filesystem root containing `path`.
+/// The callback receives the changed file path and walks its cached parents,
+/// so no watcher is needed at each folder level.
+fn watch_scope(path: &Path) -> PathBuf {
+    path.ancestors().last().unwrap_or(path).to_path_buf()
+}
+
 fn start_watching(state: &AppState, path: &Path) {
-    let scope = path.parent().unwrap_or(path);
-    start_watching_exact(state, scope);
+    if !state.settings.blocking_lock().live_folder_size_updates {
+        return;
+    }
+    let scope = watch_scope(path);
+    start_watching_exact(state, &scope);
 }
 
 fn start_watching_exact(state: &AppState, path: &Path) {
@@ -801,6 +816,21 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 // Sender dropped (app shutting down) — nothing left to do.
                 break;
             };
+
+            let state = app.state::<AppState>();
+            if let Some(job_generation) = job.watcher_generation {
+                let current_generation = *state.size_cache.watcher_generation.lock().unwrap();
+                if job_generation != current_generation {
+                    // A live-update setting change invalidated this queued
+                    // walk. Do not remove a newer explicit Recalculate that
+                    // may have adopted/replaced the same path.
+                    let mut pending = state.size_cache.pending.lock().unwrap();
+                    if matches!(pending.get(&job.path), Some(None)) {
+                        pending.remove(&job.path);
+                    }
+                    continue;
+                }
+            }
 
             let path_str = job.path.to_string_lossy().to_string();
             let app_clone = app.clone();
@@ -856,7 +886,6 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                     unreadable,
                 );
             }
-            let state = app.state::<AppState>();
             // Snapshot current mtime right after the walk, so the persisted
             // mtime won't be newer than the computed size.
             let mtime = dir_mtime_secs(&job.path);
@@ -1295,13 +1324,22 @@ mod tests {
         assert!(!is_permanently_gone(dir.path()));
     }
 
+    #[cfg(windows)]
     #[test]
-    fn watch_scope_is_the_parent_so_siblings_share_one_watch() {
-        // Listing a folder asks for every child's size; watching each child
-        // individually burned one OS handle per row.
+    fn watch_scope_is_the_filesystem_root() {
         let a = PathBuf::from(r"C:\Users\me\a");
-        let b = PathBuf::from(r"C:\Users\me\b");
-        assert_eq!(a.parent(), b.parent());
+        let b = PathBuf::from(r"C:\Windows\Logs");
+        assert_eq!(watch_scope(&a), PathBuf::from("C:\\"));
+        assert_eq!(watch_scope(&a), watch_scope(&b));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn watch_scope_is_the_filesystem_root() {
+        let a = PathBuf::from("/home/me/a");
+        let b = PathBuf::from("/var/log");
+        assert_eq!(watch_scope(&a), PathBuf::from("/"));
+        assert_eq!(watch_scope(&a), watch_scope(&b));
     }
 
     #[test]
