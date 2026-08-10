@@ -38,29 +38,78 @@ pub enum SortDirection {
     Descending,
 }
 
+/// A directory listing plus a count of items that were present but couldn't
+/// be read at all. Reported rather than silently dropped: quietly showing an
+/// incomplete folder is how people lose track of files.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirListing {
+    pub entries: Vec<DirEntry>,
+    pub unreadable: usize,
+}
+
+/// Turns an io::Error on the directory itself into something a person can
+/// act on. Raw OS strings ("Access is denied. (os error 5)") say nothing
+/// about which folder failed or why it's refusing.
+fn describe_dir_error(path: &str, error: &std::io::Error) -> String {
+    match error.kind() {
+        std::io::ErrorKind::PermissionDenied => format!(
+            "Access denied — Windows is blocking access to {path}. \
+             This is usually a system-protected folder (WindowsApps and similar) \
+             that needs elevated permissions to open."
+        ),
+        std::io::ErrorKind::NotFound => format!("{path} no longer exists."),
+        _ => format!("Couldn't open {path}: {error}"),
+    }
+}
+
 #[tauri::command]
 pub fn list_directory(
     path: String,
     sort_key: SortKey,
     sort_direction: SortDirection,
-) -> Result<Vec<DirEntry>, String> {
-    let read_dir = fs::read_dir(&path).map_err(|e| e.to_string())?;
+) -> Result<DirListing, String> {
+    let read_dir = fs::read_dir(&path).map_err(|e| describe_dir_error(&path, &e))?;
 
     let mut entries = Vec::new();
+    let mut unreadable = 0usize;
     for entry in read_dir {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        // One unreadable child must not sink the whole listing. This used
+        // to propagate with `?`, so a single protected item — C:\Program
+        // Files\WindowsApps is ACL'd to TrustedInstaller, and system
+        // junctions have to be opened to be followed — replaced the entire
+        // folder with "Access is denied. (os error 5)". Explorer lists what
+        // it can; so do we.
+        let Ok(entry) = entry else {
+            unreadable += 1;
+            continue;
+        };
+        // file_type() comes from the directory scan itself and needs no
+        // access to the item; metadata() may have to open it, which is the
+        // call that actually fails on protected entries.
+        let Ok(file_type) = entry.file_type() else {
+            unreadable += 1;
+            continue;
+        };
+        let metadata = entry.metadata().ok();
+        let is_dir = match &metadata {
+            Some(metadata) => metadata.is_dir(),
+            // Couldn't follow it. The scan's own type is right for a plain
+            // directory; for a reparse point we couldn't resolve, probe the
+            // path so junctions still render as folders rather than files.
+            None => file_type.is_dir() || (file_type.is_symlink() && entry.path().is_dir()),
+        };
         let modified = metadata
-            .modified()
-            .ok()
+            .as_ref()
+            .and_then(|metadata| metadata.modified().ok())
             .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
             .map(|duration| duration.as_secs());
 
         entries.push(DirEntry {
             name: entry.file_name().to_string_lossy().to_string(),
             path: entry.path().to_string_lossy().to_string(),
-            is_dir: metadata.is_dir(),
-            size: metadata.len(),
+            is_dir,
+            size: metadata.as_ref().map(|metadata| metadata.len()).unwrap_or(0),
             modified,
         });
     }
@@ -82,7 +131,7 @@ pub fn list_directory(
         }
     });
 
-    Ok(entries)
+    Ok(DirListing { entries, unreadable })
 }
 
 const SEARCH_RESULT_LIMIT: usize = 500;
@@ -201,6 +250,70 @@ pub fn get_quick_access() -> Vec<QuickAccessEntry> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    fn list(dir: &Path) -> Result<DirListing, String> {
+        list_directory(dir.to_string_lossy().to_string(), SortKey::Name, SortDirection::Ascending)
+    }
+
+    #[test]
+    fn an_entry_that_cannot_be_resolved_does_not_sink_the_listing() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("readable.txt"), b"hello").unwrap();
+        fs::create_dir(dir.path().join("subdir")).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("/nonexistent/target", dir.path().join("broken")).unwrap();
+
+        let listing = list(dir.path()).expect("one bad child must not fail the whole listing");
+        let names: Vec<&str> = listing.entries.iter().map(|e| e.name.as_str()).collect();
+        assert!(names.contains(&"readable.txt"), "{names:?}");
+        assert!(names.contains(&"subdir"), "{names:?}");
+        #[cfg(unix)]
+        {
+            assert!(names.contains(&"broken"), "unresolvable entry still listed: {names:?}");
+            let broken = listing.entries.iter().find(|e| e.name == "broken").unwrap();
+            assert!(!broken.is_dir, "a link to nothing is not a directory");
+        }
+        assert_eq!(listing.unreadable, 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_we_cannot_enumerate_still_reports_an_actionable_error() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempdir().unwrap();
+        let locked = dir.path().join("locked");
+        fs::create_dir(&locked).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Only the directory itself being unreadable surfaces to the user,
+        // and it must name the folder rather than leaking "os error 13".
+        if let Err(message) = list(&locked) {
+            assert!(message.contains("Access denied"), "{message}");
+            assert!(message.contains(&locked.to_string_lossy().to_string()), "{message}");
+            assert!(!message.contains("os error"), "raw OS string leaked: {message}");
+        }
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn a_missing_directory_says_so_plainly() {
+        let err = list(Path::new("/definitely/not/here")).unwrap_err();
+        assert!(err.contains("no longer exists"), "{err}");
+    }
+
+    #[test]
+    fn listing_reports_directories_first_with_real_metadata() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("a.txt"), vec![0u8; 7]).unwrap();
+        fs::create_dir(dir.path().join("zzz")).unwrap();
+
+        let listing = list(dir.path()).unwrap();
+        assert_eq!(listing.entries[0].name, "zzz");
+        assert!(listing.entries[0].is_dir);
+        assert_eq!(listing.entries[1].name, "a.txt");
+        assert_eq!(listing.entries[1].size, 7);
+        assert!(listing.entries[1].modified.is_some());
+    }
 
     #[test]
     fn search_directory_matches_case_insensitive_substring_non_recursive() {

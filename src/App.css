@@ -1472,6 +1472,14 @@ button.sidebar-drive,
     color: var(--danger);
 }
 
+/* Not an error — the folder listed fine, some items in it just couldn't be
+   read. Muted so it reads as a footnote rather than a failure. */
+.file-list-notice {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+}
+
 .file-list-skeleton {
     display: flex;
     flex-direction: column;
