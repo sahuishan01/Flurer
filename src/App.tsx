@@ -284,6 +284,11 @@ function App() {
     persistSettings();
   }
 
+  function updateLiveFolderSizeUpdates(enabled: boolean) {
+    setSettings("liveFolderSizeUpdates", enabled);
+    persistSettings();
+  }
+
   function updateMaxHistoryItems(value: number) {
     const requested = Number.isFinite(value) ? value : settings.maxHistoryItems;
     const limit = Math.max(MIN_HISTORY_ITEMS, Math.min(MAX_HISTORY_ITEMS, Math.round(requested)));
@@ -962,6 +967,8 @@ function App() {
                   onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
                    showProgressWhenIdle={settings.showProgressWhenIdle}
                    onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
+                   liveFolderSizeUpdates={settings.liveFolderSizeUpdates}
+                   onLiveFolderSizeUpdatesChange={updateLiveFolderSizeUpdates}
                    maxHistoryItems={settings.maxHistoryItems}
                    onMaxHistoryItemsChange={updateMaxHistoryItems}
                   globalShortcut={settings.globalShortcut}
