@@ -42,6 +42,10 @@ const MAX_CACHED_ROOTS: usize = 10_000;
 /// its subdirectories, the very folder that walk was for). Switching drives
 /// then found an empty cache and recomputed everything from scratch.
 const MAX_CACHED_SUBDIRS: usize = 50_000;
+// File sizes are kept only as a bounded baseline for incremental watcher
+// updates. Events for files outside this baseline safely fall back to a full
+// walk instead of risking an incorrect delta.
+const MAX_TRACKED_FILES: usize = 250_000;
 /// Cap on simultaneously-watched folders — bounds OS file-watcher handle
 /// usage. Raised from an original 50 for the same reason as
 /// MAX_CACHED_ROOTS: Flurer now stays resident (tray + optional launch at
@@ -116,6 +120,7 @@ pub struct SizeCacheState {
     // memory-only and evicted independently — a big walk must never be able
     // to push out the entries in `roots` (see MAX_CACHED_SUBDIRS).
     subdirs: Mutex<IndexMap<PathBuf, CachedSize>>,
+    tracked_files: Mutex<HashMap<PathBuf, u64>>,
     // Paths queued or currently being computed by a worker thread, so a
     // folder already in flight isn't walked twice. The value is the
     // progress-panel task to report the result under, or None for
@@ -137,6 +142,10 @@ pub struct SizeCacheState {
     // Set whenever `roots` changes; the autosave thread clears it after
     // persisting, so an idle app doesn't rewrite the cache file every tick.
     dirty: Mutex<bool>,
+}
+
+pub fn invalidate_incremental_tracking(state: &AppState) {
+    state.size_cache.tracked_files.lock().unwrap().clear();
 }
 
 // The on-disk cache format. An ordered Vec rather than a map because the
@@ -400,6 +409,79 @@ fn is_internal_app_path(path: &Path) -> bool {
         .is_some_and(|root| is_path_under(path, &root))
 }
 
+fn apply_size_delta(size: u64, delta: i128) -> u64 {
+    if delta >= 0 {
+        size.saturating_add(delta as u64)
+    } else {
+        size.saturating_sub((-delta) as u64)
+    }
+}
+
+// Applies a file-size change to every cached directory containing the file.
+// A full walk is still used when the previous file size is unknown, because
+// treating an unknown modification as a creation would corrupt the cache.
+fn apply_incremental_file_event(app: &AppHandle, state: &AppState, path: &Path) -> bool {
+    let current_size = match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || metadata.is_dir() => return false,
+        Ok(metadata) if metadata.is_file() => Some(metadata.len()),
+        Ok(_) => return false,
+        Err(_) => None,
+    };
+
+    let mut tracked = state.size_cache.tracked_files.lock().unwrap();
+    let previous_size = tracked.get(path).copied();
+    let delta = match (previous_size, current_size) {
+        (Some(previous), Some(current)) => current as i128 - previous as i128,
+        (Some(previous), None) => -(previous as i128),
+        // A new file has no trustworthy baseline. Let the normal full-walk
+        // fallback discover it and seed the tracker correctly.
+        (None, _) => return false,
+    };
+
+    match current_size {
+        Some(size) => {
+            tracked.insert(path.to_path_buf(), size);
+        }
+        None => {
+            tracked.remove(path);
+        }
+    }
+    drop(tracked);
+
+    let mut updates = Vec::new();
+    let mut current = path.parent().map(Path::to_path_buf);
+    while let Some(directory) = current {
+        let mtime = dir_mtime_secs(&directory);
+        if let Some(entry) = state.size_cache.roots.lock().unwrap().get_mut(&directory) {
+            entry.size = apply_size_delta(entry.size, delta);
+            entry.dir_mtime = mtime;
+            updates.push((directory.clone(), *entry));
+        }
+        if let Some(entry) = state.size_cache.subdirs.lock().unwrap().get_mut(&directory) {
+            entry.size = apply_size_delta(entry.size, delta);
+            entry.dir_mtime = mtime;
+            updates.push((directory.clone(), *entry));
+        }
+        current = directory.parent().map(Path::to_path_buf);
+    }
+
+    *state.size_cache.dirty.lock().unwrap() = true;
+    for (directory, entry) in updates {
+        let _ = app.emit(
+            "folder-size-updated",
+            FolderSizeUpdate {
+                path: directory.to_string_lossy().to_string(),
+                size: entry.size,
+                done: true,
+                error: entry.incomplete.then(|| {
+                    format!("Some items under {} could not be read; the calculated size may be incomplete", directory.display())
+                }),
+            },
+        );
+    }
+    true
+}
+
 // Drops entries for folders that are genuinely deleted, then writes the
 // cache to its own file. Deliberately not part of settings.json: this is
 // derived data that changes every few seconds and can run to thousands of
@@ -447,13 +529,15 @@ where
     F: FnMut(u64),
 {
     let mut unreadable = 0;
-    compute_dir_size_recursive_reported(path, on_progress, subdirs, &mut unreadable)
+    let mut files = HashMap::new();
+    compute_dir_size_recursive_reported(path, on_progress, subdirs, &mut files, &mut unreadable)
 }
 
 fn compute_dir_size_recursive_reported<F>(
     path: &Path,
     on_progress: &mut F,
     subdirs: &mut HashMap<PathBuf, u64>,
+    files: &mut HashMap<PathBuf, u64>,
     unreadable: &mut u64,
 ) -> u64
 where
@@ -487,12 +571,13 @@ where
         };
         if metadata.is_dir() {
             let subdir_path = entry.path();
-            let subdir_size = compute_dir_size_recursive_reported(&subdir_path, on_progress, subdirs, unreadable);
+            let subdir_size = compute_dir_size_recursive_reported(&subdir_path, on_progress, subdirs, files, unreadable);
             subdirs.insert(subdir_path, subdir_size);
             total += subdir_size;
         } else {
             let len = metadata.len();
             total += len;
+            files.insert(entry.path(), len);
             on_progress(len);
         }
     }
@@ -684,8 +769,9 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             };
 
             let mut subdirs = HashMap::new();
+            let mut files = HashMap::new();
             let mut unreadable = 0;
-            let size = compute_dir_size_recursive_reported(&job.path, &mut on_progress, &mut subdirs, &mut unreadable);
+            let size = compute_dir_size_recursive_reported(&job.path, &mut on_progress, &mut subdirs, &mut files, &mut unreadable);
             if unreadable > 0 {
                 log::warn!(
                     "folder size for {} completed with {} unreadable item(s); result may be incomplete",
@@ -707,6 +793,16 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                     dir_mtime: sub_mtime,
                     incomplete: false,
                 });
+            }
+            {
+                let mut tracked = state.size_cache.tracked_files.lock().unwrap();
+                tracked.retain(|file, _| !file.starts_with(&job.path));
+                for (file, file_size) in files {
+                    if tracked.len() >= MAX_TRACKED_FILES {
+                        break;
+                    }
+                    tracked.insert(file, file_size);
+                }
             }
             record_root(&state, job.path.clone(), CachedSize {
                 size,
@@ -802,13 +898,20 @@ pub fn flush(app: &AppHandle) {
 
 fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::DebouncedEvent>) {
     let state = app.state::<AppState>();
+    if !state.settings.blocking_lock().live_folder_size_updates {
+        return;
+    }
 
-    // A change deep inside a folder invalidates every cached ancestor up to
-    // the watched root, not just the root itself — only recompute the ones
-    // we've actually cached (i.e. the user has actually looked at).
+    // A file-size change is applied to cached ancestors incrementally. Events
+    // that cannot be represented safely as a delta (new files, directories,
+    // renames, or an unknown baseline) invalidate only the cached ancestors
+    // that need a full walk.
     let mut dirty: Vec<PathBuf> = Vec::new();
     for event in &events {
         if is_internal_app_path(&event.path) {
+            continue;
+        }
+        if apply_incremental_file_event(app, &state, &event.path) {
             continue;
         }
         let mut current = event.path.parent().map(Path::to_path_buf);
@@ -978,6 +1081,14 @@ mod tests {
         // walks swallowed the user's Recalculate clicks.
         assert!(!needs_revalidation(0, 1000));
         assert!(!needs_revalidation(0, 0));
+    }
+
+    #[test]
+    fn incremental_size_delta_is_saturating_and_directional() {
+        assert_eq!(apply_size_delta(100, 25), 125);
+        assert_eq!(apply_size_delta(100, -25), 75);
+        assert_eq!(apply_size_delta(10, -25), 0);
+        assert_eq!(apply_size_delta(u64::MAX, 1), u64::MAX);
     }
 
     #[test]

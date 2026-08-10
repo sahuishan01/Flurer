@@ -125,6 +125,10 @@ pub struct Settings {
     pub font_size_px: f32,
     pub sidebar_tooltip_delay_ms: u64,
     pub show_progress_when_idle: bool,
+    // Whether filesystem changes should update cached folder sizes live.
+    // Explicit Recalculate remains available when this is disabled.
+    #[serde(default = "default_live_folder_size_updates")]
+    pub live_folder_size_updates: bool,
     #[serde(default)]
     pub plugin_settings: std::collections::HashMap<String, serde_json::Value>,
     #[serde(default)]
@@ -157,6 +161,10 @@ fn default_max_history_items() -> usize {
     15
 }
 
+fn default_live_folder_size_updates() -> bool {
+    true
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -177,6 +185,7 @@ impl Default for Settings {
             font_size_px: 16.0,
             sidebar_tooltip_delay_ms: 500,
             show_progress_when_idle: false,
+            live_folder_size_updates: default_live_folder_size_updates(),
             plugin_settings: std::collections::HashMap::new(),
             disabled_plugins: Vec::new(),
             folder_sizes: HashMap::new(),

@@ -47,6 +47,7 @@ export type Settings = {
   fontSizePx: number;
   sidebarTooltipDelayMs: number;
   showProgressWhenIdle: boolean;
+  liveFolderSizeUpdates: boolean;
   pluginSettings: Record<string, any>;
   disabledPlugins: string[];
   // OS-wide hotkey that brings Flurer to front/focus from anywhere, even
@@ -88,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontSizePx: 16,
   sidebarTooltipDelayMs: 500,
   showProgressWhenIdle: false,
+  liveFolderSizeUpdates: true,
   pluginSettings: {},
   disabledPlugins: [],
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,

@@ -28,6 +28,8 @@ type SettingsPanelProps = {
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
   onShowProgressWhenIdleChange: (show: boolean) => void;
+  liveFolderSizeUpdates: boolean;
+  onLiveFolderSizeUpdatesChange: (enabled: boolean) => void;
   maxHistoryItems: number;
   onMaxHistoryItemsChange: (limit: number) => void;
   globalShortcut: string;
@@ -111,6 +113,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onSidebarTooltipDelayMsChange={props.onSidebarTooltipDelayMsChange}
               showProgressWhenIdle={props.showProgressWhenIdle}
               onShowProgressWhenIdleChange={props.onShowProgressWhenIdleChange}
+              liveFolderSizeUpdates={props.liveFolderSizeUpdates}
+              onLiveFolderSizeUpdatesChange={props.onLiveFolderSizeUpdatesChange}
               maxHistoryItems={props.maxHistoryItems}
               onMaxHistoryItemsChange={props.onMaxHistoryItemsChange}
               globalShortcut={props.globalShortcut}

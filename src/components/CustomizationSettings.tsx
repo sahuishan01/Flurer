@@ -67,7 +67,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "folder size", "live update", "automatic", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -93,6 +93,8 @@ type CustomizationSettingsProps = {
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
   onShowProgressWhenIdleChange: (show: boolean) => void;
+  liveFolderSizeUpdates: boolean;
+  onLiveFolderSizeUpdatesChange: (enabled: boolean) => void;
   maxHistoryItems: number;
   onMaxHistoryItemsChange: (limit: number) => void;
   globalShortcut: string;
@@ -668,6 +670,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           />
           Always show progress indicator
         </label>
+
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.liveFolderSizeUpdates}
+            onChange={(e) => props.onLiveFolderSizeUpdatesChange(e.currentTarget.checked)}
+          />
+          Automatically update folder sizes
+        </label>
+        <p class="settings-hint">
+          Uses file changes to keep cached folder sizes current. Disable this to avoid background size work while files are changing.
+        </p>
 
         <label class="history-limit-control">
           <span>Maximum recent history items</span>
