@@ -269,7 +269,7 @@ export function GraphView(props: GraphViewProps) {
   async function fetchFolderSize(path: string) {
     try {
       const response = await invoke<FolderSizeResponse>("get_folder_size", { path });
-      if (response.status === "ready") applyFolderSize(path, response.size, true);
+      if (response.status === "ready") applyFolderSize(path, response.size, true, response.error);
       else markFolderPending(path);
     } catch (err) {
       console.error("Failed to compute folder size for", path, err);
@@ -278,17 +278,22 @@ export function GraphView(props: GraphViewProps) {
   }
 
   async function recalculateFolderSize(path: string) {
-    markFolderPending(path);
+    markFolderPending(path, true);
     try {
-      await invoke<FolderSizeResponse>("recompute_folder_size", { path });
+      const response = await invoke<FolderSizeResponse>("recompute_folder_size", { path });
+      if (response.status === "ready") applyFolderSize(path, response.size, true, response.error);
+      else markFolderPending(path);
     } catch (err) {
       console.error("Failed to recompute folder size for", path, err);
       markFolderError(path, String(err));
     }
   }
 
-  function markFolderPending(path: string) {
-    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => ({ ...n, sizePending: true, error: "" })));
+  function markFolderPending(path: string, force = false) {
+    setRoots((prev) => updateNodeById(prev, `folder:${path}`, (n) => {
+      if (!force && !n.sizePending) return n;
+      return { ...n, sizePending: true, error: "" };
+    }));
   }
 
   function applyFolderSize(path: string, size: number, done: boolean, error?: string | null) {

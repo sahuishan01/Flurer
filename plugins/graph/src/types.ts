@@ -7,7 +7,7 @@ export type DirEntry = {
 };
 
 export type FolderSizeResponse =
-  | { status: "ready"; size: number }
+  | { status: "ready"; size: number; error?: string | null }
   | { status: "pending" };
 
 export type VirtualDisk = {

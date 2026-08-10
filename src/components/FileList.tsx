@@ -329,9 +329,16 @@ export function FileList(props: FileListProps) {
   // Bypasses the cache and forces a fresh recursive walk; the resolved size
   // arrives the same way as any other computation, via folder-size-updated.
   async function recalculateFolderSize(path: string) {
-    markFolderPending(path);
+    // Force-reset a previous error. A normal response-time update must not
+    // overwrite a completion event that arrived before invoke() resolved.
+    markFolderPending(path, true);
     try {
-      await invoke<FolderSizeResponse>("recompute_folder_size", { path });
+      const response = await invoke<FolderSizeResponse>("recompute_folder_size", { path });
+      if (response.status === "ready") {
+        applyFolderSize(path, response.size, true, response.error);
+      } else {
+        markFolderPending(path);
+      }
     } catch (err) {
       console.error("Failed to recompute folder size for", path, err);
       markFolderError(path, String(err));
@@ -367,13 +374,14 @@ export function FileList(props: FileListProps) {
     return next;
   }
 
-  function markFolderPending(path: string) {
+  function markFolderPending(path: string, force = false) {
     setFolderSizes((prev) => {
       // Don't overwrite if progress events already arrived (the worker
       // can emit folder-size-updated before the invoke() response lands).
       const existing = prev.get(path);
-      if (existing && typeof existing === "object") return prev;
-      return touchAndTrim(new Map(prev), path, { size: 0, done: false });
+      if (!force && existing && typeof existing === "object") return prev;
+      const size = existing && typeof existing === "object" ? existing.size : 0;
+      return touchAndTrim(new Map(prev), path, { size, done: false });
     });
   }
 
@@ -395,7 +403,19 @@ export function FileList(props: FileListProps) {
     if (state && typeof state === "object") {
       const formatted = formatBytes(state.size);
       if (state.done) {
-        return <span title={state.error}>{state.error && state.size === 0 ? "Unavailable" : formatted}</span>;
+        if (state.error) {
+          return (
+            <span
+              class="folder-size-warning"
+              title={state.error}
+              aria-label={`Folder size warning: ${state.error}`}
+            >
+              <InfoIcon size={12} />
+              {state.size === 0 ? "Unavailable" : formatted}
+            </span>
+          );
+        }
+        return formatted;
       } else {
         return (
           <span class="size-calculating">

@@ -66,7 +66,7 @@ pub struct FolderSizeUpdate {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum FolderSizeResponse {
-    Ready { size: u64 },
+    Ready { size: u64, error: Option<String> },
     Pending,
 }
 
@@ -93,6 +93,9 @@ pub struct CachedSize {
     /// introduced); these always trigger a silent revalidation once.
     #[serde(default)]
     pub dir_mtime: i64,
+    /// True when one or more entries could not be read during the walk.
+    #[serde(default)]
+    pub incomplete: bool,
 }
 
 #[derive(Default)]
@@ -146,6 +149,8 @@ struct PersistedEntry {
     size: u64,
     #[serde(default)]
     dir_mtime: i64,
+    #[serde(default)]
+    incomplete: bool,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -175,7 +180,11 @@ fn load_persisted_sizes(app: &AppHandle) -> IndexMap<PathBuf, CachedSize> {
                     return parsed
                         .entries
                         .into_iter()
-                        .map(|e| (PathBuf::from(e.path), CachedSize { size: e.size, dir_mtime: e.dir_mtime }))
+                        .map(|e| (PathBuf::from(e.path), CachedSize {
+                            size: e.size,
+                            dir_mtime: e.dir_mtime,
+                            incomplete: e.incomplete,
+                        }))
                         .collect();
                 }
             }
@@ -215,7 +224,11 @@ fn load_persisted_sizes(app: &AppHandle) -> IndexMap<PathBuf, CachedSize> {
             .ok()
             .map(|m| {
                 m.into_iter()
-                    .map(|(p, e)| (PathBuf::from(p), CachedSize { size: e.size, dir_mtime: e.dir_mtime }))
+                    .map(|(p, e)| (PathBuf::from(p), CachedSize {
+                        size: e.size,
+                        dir_mtime: e.dir_mtime,
+                        incomplete: false,
+                    }))
                     .collect()
             })
             .or_else(|| {
@@ -223,7 +236,11 @@ fn load_persisted_sizes(app: &AppHandle) -> IndexMap<PathBuf, CachedSize> {
                     .ok()
                     .map(|m| {
                         m.into_iter()
-                            .map(|(p, s)| (PathBuf::from(p), CachedSize { size: s, dir_mtime: 0 }))
+                            .map(|(p, s)| (PathBuf::from(p), CachedSize {
+                                size: s,
+                                dir_mtime: 0,
+                                incomplete: false,
+                            }))
                             .collect()
                     })
             });
@@ -390,6 +407,7 @@ fn save_persisted_sizes(_app: &AppHandle, sizes: &IndexMap<PathBuf, CachedSize>)
                 // which stamped a *newer* mtime onto an older size and so
                 // marked stale entries as still-valid on the next launch.
                 dir_mtime: entry.dir_mtime,
+                incomplete: entry.incomplete,
             })
             .collect(),
     };
@@ -498,13 +516,17 @@ fn enqueue(state: &AppState, path: PathBuf) -> bool {
 fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<(), String> {
     let task_id = next_task_id();
     let label = format!("Calculating size — {}", folder_label(&path));
+    let log_path = path.clone();
     match enqueue_job(state, path, Some(TrackedJob { task_id, label: label.clone() })) {
         EnqueueResult::Queued | EnqueueResult::Adopted => {
             emit_progress(app, task_id, &label, 0, 0, false, None, true);
             Ok(())
         }
         EnqueueResult::AlreadyPending => Ok(()),
-        EnqueueResult::Rejected => Err("Folder size worker is unavailable".to_string()),
+        EnqueueResult::Rejected => {
+            log::error!("folder size worker unavailable while queueing {}", log_path.display());
+            Err("Folder size worker is unavailable".to_string())
+        }
     }
 }
 
@@ -650,6 +672,13 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             let mut subdirs = HashMap::new();
             let mut unreadable = 0;
             let size = compute_dir_size_recursive_reported(&job.path, &mut on_progress, &mut subdirs, &mut unreadable);
+            if unreadable > 0 {
+                log::warn!(
+                    "folder size for {} completed with {} unreadable item(s); result may be incomplete",
+                    job.path.display(),
+                    unreadable,
+                );
+            }
             let state = app.state::<AppState>();
             // Snapshot current mtime right after the walk, so the persisted
             // mtime won't be newer than the computed size.
@@ -659,9 +688,17 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
             // therefore last-evicted — entry rather than the first.
             for (subdir_path, subdir_size) in subdirs {
                 let sub_mtime = dir_mtime_secs(&subdir_path);
-                record_subdir(&state, subdir_path, CachedSize { size: subdir_size, dir_mtime: sub_mtime });
+                record_subdir(&state, subdir_path, CachedSize {
+                    size: subdir_size,
+                    dir_mtime: sub_mtime,
+                    incomplete: false,
+                });
             }
-            record_root(&state, job.path.clone(), CachedSize { size, dir_mtime: mtime });
+            record_root(&state, job.path.clone(), CachedSize {
+                size,
+                dir_mtime: mtime,
+                incomplete: unreadable > 0,
+            });
             // Whoever asked for this walk may have attached tracking after
             // it started, so read it back here rather than trusting what
             // the job carried when it was queued.
@@ -676,7 +713,10 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                     size,
                     done: true,
                     error: (unreadable > 0).then(|| {
-                        format!("Could not read {unreadable} item(s); the calculated size may be incomplete")
+                        format!(
+                            "Could not read {unreadable} item(s) under {}; the calculated size may be incomplete",
+                            job.path.display()
+                        )
                     }),
                 },
             );
@@ -772,9 +812,13 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
 pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
     let path_buf = PathBuf::from(&path);
     if !path_buf.is_dir() {
+        log::warn!("folder size requested for non-directory or inaccessible path: {}", path);
         return Err(format!("{} is not a directory", path));
     }
-    fs::read_dir(&path_buf).map_err(|error| format!("Cannot read {}: {}", path_buf.display(), error))?;
+    if let Err(error) = fs::read_dir(&path_buf) {
+        log::warn!("folder size cannot read {}: {}", path_buf.display(), error);
+        return Err(format!("Cannot read {}: {}", path_buf.display(), error));
+    }
 
     // A recompute (manual or silent revalidation, below) already has this
     // path in `pending` — report Pending instead of the cached value that's
@@ -809,7 +853,15 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
             // row never falls back to "Calculating…" for a size we know.
             enqueue(&state, path_buf.clone());
         }
-        return Ok(FolderSizeResponse::Ready { size: cached.size });
+        if cached.incomplete {
+            log::warn!("returning previously incomplete folder size for {}", path_buf.display());
+        }
+        return Ok(FolderSizeResponse::Ready {
+            size: cached.size,
+            error: cached.incomplete.then(|| {
+                format!("Some items under {} could not be read; the calculated size may be incomplete", path_buf.display())
+            }),
+        });
     }
 
     // Genuinely uncached — the frontend is about to show a "Calculating…"
@@ -825,10 +877,15 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
 #[tauri::command]
 pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
     let path_buf = PathBuf::from(&path);
+    log::info!("folder size recalculation requested: {}", path_buf.display());
     if !path_buf.is_dir() {
+        log::warn!("folder size recalculation requested for non-directory or inaccessible path: {}", path);
         return Err(format!("{} is not a directory", path));
     }
-    fs::read_dir(&path_buf).map_err(|error| format!("Cannot read {}: {}", path_buf.display(), error))?;
+    if let Err(error) = fs::read_dir(&path_buf) {
+        log::warn!("folder size recalculation cannot read {}: {}", path_buf.display(), error);
+        return Err(format!("Cannot read {}: {}", path_buf.display(), error));
+    }
 
     // Enqueueing puts the path in `pending`, which is what makes
     // get_folder_size report Pending during the recompute (see above) —
@@ -848,7 +905,7 @@ mod tests {
     fn evict_oldest_removes_lowest_index_entries_first() {
         let mut cache: IndexMap<PathBuf, CachedSize> = IndexMap::new();
         for i in 0..5 {
-            cache.insert(PathBuf::from(format!("/path{i}")), CachedSize { size: i, dir_mtime: 0 });
+            cache.insert(PathBuf::from(format!("/path{i}")), CachedSize { size: i, dir_mtime: 0, incomplete: false });
         }
 
         evict_oldest(&mut cache, 3);
@@ -869,7 +926,7 @@ mod tests {
         // arbitrary unspecified subset.
         let mut cache: IndexMap<PathBuf, CachedSize> = IndexMap::new();
         for i in 0..50u64 {
-            cache.insert(PathBuf::from(format!("/path{i}")), CachedSize { size: i, dir_mtime: 0 });
+            cache.insert(PathBuf::from(format!("/path{i}")), CachedSize { size: i, dir_mtime: 0, incomplete: false });
             evict_oldest(&mut cache, 5);
         }
         let keys: Vec<PathBuf> = cache.keys().cloned().collect();
@@ -880,7 +937,7 @@ mod tests {
     }
 
     fn entry(size: u64) -> CachedSize {
-        CachedSize { size, dir_mtime: 42 }
+        CachedSize { size, dir_mtime: 42, incomplete: false }
     }
 
     #[test]
@@ -977,6 +1034,7 @@ mod tests {
                     path: path.to_string_lossy().to_string(),
                     size: e.size,
                     dir_mtime: e.dir_mtime,
+                    incomplete: e.incomplete,
                 })
                 .collect(),
         };
