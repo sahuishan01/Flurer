@@ -1,4 +1,4 @@
-import { createResource, Show } from "solid-js";
+import { createResource, createSignal, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { CloseIcon, FileIcon } from "./icons";
 import { baseName } from "../lib/fs";
@@ -15,10 +15,42 @@ type PreviewPanelProps = {
 };
 
 export function PreviewPanel(props: PreviewPanelProps) {
+  const [copyStatus, setCopyStatus] = createSignal<"idle" | "copied" | "failed">("idle");
   const [preview] = createResource(
     () => props.path,
     (path) => invoke<FilePreview>("get_file_preview", { path }),
   );
+
+  function textContent(): string | null {
+    const p = preview();
+    return p?.kind === "text" ? p.content : null;
+  }
+
+  async function copyTextPreview() {
+    const content = textContent();
+    if (content === null) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = content;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        if (!document.execCommand("copy")) throw new Error("Clipboard copy was rejected");
+        textarea.remove();
+      }
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 1500);
+    } catch (error) {
+      console.error("Failed to copy preview text", error);
+      setCopyStatus("failed");
+      setTimeout(() => setCopyStatus("idle"), 2500);
+    }
+  }
 
   return (
     <div class="preview-panel">
@@ -26,6 +58,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
         <span class="preview-panel-title" title={baseName(props.path)}>
           {baseName(props.path)}
         </span>
+        <Show when={textContent() !== null}>
+          <button type="button" class="preview-copy-button" onClick={copyTextPreview}>
+            {copyStatus() === "copied" ? "Copied" : copyStatus() === "failed" ? "Copy failed" : "Copy"}
+          </button>
+        </Show>
         <button type="button" class="icon-btn" title="Close preview" aria-label="Close preview" onClick={props.onClose}>
           <CloseIcon size={14} />
         </button>

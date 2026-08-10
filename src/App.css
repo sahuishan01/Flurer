@@ -1425,6 +1425,22 @@ button.sidebar-drive,
     font-weight: 600;
 }
 
+.preview-copy-button {
+    flex-shrink: 0;
+    padding: 0.25em 0.55em;
+    color: var(--text-color);
+    background: var(--control-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--text-caption);
+}
+
+.preview-copy-button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
 .preview-panel-body {
     flex: 1;
     min-height: 0;

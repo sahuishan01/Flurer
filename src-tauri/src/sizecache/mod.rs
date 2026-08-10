@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex},
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use indexmap::IndexMap;
@@ -46,6 +46,11 @@ const MAX_CACHED_SUBDIRS: usize = 50_000;
 // updates. Events for files outside this baseline safely fall back to a full
 // walk instead of risking an incorrect delta.
 const MAX_TRACKED_FILES: usize = 250_000;
+// Ambiguous watcher events (new files, renames and directory changes) need a
+// full walk, but continuous editor/build activity can produce one such event
+// every debounce window. Do not start another fallback walk until this window
+// has elapsed; the final event after activity stops still gets processed.
+const WATCHER_FULL_RECOMPUTE_COOLDOWN: Duration = Duration::from_secs(3);
 /// Cap on simultaneously-watched folders — bounds OS file-watcher handle
 /// usage. Raised from an original 50 for the same reason as
 /// MAX_CACHED_ROOTS: Flurer now stays resident (tray + optional launch at
@@ -121,6 +126,7 @@ pub struct SizeCacheState {
     // to push out the entries in `roots` (see MAX_CACHED_SUBDIRS).
     subdirs: Mutex<IndexMap<PathBuf, CachedSize>>,
     tracked_files: Mutex<HashMap<PathBuf, u64>>,
+    watcher_recomputes: Mutex<HashMap<PathBuf, Instant>>,
     // Paths queued or currently being computed by a worker thread, so a
     // folder already in flight isn't walked twice. The value is the
     // progress-panel task to report the result under, or None for
@@ -480,6 +486,20 @@ fn apply_incremental_file_event(app: &AppHandle, state: &AppState, path: &Path) 
         );
     }
     true
+}
+
+fn enqueue_watcher_recompute(state: &AppState, path: PathBuf) -> bool {
+    let now = Instant::now();
+    let mut recent = state.size_cache.watcher_recomputes.lock().unwrap();
+    recent.retain(|_, started| now.duration_since(*started) < WATCHER_FULL_RECOMPUTE_COOLDOWN);
+    if recent.contains_key(&path) {
+        return false;
+    }
+    if enqueue(state, path.clone()) {
+        recent.insert(path, now);
+        return true;
+    }
+    false
 }
 
 // Drops entries for folders that are genuinely deleted, then writes the
@@ -924,7 +944,9 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
     }
 
     for dir in dirty {
-        enqueue(&state, dir);
+        if enqueue_watcher_recompute(&state, dir.clone()) {
+            log::info!("folder watcher fallback full recompute queued for {}", dir.display());
+        }
     }
 }
 
