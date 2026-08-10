@@ -38,7 +38,7 @@ export type ClipboardState = {
 // get_folder_size / recompute_folder_size never block on the recursive walk:
 // they return Ready immediately if cached, otherwise Pending, with the real
 // value following later via a "folder-size-updated" event.
-export type FolderSizeResponse = { status: "ready"; size: number } | { status: "pending" };
+export type FolderSizeResponse = { status: "ready"; size: number; error?: string | null } | { status: "pending" };
 
 export function parentDir(path: string): string {
   const normalized = path.replace(/[/\\]+$/, "");

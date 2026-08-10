@@ -2783,6 +2783,15 @@ button.danger:not(.context-menu-item):hover {
     vertical-align: middle;
 }
 
+.folder-size-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--danger);
+    cursor: help;
+    vertical-align: middle;
+}
+
 .size-loading-spinner {
     display: inline-block;
     animation: app-loading-spin 1.2s linear infinite;
