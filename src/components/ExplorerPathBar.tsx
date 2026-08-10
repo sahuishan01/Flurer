@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { EnterIcon, FolderIcon, StarIcon } from "./icons";
-import { parentDir, pathSegments, type DirEntry } from "../lib/fs";
+import { parentDir, pathSegments, type DirListing } from "../lib/fs";
 import { createPopover } from "../lib/popover";
 
 type ExplorerPathBarProps = {
@@ -62,12 +62,12 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
     let names = listingCache.get(parent);
     if (names === undefined) {
       try {
-        const entries = await invoke<DirEntry[]>("list_directory", {
+        const listing = await invoke<DirListing>("list_directory", {
           path: parent,
           sortKey: "name",
           sortDirection: "ascending",
         });
-        names = entries.filter((e) => e.isDir).map((e) => e.name);
+        names = listing.entries.filter((e) => e.isDir).map((e) => e.name);
       } catch {
         names = [];
       }

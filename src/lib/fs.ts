@@ -6,6 +6,15 @@ export type DirEntry = {
   modified: number | null;
 };
 
+// list_directory never fails wholesale on an unreadable child — it lists
+// what it can and reports how many items it had to skip, so a folder like
+// C:\Program Files (which contains items ACL'd to TrustedInstaller) stays
+// browsable instead of rendering as a single "Access is denied" error.
+export type DirListing = {
+  entries: DirEntry[];
+  unreadable: number;
+};
+
 export type SortKey = "name" | "size" | "modified";
 export type SortDirection = "ascending" | "descending";
 

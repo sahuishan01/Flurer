@@ -31,6 +31,7 @@ import {
   type BatchResult,
   type ClipboardState,
   type DirEntry,
+  type DirListing,
   type FolderSizeResponse,
   type SortDirection,
   type SortKey,
@@ -85,6 +86,10 @@ type UndoAction =
 
 export function FileList(props: FileListProps) {
   const [entries, setEntries] = createSignal<DirEntry[]>([]);
+  // Items present in the folder that couldn't be read at all. Surfaced
+  // rather than silently omitted — an incomplete listing that looks
+  // complete is worse than a visible gap.
+  const [unreadable, setUnreadable] = createSignal(0);
   const [error, setError] = createSignal("");
   const [opError, setOpError] = createSignal("");
 
@@ -211,17 +216,18 @@ export function FileList(props: FileListProps) {
 
   async function refresh() {
     setEntries([]);
+    setUnreadable(0);
     const currentPathReq = props.path;
     const currentSearchQueryReq = props.searchQuery;
     const currentSearchRecursiveReq = props.searchRecursive;
     try {
       const result = isSearching()
-        ? await invoke<DirEntry[]>("search_directory", {
+        ? { entries: await invoke<DirEntry[]>("search_directory", {
             root: props.path,
             query: props.searchQuery.trim(),
             recursive: props.searchRecursive,
-          })
-        : await invoke<DirEntry[]>("list_directory", {
+          }), unreadable: 0 }
+        : await invoke<DirListing>("list_directory", {
             path: props.path,
             sortKey: props.sortKey,
             sortDirection: props.sortDirection,
@@ -234,7 +240,8 @@ export function FileList(props: FileListProps) {
         return;
       }
       setError("");
-      setEntries(result);
+      setEntries(result.entries);
+      setUnreadable(result.unreadable);
     } catch (err) {
       if (
         currentPathReq === props.path &&
@@ -817,6 +824,11 @@ export function FileList(props: FileListProps) {
     <>
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
         {error() && <p class="file-list-error">{error()}</p>}
+        <Show when={unreadable() > 0}>
+          <p class="file-list-notice">
+            {unreadable()} item{unreadable() === 1 ? "" : "s"} in this folder couldn't be read and {unreadable() === 1 ? "isn't" : "aren't"} shown.
+          </p>
+        </Show>
         {opError() && <p class="file-list-error">{opError()}</p>}
         <div class="file-list-split">
         <div class="file-list-table-wrap">
