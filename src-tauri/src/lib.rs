@@ -135,6 +135,14 @@ pub fn run() {
             check_for_updates,
             download_and_install_update,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        // Flush the folder-size cache on the way out rather than relying on
+        // the 5s autosave tick — otherwise sizes computed just before the
+        // user quits are lost and those folders recalculate on next launch.
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                sizecache::flush(app);
+            }
+        });
 }

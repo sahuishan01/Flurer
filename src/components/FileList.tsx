@@ -263,27 +263,19 @@ export function FileList(props: FileListProps) {
 
   // Kick off (or resume) background size computation for every folder row as
   // soon as it's listed, rather than waiting for the user to hover/select it.
-  // Also drop entries for paths no longer in the listing so folderSizes
-  // doesn't accumulate visited folders across the whole session.
+  //
+  // Entries for folders outside the current listing are deliberately kept.
+  // This used to prune down to exactly the visible rows and mirror that onto
+  // the module-level cache, which meant navigating C: -> D: discarded every
+  // size known for C: — so coming back re-invoked the backend for each row
+  // and, whenever the backend's own cache had also churned, re-walked them.
+  // Retention is bounded by MAX_FOLDER_SIZES below instead.
   createEffect(() => {
     const list = entries();
-    const paths = new Set(list.filter((e) => e.isDir).map((e) => e.path));
-    // Read known state BEFORE cleaning — SolidJS batches signal writes
-    // inside effects, so `untrack` after `setFolderSizes` would see the
-    // old (pre-cleanup) state and miss newly-visible folders entirely.
     const known = untrack(folderSizes);
     for (const entry of list) {
       if (entry.isDir && !known.has(entry.path)) fetchFolderSize(entry.path);
     }
-    // Then clean stale entries that are no longer in the listing.
-    setFolderSizes((prev) => {
-      const next = new Map(prev);
-      for (const key of next.keys()) {
-        if (!paths.has(key)) next.delete(key);
-      }
-      syncPersistentFolderSizes(next);
-      return next;
-    });
   });
 
   onMount(() => {
@@ -317,7 +309,11 @@ export function FileList(props: FileListProps) {
     }
   }
 
-  const MAX_FOLDER_SIZES = 500;
+  // Sizes are now retained across navigation rather than pruned to the
+  // visible listing, so this is what bounds the map. Roomy enough to hold
+  // every folder a long session touches across several drives; the backend
+  // holds the authoritative, disk-persisted cache behind it either way.
+  const MAX_FOLDER_SIZES = 5000;
 
   // Mirrors the eviction cap onto the module-level cache too, so a folder
   // dropped here (session ranged over too many folders) is also dropped
@@ -328,36 +324,32 @@ export function FileList(props: FileListProps) {
     for (const [key, value] of next) persistentFolderSizes.set(key, value);
   }
 
+  // Re-inserts so the entry moves to the newest position: a plain `set` on
+  // an existing key keeps its original slot in a JS Map, which would make
+  // the oldest-first trim below evict recently-used folders.
+  function touchAndTrim(next: Map<string, FolderSizeState>, path: string, value: FolderSizeState) {
+    next.delete(path);
+    next.set(path, value);
+    if (next.size > MAX_FOLDER_SIZES) {
+      const keys = [...next.keys()];
+      for (let i = 0; i < keys.length - MAX_FOLDER_SIZES; i++) next.delete(keys[i]);
+    }
+    syncPersistentFolderSizes(next);
+    return next;
+  }
+
   function markFolderPending(path: string) {
     setFolderSizes((prev) => {
       // Don't overwrite if progress events already arrived (the worker
       // can emit folder-size-updated before the invoke() response lands).
       const existing = prev.get(path);
       if (existing && typeof existing === "object") return prev;
-      const next = new Map(prev).set(path, { size: 0, done: false });
-      if (next.size > MAX_FOLDER_SIZES) {
-        const keys = [...next.keys()];
-        for (let i = 0; i < keys.length - MAX_FOLDER_SIZES; i++) {
-          next.delete(keys[i]);
-        }
-      }
-      syncPersistentFolderSizes(next);
-      return next;
+      return touchAndTrim(new Map(prev), path, { size: 0, done: false });
     });
   }
 
   function applyFolderSize(path: string, size: number, done: boolean) {
-    setFolderSizes((prev) => {
-      const next = new Map(prev).set(path, { size, done });
-      if (next.size > MAX_FOLDER_SIZES) {
-        const keys = [...next.keys()];
-        for (let i = 0; i < keys.length - MAX_FOLDER_SIZES; i++) {
-          next.delete(keys[i]);
-        }
-      }
-      syncPersistentFolderSizes(next);
-      return next;
-    });
+    setFolderSizes((prev) => touchAndTrim(new Map(prev), path, { size, done }));
   }
 
   function renderSizeCell(entry: DirEntry) {
