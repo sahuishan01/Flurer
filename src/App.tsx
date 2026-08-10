@@ -3,6 +3,7 @@ import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { CommandBar } from "./components/CommandBar";
 import { ExplorerPathBar } from "./components/ExplorerPathBar";
+import { ExplorerTabs, type ExplorerTab } from "./components/ExplorerTabs";
 import { ExplorerView } from "./components/ExplorerView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -525,6 +526,52 @@ function App() {
     pushHistory({ view, path: currentPath() });
   }
 
+  // Explorer tabs: deliberately session-only bookmarks of "a location I
+  // want to switch back to quickly", not independent navigation contexts —
+  // each tab's own back/forward history isn't tracked separately, switching
+  // tabs just calls navigateTo like any other jump (sidebar, breadcrumb),
+  // so the existing global history/back-forward stack stays the single
+  // source of truth instead of needing a second one per tab.
+  const [tabs, setTabs] = createSignal<ExplorerTab[]>([{ id: crypto.randomUUID(), path: DEFAULT_PATH }]);
+  const [activeTabId, setActiveTabId] = createSignal(tabs()[0].id);
+
+  // Keeps the active tab's remembered path in sync with wherever normal
+  // Explorer navigation (breadcrumb, sidebar, double-click) actually took
+  // it — so a tab always reflects "where I last was in this tab", the same
+  // way a browser tab's own address updates as you click links in it.
+  createEffect(() => {
+    const path = currentPath();
+    if (mainView() !== "explorer") return;
+    setTabs((prev) => prev.map((t) => (t.id === activeTabId() ? { ...t, path } : t)));
+  });
+
+  function openNewTab() {
+    const tab: ExplorerTab = { id: crypto.randomUUID(), path: currentPath() };
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+  }
+
+  function switchTab(id: string) {
+    const tab = tabs().find((t) => t.id === id);
+    if (!tab) return;
+    setActiveTabId(id);
+    navigateTo(tab.path);
+  }
+
+  function closeTab(id: string) {
+    const list = tabs();
+    if (list.length <= 1) return;
+    const index = list.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    const next = list.filter((t) => t.id !== id);
+    setTabs(next);
+    if (activeTabId() === id) {
+      const fallback = next[Math.max(0, index - 1)];
+      setActiveTabId(fallback.id);
+      navigateTo(fallback.path);
+    }
+  }
+
   const [graphFocusRequest, setGraphFocusRequest] = createSignal<GraphFocusRequest | null>(null);
 
   // Picking a place from the sidebar (a drive, a recent/favourite folder, or
@@ -801,6 +848,10 @@ function App() {
             </Show>
           }
         />
+
+        <Show when={mainView() === "explorer"}>
+          <ExplorerTabs tabs={tabs()} activeTabId={activeTabId()} onSwitch={switchTab} onClose={closeTab} onNew={openNewTab} />
+        </Show>
 
         <div class="explorer-view">
           <ViewRail activeView={mainView()} onSelectView={selectView} />
