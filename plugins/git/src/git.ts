@@ -443,12 +443,12 @@ export async function gitGraph(
     const branchArgs = (!selectedBranches || selectedBranches.length === 0 || selectedBranches.includes("all"))
       ? ["--all"]
       : selectedBranches;
-    const out = await execGit(repoPath, "log", ...branchArgs, `--max-count=${maxCount}`, `--skip=${skip}`, "--topo-order", "--format=%H%x1f%P%x1f%s%x1f%an%x1f%at%x1f%D");
+    const out = await execGit(repoPath, "log", ...branchArgs, `--max-count=${maxCount}`, `--skip=${skip}`, "--topo-order", "--format=%H%x1f%P%x1f%s%x1f%an%x1f%cn%x1f%at%x1f%D");
     return out.trim().split("\n").filter(Boolean).map((line) => {
-      const [hash, parentsStr, message, author, timestamp, refsStr] = line.split("\x1f");
+      const [hash, parentsStr, message, author, committer, timestamp, refsStr] = line.split("\x1f");
       const parents = parentsStr ? parentsStr.split(" ") : [];
       const refs = refsStr ? refsStr.split(",").map((r) => r.trim().split(" ").pop()!).filter(Boolean) : [];
-      return { hash, message, author, timestamp: parseInt(timestamp, 10), parents, refs };
+      return { hash, message, author, committer, timestamp: parseInt(timestamp, 10), parents, refs };
     });
   }
 

@@ -1,4 +1,4 @@
-import { setSurfaceOpacity, getSurfaceOpacity } from "../utils";
+import { setSurfaceOpacity, getSurfaceOpacity, setButtonTintOpacity, getButtonTintOpacity } from "../utils";
 
 const S = {
   section: {
@@ -35,13 +35,22 @@ const S = {
 };
 
 export function SettingsPanel(props: any) {
-  const initial = props.pluginSettings?.surfaceOpacity ?? getSurfaceOpacity();
-  if (initial !== getSurfaceOpacity()) setSurfaceOpacity(initial);
+  const initialSurface = props.pluginSettings?.surfaceOpacity ?? getSurfaceOpacity();
+  if (initialSurface !== getSurfaceOpacity()) setSurfaceOpacity(initialSurface);
 
-  function onChange(e: Event) {
+  const initialButton = props.pluginSettings?.buttonTintOpacity ?? getButtonTintOpacity();
+  if (initialButton !== getButtonTintOpacity()) setButtonTintOpacity(initialButton);
+
+  function onSurfaceChange(e: Event) {
     const val = parseFloat((e.target as HTMLInputElement).value);
     setSurfaceOpacity(val);
-    props.onPluginSettingsChange?.({ surfaceOpacity: val });
+    props.onPluginSettingsChange?.({ surfaceOpacity: val, buttonTintOpacity: getButtonTintOpacity() });
+  }
+
+  function onButtonChange(e: Event) {
+    const val = parseFloat((e.target as HTMLInputElement).value);
+    setButtonTintOpacity(val);
+    props.onPluginSettingsChange?.({ surfaceOpacity: getSurfaceOpacity(), buttonTintOpacity: val });
   }
 
   return (
@@ -54,13 +63,30 @@ export function SettingsPanel(props: any) {
           max="0.2"
           step="0.005"
           value={getSurfaceOpacity()}
-          onInput={onChange}
+          onInput={onSurfaceChange}
           style={S.slider}
         />
         <span style={S.value}>{Math.round(getSurfaceOpacity() * 100)}%</span>
       </div>
-      <div style={{ "font-size": "11px", color: "var(--text-muted, #888)", "margin-top": "6px" }}>
+      <div style={{ "font-size": "11px", color: "var(--text-muted, #888)", "margin-top": "6px", "margin-bottom": "20px" }}>
         Controls the tint strength of card and panel backgrounds.
+      </div>
+
+      <label style={S.label}>Button tint opacity</label>
+      <div style={S.row}>
+        <input
+          type="range"
+          min="0"
+          max="0.5"
+          step="0.01"
+          value={getButtonTintOpacity()}
+          onInput={onButtonChange}
+          style={S.slider}
+        />
+        <span style={S.value}>{Math.round(getButtonTintOpacity() * 100)}%</span>
+      </div>
+      <div style={{ "font-size": "11px", color: "var(--text-muted, #888)", "margin-top": "6px" }}>
+        Controls how much accent color blends into button backgrounds.
       </div>
     </div>
   );

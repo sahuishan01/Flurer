@@ -75,7 +75,7 @@ export function DiffView() {
 
         {/* Quick Target Switcher Toolbar for Commit Diffs */}
         <Show when={commitHash()}>
-          <div style={{ display: "inline-flex", background: "var(--control-bg, rgba(255, 255, 255, 0.08))", border: "var(--control-border, 1px solid rgba(255, 255, 255, 0.12))", "border-radius": "8px", padding: "2px", gap: "2px", "backdrop-filter": "blur(8px)" }}>
+          <div style={{ display: "inline-flex", background: "var(--control-bg, rgba(255, 255, 255, 0.08))", border: "var(--control-border, 1px solid rgba(255, 255, 255, 0.12))", "border-radius": "8px", padding: "2px", gap: "2px" }}>
             <button
               type="button"
               style={{

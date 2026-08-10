@@ -1,6 +1,6 @@
 import { Show, For, createSignal, createMemo, createEffect, onMount } from "solid-js";
 import { GitProvider } from "./context";
-import { getRecentRepos, basename, setSurfaceOpacity, getSavedOpenTabs, saveOpenTabs, getSavedActiveTab, saveActiveTab } from "./utils";
+import { getRecentRepos, basename, setSurfaceOpacity, setButtonTintOpacity, surfaceBg, getSavedOpenTabs, saveOpenTabs, getSavedActiveTab, saveActiveTab } from "./utils";
 import { GitIcon, CloseIcon, PlusIcon, Toast } from "./components/shared";
 import { DashboardView } from "./components/DashboardView";
 import { RepoView } from "./components/RepoView";
@@ -62,6 +62,8 @@ function GitPanel(props: any) {
   // Apply saved plugin settings on mount
   const opacity = props.pluginSettings?.surfaceOpacity;
   if (typeof opacity === "number") setSurfaceOpacity(opacity);
+  const btnOpacity = props.pluginSettings?.buttonTintOpacity;
+  if (typeof btnOpacity === "number") setButtonTintOpacity(btnOpacity);
 
   const showDashboard = () => tabs().length === 0;
 
@@ -97,7 +99,7 @@ function GitPanel(props: any) {
   }
 
   return (
-    <div style={{ height: "100%", width: "100%", display: "flex", "flex-direction": "column", overflow: "hidden", "box-sizing": "border-box" }}>
+    <div style={{ height: "100%", width: "100%", display: "flex", "flex-direction": "column", overflow: "hidden", "box-sizing": "border-box", background: surfaceBg(0.06) }}>
       {/* Tab bar — always visible when there are open repos */}
       <Show when={tabs().length > 0}>
         <div style={{ display: "flex", gap: 0, "border-bottom": "1px solid var(--border-strong)", "flex-shrink": 0, "align-items": "stretch", overflow: "auto" }}>

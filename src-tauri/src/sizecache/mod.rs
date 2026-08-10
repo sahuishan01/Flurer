@@ -386,6 +386,20 @@ fn is_cached(state: &AppState, path: &Path) -> bool {
         || state.size_cache.subdirs.lock().unwrap().contains_key(path)
 }
 
+// Recursive watches can cover the folder where Flurer stores its own settings,
+// wallpaper and size-cache files. Those writes are expected and must not
+// invalidate a user folder: doing so creates an autosave -> watcher -> walk
+// feedback loop that keeps the workers busy after all real work is finished.
+fn is_path_under(path: &Path, root: &Path) -> bool {
+    path.starts_with(root)
+}
+
+fn is_internal_app_path(path: &Path) -> bool {
+    crate::helpers::settings::config_root()
+        .ok()
+        .is_some_and(|root| is_path_under(path, &root))
+}
+
 // Drops entries for folders that are genuinely deleted, then writes the
 // cache to its own file. Deliberately not part of settings.json: this is
 // derived data that changes every few seconds and can run to thousands of
@@ -794,6 +808,9 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
     // we've actually cached (i.e. the user has actually looked at).
     let mut dirty: Vec<PathBuf> = Vec::new();
     for event in &events {
+        if is_internal_app_path(&event.path) {
+            continue;
+        }
         let mut current = event.path.parent().map(Path::to_path_buf);
         while let Some(dir) = current {
             if !dirty.contains(&dir) && is_cached(&state, &dir) {
@@ -1069,6 +1086,14 @@ mod tests {
         let a = PathBuf::from(r"C:\Users\me\a");
         let b = PathBuf::from(r"C:\Users\me\b");
         assert_eq!(a.parent(), b.parent());
+    }
+
+    #[test]
+    fn app_owned_paths_are_detected_inside_the_config_root() {
+        let root = Path::new("/home/user/.config/flurer");
+        assert!(is_path_under(&root.join("size_cache_v2.json"), root));
+        assert!(is_path_under(&root.join("settings.json"), root));
+        assert!(!is_path_under(Path::new("/home/user/Documents/report.txt"), root));
     }
 
     #[test]

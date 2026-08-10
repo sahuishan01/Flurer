@@ -1,5 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
-import { getRecentRepos, removeRecentRepo, formatTimestamp, surfaceBg } from "../utils";
+import { getRecentRepos, removeRecentRepo, formatTimestamp } from "../utils";
 import { GitIcon, FolderIcon, TrashIcon, Button } from "./shared";
 import { DirectoryPickerModal } from "./DirectoryPickerModal";
 import { S } from "../styles";

@@ -1,5 +1,4 @@
 import { createSignal, For, Show, onMount } from "solid-js";
-import { surfaceBg } from "../utils";
 import { FolderIcon, CloseIcon, Button } from "./shared";
 
 interface DiskVolume {
@@ -133,7 +132,6 @@ export function DirectoryPickerModal(props: {
           style={{
             background: "var(--glass-bg, rgba(32, 32, 32, 0.85))",
             border: "var(--glass-border, 1px solid rgba(255, 255, 255, 0.12))",
-            "backdrop-filter": "var(--glass-blur, blur(24px))",
             "border-radius": "12px",
             width: "680px",
             "max-width": "95vw",

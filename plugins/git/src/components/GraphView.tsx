@@ -1,6 +1,6 @@
-import { createSignal, createMemo, Index, Show, onMount } from "solid-js";
+import { createSignal, createMemo, Index, For, Show, onMount } from "solid-js";
 import { useGit } from "../context";
-import { formatTimestamp, surfaceBg } from "../utils";
+import { formatTimestamp } from "../utils";
 import type { GitGraphEntry } from "../types";
 import { EmptyState, Card, Button, CloseIcon, CommitContextMenu } from "./shared";
 import { S } from "../styles";
@@ -8,7 +8,24 @@ import { S } from "../styles";
 const LANE_W = 16;
 const ROW_H = 34;
 const DOT_R = 4.5;
+const LEGEND_H = 34;
 const COLORS = ["#f59e0b", "#60a5fa", "#4ade80", "#f87171", "#c084fc", "#2dd4bf", "#fb923c", "#a78bfa"];
+
+const GRAPH_CSS_ID = "flurer-git-graph-css";
+const GRAPH_CSS = `
+.flurer-git-row{transition:background .15s ease, box-shadow .15s ease;}
+.flurer-git-row:hover{background:var(--control-bg, rgba(255,255,255,0.05));}
+.flurer-git-chip{transition:filter .15s ease, transform .15s ease;}
+.flurer-git-chip:hover{filter:brightness(1.18);transform:translateY(-1px);}
+.flurer-git-merge{box-shadow:0 0 14px rgba(96,205,255,.18);}
+.flurer-git-loadmore{transition:background .15s ease, border-color .15s ease, transform .15s ease;}
+.flurer-git-loadmore:hover{background:var(--control-bg, rgba(255,255,255,0.06));transform:translateY(-1px);}
+.flurer-git-lanechip{transition:filter .15s ease;}
+.flurer-git-lanechip:hover{filter:brightness(1.15);}
+@media (max-width:640px){.flurer-git-meta{display:none!important;}}
+@media (max-width:480px){.flurer-git-refs{display:none!important;}}
+@media (max-width:360px){.flurer-git-hash{display:none!important;}}
+`;
 
 interface GraphRow extends GitGraphEntry {
   lane: number;
@@ -29,6 +46,7 @@ interface GraphData {
   rows: GraphRow[];
   edges: GraphEdge[];
   laneCount: number;
+  laneLabels: (string | null)[];
 }
 
 function buildGraph(entries: GitGraphEntry[]): GraphData {
@@ -107,7 +125,24 @@ function buildGraph(entries: GitGraphEntry[]): GraphData {
     }
   }
 
-  return { rows, edges, laneCount };
+  const laneLabels: (string | null)[] = new Array(laneCount).fill(null);
+  for (const r of rows) {
+    if (laneLabels[r.lane] === null) {
+      for (const ref of r.refs) {
+        const name = ref.replace("HEAD -> ", "").replace("HEAD, ", "");
+        if (name && !name.startsWith("refs/") && !name.startsWith("tag:") && !name.startsWith("*")) {
+          laneLabels[r.lane] = name;
+          break;
+        }
+      }
+    }
+  }
+
+  return { rows, edges, laneCount, laneLabels };
+}
+
+function lighten(hex: string, alpha: number): string {
+  return `${hex}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
 }
 
 export function GraphView() {
@@ -117,6 +152,12 @@ export function GraphView() {
 
   onMount(() => {
     if (ctx.graph().length === 0) ctx.loadGraph();
+    if (!document.getElementById(GRAPH_CSS_ID)) {
+      const st = document.createElement("style");
+      st.id = GRAPH_CSS_ID;
+      st.textContent = GRAPH_CSS;
+      document.head.appendChild(st);
+    }
   });
 
   const data = createMemo(() => buildGraph(ctx.graph()));
@@ -124,33 +165,29 @@ export function GraphView() {
   const rowMaxLanes = createMemo(() => {
     const gData = data();
     const maxLanes = new Array(gData.rows.length).fill(0);
-
-    gData.rows.forEach((r, i) => {
-      maxLanes[i] = Math.max(maxLanes[i], r.lane);
-    });
-
+    gData.rows.forEach((r, i) => { maxLanes[i] = Math.max(maxLanes[i], r.lane); });
     gData.edges.forEach((e) => {
       const start = e.fromRow;
       const end = e.toRow !== null ? e.toRow : gData.rows.length - 1;
       for (let r = start; r <= end; r++) {
         if (r < maxLanes.length) {
           maxLanes[r] = Math.max(maxLanes[r], e.viaLane, e.fromLane);
-          if (e.toLane !== null && r === end) {
-            maxLanes[r] = Math.max(maxLanes[r], e.toLane);
-          }
+          if (e.toLane !== null && r === end) maxLanes[r] = Math.max(maxLanes[r], e.toLane);
         }
       }
     });
-
     return maxLanes;
   });
 
-  const laneX = (l: number) => l * LANE_W + LANE_W / 2;
-  const rowY = (r: number) => r * ROW_H + ROW_H / 2;
-  const laneColor = (l: number) => COLORS[l % COLORS.length];
+  const laneW = () => data().laneCount * LANE_W;
+  const rowsH = () => data().rows.length * ROW_H;
+  const svgH = () => LEGEND_H + rowsH() + ROW_H;
+  const bottomY = () => LEGEND_H + data().rows.length * ROW_H;
   const graphW = () => data().laneCount * LANE_W + 8;
-  const svgH = () => data().rows.length * ROW_H + 20;
-  const bottomY = () => data().rows.length * ROW_H;
+
+  const laneX = (l: number) => l * LANE_W + LANE_W / 2;
+  const rowY = (r: number) => LEGEND_H + r * ROW_H + ROW_H / 2;
+  const laneColor = (l: number) => COLORS[l % COLORS.length];
 
   function handleScroll(e: Event) {
     const el = e.currentTarget as HTMLDivElement;
@@ -187,33 +224,41 @@ export function GraphView() {
       pts.push(`${vx},${joinY}`, `${x2},${joinY}`);
     }
     pts.push(`${x2},${y2}`);
+
+    if (e.toRow === null) {
+      pts.push(`${x2 + 5},${y2}`);
+    }
     return pts.join(" ");
   };
 
   return (
-    <div style={{ display: "flex", "flex-direction": "column", height: "100%", width: "100%", overflow: "hidden", padding: "16px 20px", background: surfaceBg(0.04), "box-sizing": "border-box" }}>
+    <div style={{ display: "flex", "flex-direction": "column", height: "100%", width: "100%", overflow: "hidden", padding: "16px 20px", "box-sizing": "border-box" }}>
       <Show when={data().rows.length === 0}>
         <EmptyState message="Loading graph..." />
       </Show>
       <Show when={data().rows.length > 0}>
-        <div
-          onScroll={handleScroll}
-          style={{ flex: 1, width: "100%", overflow: "auto", background: surfaceBg(0.04) }}
-        >
-          <div style={{ width: "100%", "min-width": `${graphW() + 340}px` }}>
-            <svg width="100%" height={svgH()} style={{ display: "block" }}>
+        <div onScroll={handleScroll} style={{ flex: 1, width: "100%", overflow: "auto" }}>
+          <div class="flurer-git-tree" style={{ width: "100%", "min-width": `calc(${graphW() + 340}px)`, position: "relative", height: `${svgH()}px` }}>
+            {/* Legend: lane → branch name */}
+            <div class="flurer-git-legend" style={{ position: "absolute", left: 0, top: 0, width: "100%", height: `${LEGEND_H}px`, display: "flex", "align-items": "center", gap: "8px", padding: `0 14px 0 ${laneW() + 10}px`, "box-sizing": "border-box", overflow: "hidden", "border-bottom": "1px solid var(--border-subtle, rgba(255,255,255,0.06))" }}>
+              <For each={data().laneLabels}>
+                {(label, idx) => (
+                  <Show when={label}>
+                    <span class="flurer-git-lanechip" style={{ display: "inline-flex", "align-items": "center", gap: "6px", padding: "3px 10px", "border-radius": "999px", "font-size": "10.5px", "font-weight": 600, "font-family": "Space Mono,monospace", background: lighten(laneColor(idx()), 0.14), border: `1px solid ${lighten(laneColor(idx()), 0.4)}`, color: laneColor(idx()), "white-space": "nowrap", cursor: "default" }}>
+                      <span style={{ width: "7px", height: "7px", "border-radius": "50%", background: laneColor(idx()), display: "inline-block", "flex-shrink": 0 }} />
+                      {label}
+                    </span>
+                  </Show>
+                )}
+              </For>
+            </div>
+
+            {/* SVG layer: edges + dots + text (v0.12.4 alignment) */}
+            <svg width="100%" height={svgH()} style={{ position: "absolute", left: 0, top: 0, display: "block" }}>
               <defs>
                 <Index each={COLORS}>
                   {(color, idx) => (
-                    <marker
-                      id={`merge-arrow-${idx}`}
-                      viewBox="0 0 10 10"
-                      refX="5"
-                      refY="5"
-                      markerWidth="7"
-                      markerHeight="7"
-                      orient="auto-start-reverse"
-                    >
+                    <marker id={`merge-arrow-${idx}`} viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill={color()} />
                     </marker>
                   )}
@@ -224,19 +269,8 @@ export function GraphView() {
                   const isMerge = () => edge().isMergeBranch || edge().parentIndex > 0;
                   const strokeCol = () => laneColor(edge().viaLane);
                   const markerId = () => `url(#merge-arrow-${edge().viaLane % COLORS.length})`;
-
                   return (
-                    <polyline
-                      points={edgePoints(edge())}
-                      fill="none"
-                      stroke={strokeCol()}
-                      stroke-width={isMerge() ? "2.5" : "2"}
-                      stroke-dasharray={isMerge() ? "5,3" : "none"}
-                      opacity={isMerge() ? "0.95" : "0.55"}
-                      stroke-linejoin="round"
-                      stroke-linecap="round"
-                      marker-start={isMerge() ? markerId() : undefined}
-                    />
+                    <polyline points={edgePoints(edge())} fill="none" stroke={strokeCol()} stroke-width={isMerge() ? "2.5" : "2"} stroke-dasharray={isMerge() ? "5,3" : "none"} opacity={isMerge() ? "0.95" : "0.55"} stroke-linejoin="round" stroke-linecap="round" marker-start={isMerge() ? markerId() : undefined} />
                   );
                 }}
               </Index>
@@ -254,45 +288,26 @@ export function GraphView() {
                   const msgLeft = () => textX() + (isMergeCommit() ? 202 : 78);
 
                   return (
-                    <g
-                      style={{ cursor: "pointer" }}
-                      onClick={() => handleRowClick(row().hash)}
-                      onContextMenu={(e) => handleContextMenu(e, row().hash)}
-                    >
-                      {/* Row background selection state */}
-                      <rect
-                        x="0"
-                        y={y - ROW_H / 2}
-                        width="100%"
-                        height={ROW_H}
-                        fill={isSelected() ? "rgba(245, 158, 11, 0.14)" : "transparent"}
-                        style={{ transition: "fill 0.15s" }}
-                      />
+                    <g style={{ cursor: "pointer" }} onClick={() => handleRowClick(row().hash)} onContextMenu={(e) => handleContextMenu(e, row().hash)}>
+                      <rect x="0" y={y - ROW_H / 2} width="100%" height={ROW_H} fill={isSelected() ? "rgba(245, 158, 11, 0.14)" : "transparent"} style={{ transition: "fill 0.15s" }} />
 
-                      {/* Merge Node vs Standard Node Visuals */}
                       <Show when={isMergeCommit()}>
                         <circle cx={cx} cy={y} r={DOT_R + 4.5} fill="rgba(96, 205, 255, 0.25)" stroke={color} stroke-width="1.5" />
-                        <polygon
-                          points={`${cx},${y - DOT_R - 2} ${cx + DOT_R + 2},${y} ${cx},${y + DOT_R + 2} ${cx - DOT_R - 2},${y}`}
-                          fill="var(--accent-default, #60cdff)"
-                          stroke="var(--option-bg, #000)"
-                          stroke-width="1.5"
-                        />
+                        <polygon points={`${cx},${y - DOT_R - 2} ${cx + DOT_R + 2},${y} ${cx},${y + DOT_R + 2} ${cx - DOT_R - 2},${y}`} fill="var(--accent-default, #60cdff)" stroke="var(--option-bg, #000)" stroke-width="1.5" />
                       </Show>
                       <Show when={!isMergeCommit()}>
                         <circle cx={cx} cy={y} r={DOT_R} fill={color} stroke="var(--panel-bg,#1a1a2e)" stroke-width="2" />
                         <circle cx={cx} cy={y} r={DOT_R + 2.5} fill="none" stroke={color} stroke-width="1.5" opacity={isSelected() ? "0.8" : "0.3"} />
                       </Show>
 
-                      {/* Branch / Tag Reference Badges */}
                       <Index each={row().refs}>
                         {(ref, ri) => {
                           const rx = refStart() + ri * 130;
                           const tw = Math.min(ref().length * 7.2 + 16, 120);
                           return (
                             <g>
-                              <rect x={rx} y={y - 9} width={tw} height={18} rx={4} fill={color} opacity="0.22" stroke={color} stroke-width="1" />
-                              <text x={rx + 8} y={y + 4} fill={color} font-size="10" font-weight="700" font-family="Space Mono,monospace">
+                              <rect x={rx} y={y - 9} width={tw} height={18} rx={4} fill={lighten(color, 0.22)} stroke={color} stroke-width="1" />
+                              <text class="flurer-git-refs" x={rx + 8} y={y + 4} fill={color} font-size="10" font-weight="700" font-family="Space Mono,monospace">
                                 {ref().length > 14 ? ref().slice(0, 14) + "…" : ref()}
                               </text>
                             </g>
@@ -300,69 +315,46 @@ export function GraphView() {
                         }}
                       </Index>
 
-                      {/* Commit Hash Label */}
-                      <text x={textX()} y={y + 4} fill="var(--accent-default, var(--accent-color,#f59e0b))" font-size="11" font-family="Space Mono,monospace" style={{ "text-shadow": "var(--text-shadow)" }}>
+                      <text class="flurer-git-hash" x={textX()} y={y + 4} fill="var(--accent-default, var(--accent-color,#f59e0b))" font-size="11" font-family="Space Mono,monospace" style={{ "text-shadow": "var(--text-shadow)" }}>
                         {row().hash.slice(0, 7)}
                       </text>
 
-                      {/* Merge Commit Explicit Directional Badge */}
                       <Show when={isMergeCommit()}>
                         <g>
                           <rect x={textX() + 65} y={y - 9} width="128" height="17" rx="4" fill="rgba(96, 205, 255, 0.22)" stroke="rgba(96, 205, 255, 0.45)" />
                           <text x={textX() + 71} y={y + 3} fill="var(--accent-default, #60cdff)" font-size="10" font-weight="700" font-family="Space Mono,monospace" style={{ "text-shadow": "var(--text-shadow)" }}>
-                            🔀 MERGE ({row().parents[1].slice(0, 5)}➔{row().parents[0].slice(0, 5)})
+                            {"🔀 MERGE ("}{row().parents[1].slice(0, 5)}{"➔"}{row().parents[0].slice(0, 5)}{")"}
                           </text>
                         </g>
                       </Show>
 
-                      {/* Commit Message */}
-                      <foreignObject x={msgLeft()} y={y - 10} width={`calc(100% - ${msgLeft() + 200}px)`} height={ROW_H}>
-                        <div
-                          xmlns="http://www.w3.org/1999/xhtml"
-                          style={{
-                            "font-size": "12px",
-                            color: isSelected() ? "var(--accent-default, var(--accent-color, #f59e0b))" : "var(--text-primary, var(--text-color))",
-                            "font-weight": isSelected() ? "600" : "400",
-                            "text-shadow": "var(--text-shadow)",
-                            "line-height": `${ROW_H}px`,
-                            overflow: "hidden",
-                            "text-overflow": "ellipsis",
-                            "white-space": "nowrap",
-                          }}
-                          title={row().message}
-                        >
-                          {row().message}
+                      <foreignObject x={msgLeft()} y={y - 10} width={`calc(100% - ${msgLeft() + 24}px)`} height={ROW_H}>
+                        <div xmlns="http://www.w3.org/1999/xhtml" style={{ display: "flex", "align-items": "center", gap: "10px", width: "100%", height: "100%" }}>
+                          <div style={{ flex: 1, "min-width": 0, "font-size": "12px", color: isSelected() ? "var(--accent-default, var(--accent-color, #f59e0b))" : "var(--text-primary, var(--text-color))", "font-weight": isSelected() ? "600" : "400", "text-shadow": "var(--text-shadow)", "white-space": "nowrap", overflow: "hidden", "text-overflow": "ellipsis" }} title={row().message}>
+                            {row().message}
+                          </div>
+                          <div class="flurer-git-meta" style={{ flex: "0 0 auto", "white-space": "nowrap", "font-size": "11px", color: "var(--text-secondary, #c0c0c0)", "text-shadow": "var(--text-shadow)" }}>
+                            {row().author}{row().committer && row().committer !== row().author ? ` · ${row().committer}` : ""}{" · "}{formatTimestamp(row().timestamp)}
+                          </div>
                         </div>
                       </foreignObject>
-                      <text x="calc(100% - 16px)" y={y + 4} text-anchor="end" fill="var(--text-secondary, #c0c0c0)" font-size="11" style={{ "text-shadow": "var(--text-shadow)" }}>
-                        {row().author}{" · "}{formatTimestamp(row().timestamp)}
-                      </text>
                     </g>
                   );
                 }}
               </Index>
             </svg>
-            <Show when={ctx.graphHasMore() && !ctx.graphLoading()}>
-              <div
-                onClick={() => ctx.loadMoreGraph()}
-                style={{
-                  padding: "10px 16px",
-                  "font-size": "12px",
-                  color: "var(--accent-default, var(--accent-color,#f59e0b))",
-                  "text-align": "center",
-                  cursor: "pointer",
-                  "user-select": "none",
-                }}
-              >
-                Load older commits ↓
-              </div>
-            </Show>
-            <Show when={ctx.graphLoading()}>
-              <div style={{ padding: "10px 16px", "font-size": "12px", color: "var(--text-secondary,#888)", "text-align": "center" }}>
-                Loading more commits…
-              </div>
-            </Show>
           </div>
+
+          <Show when={ctx.graphHasMore() && !ctx.graphLoading()}>
+            <div class="flurer-git-loadmore" onClick={() => ctx.loadMoreGraph()} style={{ margin: "10px auto 0", padding: "7px 18px", "font-size": "11px", "font-weight": 600, color: "var(--accent-default, var(--accent-color,#f59e0b))", "text-align": "center", cursor: "pointer", "user-select": "none", "border-radius": "999px", border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", width: "max-content" }}>
+              Load older commits ↓
+            </div>
+          </Show>
+          <Show when={ctx.graphLoading()}>
+            <div style={{ padding: "10px 16px", "font-size": "12px", color: "var(--text-secondary,#888)", "text-align": "center" }}>
+              Loading more commits…
+            </div>
+          </Show>
         </div>
       </Show>
 
@@ -382,25 +374,10 @@ export function GraphView() {
                   const d = ctx.commitDetail();
                   if (d) ctx.openDiffPrompt(d.hash);
                 }}>View Diff</Button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    ctx.closeCommitDetail();
-                    setSelectedHash(null);
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text-secondary, #888)",
-                    cursor: "pointer",
-                    padding: "4px",
-                    display: "inline-flex",
-                    "align-items": "center",
-                  }}
-                  title="Close details"
-                >
-                  <CloseIcon size={14} />
-                </button>
+                <Button size="sm" onClick={() => {
+                  ctx.closeCommitDetail();
+                  setSelectedHash(null);
+                }}>✕</Button>
               </div>
             </div>
 
@@ -409,19 +386,18 @@ export function GraphView() {
                 {ctx.commitDetail()!.message}
               </div>
 
-              {/* Explicit Merge Breakdown Box */}
               <Show when={ctx.commitDetail()!.parent_hashes.length > 1}>
-                <div style={{ background: "var(--accent-bg-soft, rgba(96, 205, 255, 0.12))", border: "1px solid var(--accent-border, rgba(96, 205, 255, 0.3))", padding: "10px 14px", "border-radius": "6px", margin: "10px 0", "box-shadow": "0 2px 8px rgba(0,0,0,0.15)" }}>
+                <div style={{ background: "linear-gradient(135deg, rgba(96,205,255,0.14), rgba(129,140,248,0.12))", border: "1px solid rgba(96,205,255,0.3)", padding: "10px 14px", "border-radius": "10px", margin: "10px 0", "box-shadow": "0 2px 10px rgba(0,0,0,0.12)" }}>
                   <div style={{ display: "flex", "align-items": "center", gap: "6px", "font-weight": 600, "font-size": "12px", color: "var(--accent-default, #60cdff)", "text-shadow": "var(--text-shadow)" }}>
                     🔀 Merge Commit Breakdown
                   </div>
                   <div style={{ "font-size": "12px", margin: "6px 0 2px", color: "var(--text-primary, var(--text-color))", "text-shadow": "var(--text-shadow)", display: "flex", "align-items": "center", gap: "6px", "flex-wrap": "wrap" }}>
                     <span>Merging <strong>Source Branch</strong></span>
-                    <code style={{ background: "rgba(74, 222, 128, 0.2)", color: "#4ade80", padding: "2px 6px", "border-radius": "4px", "font-family": "Space Mono, monospace", "font-size": "11px" }}>
+                    <code style={{ background: "rgba(74, 222, 128, 0.2)", color: "#4ade80", padding: "2px 6px", "border-radius": "6px", "font-family": "Space Mono, monospace", "font-size": "11px" }}>
                       {ctx.commitDetail()!.parent_hashes[1].slice(0, 7)}
                     </code>
                     <span style={{ "font-weight": 700 }}>➔ Into Target/Base Branch</span>
-                    <code style={{ background: "rgba(96, 165, 250, 0.2)", color: "#60a5fa", padding: "2px 6px", "border-radius": "4px", "font-family": "Space Mono, monospace", "font-size": "11px" }}>
+                    <code style={{ background: "rgba(96, 165, 250, 0.2)", color: "#60a5fa", padding: "2px 6px", "border-radius": "6px", "font-family": "Space Mono, monospace", "font-size": "11px" }}>
                       {ctx.commitDetail()!.parent_hashes[0].slice(0, 7)}
                     </code>
                   </div>
@@ -440,12 +416,7 @@ export function GraphView() {
 
       {/* Right-click Context Menu */}
       <Show when={menuPos()}>
-        <CommitContextMenu
-          x={menuPos()!.x}
-          y={menuPos()!.y}
-          hash={menuPos()!.hash}
-          onClose={() => setMenuPos(null)}
-        />
+        <CommitContextMenu x={menuPos()!.x} y={menuPos()!.y} hash={menuPos()!.hash} onClose={() => setMenuPos(null)} />
       </Show>
     </div>
   );

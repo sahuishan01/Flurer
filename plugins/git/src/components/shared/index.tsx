@@ -1,7 +1,7 @@
 import { Show, For, createSignal, createMemo, type JSX } from "solid-js";
 import { useGit } from "../../context";
-import { surfaceBg } from "../../utils";
 import { S } from "../../styles";
+import { buttonBg } from "../../utils";
 
 export function GitIcon(props: { size?: number }) {
   return (
@@ -112,11 +112,17 @@ export function CloseIcon(props: { size?: number }) {
 
 export function Button(props: { variant?: "primary" | "secondary" | "danger"; size?: "sm" | "md"; disabled?: boolean; onClick?: () => void; children: JSX.Element; style?: any }) {
   const base = { ...S.btn, ...(props.size === "sm" ? { padding: "4px 10px", "font-size": "11px" } : {}) };
-  const variant = props.variant === "danger" ? S.btnDanger : props.variant === "primary" ? S.btnPrimary : S.btnSecondary;
+  const variantStyle = props.variant === "danger" ? S.btnDanger : props.variant === "primary" ? S.btnPrimary : S.btnSecondary;
   return (
     <button
       type="button"
-      style={{ ...base, ...variant, ...props.style }}
+      style={{
+        ...base,
+        ...variantStyle,
+        ...(props.variant === "primary" ? { background: buttonBg("#0078d4") } : {}),
+        ...(props.variant === "danger" ? { background: buttonBg("#ef4444") } : {}),
+        ...props.style,
+      }}
       disabled={props.disabled}
       onClick={props.onClick}
     >
@@ -273,7 +279,6 @@ export function CommitContextMenu(props: {
           "border-radius": "8px",
           padding: "6px",
           "box-shadow": "var(--glass-shadow, 0 8px 24px rgba(0,0,0,0.5))",
-          "backdrop-filter": "var(--glass-blur, blur(20px))",
           display: "flex",
           "flex-direction": "column",
           gap: "2px",
@@ -340,7 +345,6 @@ const menuBtnStyle = {
   border: "none",
   background: "transparent",
   color: "var(--text-primary, var(--text-color, #e4e4e7))",
-  "text-shadow": "var(--text-shadow)",
   "font-size": "12px",
   cursor: "pointer",
   "border-radius": "4px",
@@ -375,10 +379,8 @@ export function BranchMultiSelect() {
           "font-size": "12px",
           "font-weight": 600,
           color: "var(--text-primary, var(--text-color))",
-          "text-shadow": "var(--text-shadow)",
           cursor: "pointer",
           transition: "all 0.15s ease",
-          "backdrop-filter": "blur(8px)",
         }}
         onClick={() => setOpen(!open())}
         title="Filter graph & history by specific branches"
@@ -408,7 +410,6 @@ export function BranchMultiSelect() {
             "border-radius": "8px",
             padding: "8px",
             "box-shadow": "var(--glass-shadow, 0 12px 32px rgba(0,0,0,0.5))",
-            "backdrop-filter": "var(--glass-blur, blur(24px))",
             "min-width": "220px",
             "max-width": "300px",
             "max-height": "320px",
@@ -535,7 +536,6 @@ export function DiffCompareModal() {
             width: "100%",
             "max-width": "460px",
             "box-shadow": "var(--glass-shadow, 0 16px 40px rgba(0,0,0,0.6))",
-            "backdrop-filter": "var(--glass-blur, blur(24px))",
             display: "flex",
             "flex-direction": "column",
             gap: "16px",

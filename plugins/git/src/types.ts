@@ -31,6 +31,7 @@ export interface GitGraphEntry {
   hash: string;
   message: string;
   author: string;
+  committer?: string;
   timestamp: number;
   parents: string[];
   refs: string[];

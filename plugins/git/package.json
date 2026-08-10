@@ -1,6 +1,6 @@
 {
   "name": "flurer-plugin-git",
-  "version": "0.12.2",
+  "version": "0.12.15",
   "private": true,
   "type": "module",
   "scripts": {
