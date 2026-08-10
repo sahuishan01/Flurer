@@ -40,6 +40,7 @@ export type Settings = {
   graphState: GraphState | null;
   favouritePaths: string[];
   recentPaths: string[];
+  maxHistoryItems: number;
   sortKey: SortKey;
   sortDirection: SortDirection;
   fontFamily: string;
@@ -80,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphState: null,
   favouritePaths: [],
   recentPaths: [],
+  maxHistoryItems: 15,
   sortKey: "name",
   sortDirection: "ascending",
   fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
@@ -102,6 +104,9 @@ export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [
 
 export const MIN_FONT_SIZE_PX = 12;
 export const MAX_FONT_SIZE_PX = 22;
+
+export const MIN_HISTORY_ITEMS = 1;
+export const MAX_HISTORY_ITEMS = 100;
 
 export const GRADIENT_DIRECTIONS = [
   "to top",

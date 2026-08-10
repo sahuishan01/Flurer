@@ -115,6 +115,10 @@ pub struct Settings {
     // (see recordRecent in App.tsx) rather than the backend, since it's just
     // opaque persisted state from Rust's point of view.
     pub recent_paths: Vec<String>,
+    // Maximum number of recent paths shown in the sidebar and retained on
+    // disk. The frontend trims the list immediately when this changes.
+    #[serde(default = "default_max_history_items")]
+    pub max_history_items: usize,
     pub sort_key: SortKey,
     pub sort_direction: SortDirection,
     pub font_family: String,
@@ -149,6 +153,10 @@ fn default_global_shortcut() -> String {
     "Ctrl+Alt+E".to_string()
 }
 
+fn default_max_history_items() -> usize {
+    15
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -162,6 +170,7 @@ impl Default for Settings {
             graph_state: None,
             favourite_paths: Vec::new(),
             recent_paths: Vec::new(),
+            max_history_items: default_max_history_items(),
             sort_key: SortKey::default(),
             sort_direction: SortDirection::default(),
             font_family: "Inter, Avenir, Helvetica, Arial, sans-serif".to_string(),

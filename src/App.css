@@ -921,6 +921,22 @@ button.sidebar-drive,
     font-size: var(--text-caption);
 }
 
+.history-limit-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+}
+
+.history-limit-control input {
+    width: 5em;
+    padding: 0.35em 0.5em;
+    color: var(--text-color);
+    background: var(--control-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
 /* Plugin Marketplace & shared settings-panel chrome — nested tinted+blurred
    layers matching the rest of the app's material hierarchy (glass panel >
    control inset > card), rather than the flat hardcoded backgrounds this

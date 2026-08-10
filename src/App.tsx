@@ -8,7 +8,14 @@ import { ExplorerView } from "./components/ExplorerView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ViewRail } from "./components/ViewRail";
-import { DEFAULT_SETTINGS, type BackgroundSettings, type Settings, type Theme } from "./lib/settings";
+import {
+  DEFAULT_SETTINGS,
+  MAX_HISTORY_ITEMS,
+  MIN_HISTORY_ITEMS,
+  type BackgroundSettings,
+  type Settings,
+  type Theme,
+} from "./lib/settings";
 import type { SortKey } from "./lib/fs";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
@@ -17,7 +24,6 @@ import "./App.css";
 
 const DEFAULT_PATH = "C:\\";
 const SETTINGS_SAVE_DEBOUNCE_MS = 300;
-const RECENTS_LIMIT = 15;
 
 type HistoryEntry = { view: MainView; path: string };
 
@@ -278,6 +284,14 @@ function App() {
     persistSettings();
   }
 
+  function updateMaxHistoryItems(value: number) {
+    const requested = Number.isFinite(value) ? value : settings.maxHistoryItems;
+    const limit = Math.max(MIN_HISTORY_ITEMS, Math.min(MAX_HISTORY_ITEMS, Math.round(requested)));
+    setSettings("maxHistoryItems", limit);
+    setSettings("recentPaths", settings.recentPaths.slice(0, limit));
+    persistSettings();
+  }
+
   // The actual OS-level (un)registration happens backend-side, inside
   // set_settings itself (it diffs the previous vs. new value) — this just
   // needs to get the new value persisted the same way every other setting
@@ -319,7 +333,8 @@ function App() {
   // front rather than adding a second entry), capped so the list can't grow
   // forever.
   function recordRecent(path: string) {
-    const next = [path, ...settings.recentPaths.filter((p) => p !== path)].slice(0, RECENTS_LIMIT);
+    const limit = Math.max(MIN_HISTORY_ITEMS, Math.min(MAX_HISTORY_ITEMS, settings.maxHistoryItems));
+    const next = [path, ...settings.recentPaths.filter((p) => p !== path)].slice(0, limit);
     setSettings("recentPaths", next);
     persistSettings();
   }
@@ -945,8 +960,10 @@ function App() {
                   onFontSizePxChange={updateFontSizePx}
                   sidebarTooltipDelayMs={settings.sidebarTooltipDelayMs}
                   onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
-                  showProgressWhenIdle={settings.showProgressWhenIdle}
-                  onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
+                   showProgressWhenIdle={settings.showProgressWhenIdle}
+                   onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
+                   maxHistoryItems={settings.maxHistoryItems}
+                   onMaxHistoryItemsChange={updateMaxHistoryItems}
                   globalShortcut={settings.globalShortcut}
                   onGlobalShortcutChange={updateGlobalShortcut}
                   launchAtStartup={settings.launchAtStartup}

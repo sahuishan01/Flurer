@@ -7,7 +7,9 @@ import {
   GRADIENT_DIRECTIONS,
   GRADIENT_PRESETS,
   MAX_FONT_SIZE_PX,
+  MAX_HISTORY_ITEMS,
   MIN_FONT_SIZE_PX,
+  MIN_HISTORY_ITEMS,
   SOLID_COLOR_PRESETS,
 } from "../lib/settings";
 import {
@@ -65,7 +67,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -91,6 +93,8 @@ type CustomizationSettingsProps = {
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
   onShowProgressWhenIdleChange: (show: boolean) => void;
+  maxHistoryItems: number;
+  onMaxHistoryItemsChange: (limit: number) => void;
   globalShortcut: string;
   onGlobalShortcutChange: (shortcut: string) => void;
   launchAtStartup: boolean;
@@ -664,6 +668,19 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           />
           Always show progress indicator
         </label>
+
+        <label class="history-limit-control">
+          <span>Maximum recent history items</span>
+          <input
+            type="number"
+            min={MIN_HISTORY_ITEMS}
+            max={MAX_HISTORY_ITEMS}
+            step="1"
+            value={props.maxHistoryItems}
+            onChange={(e) => props.onMaxHistoryItemsChange(e.currentTarget.valueAsNumber)}
+          />
+        </label>
+        <p class="settings-hint">Controls how many recently visited folders are kept in the sidebar.</p>
 
         <div class="shortcut-control">
           <span class="shortcut-label">Global shortcut to open Flurer</span>
