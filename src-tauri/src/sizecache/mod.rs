@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     sync::{mpsc, Arc, Mutex},
@@ -84,11 +84,6 @@ struct TrackedJob {
 
 struct SizeJob {
     path: PathBuf,
-    // None for background work the user never explicitly waited on (silent
-    // cache revalidation, watcher-triggered recomputes) — those stay
-    // invisible rather than flooding the progress panel on every filesystem
-    // change under a watched folder.
-    tracking: Option<TrackedJob>,
 }
 
 /// A cached folder size with the directory's modification time at the moment
@@ -123,8 +118,15 @@ pub struct SizeCacheState {
     // to push out the entries in `roots` (see MAX_CACHED_SUBDIRS).
     subdirs: Mutex<IndexMap<PathBuf, CachedSize>>,
     // Paths queued or currently being computed by a worker thread, so a
-    // folder already in flight isn't enqueued twice.
-    pending: Mutex<HashSet<PathBuf>>,
+    // folder already in flight isn't walked twice. The value is the
+    // progress-panel task to report the result under, or None for
+    // background work the user never explicitly waited on (silent cache
+    // revalidation, watcher-triggered recomputes) — those stay invisible
+    // rather than flooding the panel on every filesystem change under a
+    // watched folder. Tracking lives here rather than on the job itself so
+    // an explicit Recalculate can attach itself to a walk that is already
+    // running.
+    pending: Mutex<HashMap<PathBuf, Option<TrackedJob>>>,
     watched_roots: Mutex<Vec<PathBuf>>,
     job_sender: Mutex<Option<mpsc::SyncSender<SizeJob>>>,
     // Holding the debouncer keeps its background thread and OS watch handles
@@ -239,6 +241,21 @@ fn dir_mtime_secs(path: &Path) -> i64 {
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+/// Whether a cached size should be silently re-walked, given the folder's
+/// mtime now and the one recorded when the size was computed (both in
+/// epoch seconds, 0 meaning "unreadable"/"never recorded").
+///
+/// Requires a *readable* current mtime rather than just testing for a
+/// mismatch. Treating unreadable (0) as a mismatch meant a folder we can't
+/// stat was re-walked on every listing, forever — and each of those
+/// invisible walks then swallowed the user's Recalculate clicks, because a
+/// path already in flight used to reject further requests outright. A
+/// legacy entry with no recorded mtime still revalidates once (0 differs
+/// from any real mtime) and the walk records a real one, settling it.
+fn needs_revalidation(current_mtime: i64, cached_mtime: i64) -> bool {
+    current_mtime > 0 && current_mtime != cached_mtime
 }
 
 // Removes the oldest entries once `cache` exceeds `max`, down to exactly
@@ -442,7 +459,7 @@ fn folder_label(path: &Path) -> String {
 /// Queues a path for background computation unless it's already queued or in
 /// progress. Returns whether it was newly queued.
 fn enqueue(state: &AppState, path: PathBuf) -> bool {
-    enqueue_job(state, SizeJob { path, tracking: None })
+    enqueue_job(state, path, None)
 }
 
 /// Same as `enqueue`, but reports the computation through the unified
@@ -452,23 +469,35 @@ fn enqueue(state: &AppState, path: PathBuf) -> bool {
 fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf) -> bool {
     let task_id = next_task_id();
     let label = format!("Calculating size — {}", folder_label(&path));
-    let queued = enqueue_job(
-        state,
-        SizeJob { path, tracking: Some(TrackedJob { task_id, label: label.clone() }) },
-    );
+    let queued = enqueue_job(state, path, Some(TrackedJob { task_id, label: label.clone() }));
     if queued {
         emit_progress(app, task_id, &label, 0, 0, false, None, true);
     }
     queued
 }
 
-fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
+/// Returns whether the caller should now show progress for this path —
+/// either because the walk was newly queued, or because an already-running
+/// silent walk just adopted the caller's tracking.
+fn enqueue_job(state: &AppState, path: PathBuf, tracking: Option<TrackedJob>) -> bool {
     let mut pending = state.size_cache.pending.lock().unwrap();
-    if !pending.insert(job.path.clone()) {
+
+    if let Some(slot) = pending.get_mut(&path) {
+        // Already queued or being walked right now. Refusing outright is
+        // what made Recalculate look broken: a folder whose size was being
+        // silently revalidated in the background swallowed the click with
+        // no new walk *and* no progress row, so only the first of several
+        // Recalculates appeared to do anything. Instead, adopt the
+        // caller's tracking onto the in-flight job — the work the user
+        // asked for is already happening, it just wasn't visible.
+        if slot.is_none() && tracking.is_some() {
+            *slot = tracking;
+            return true;
+        }
         return false;
     }
-    // Snapshot path before job is moved into try_send.
-    let path = job.path.clone();
+
+    pending.insert(path.clone(), tracking);
     // Still holding `pending` while trying to send — if the channel is
     // full we atomically back out by removing from `pending`. Otherwise a
     // path stuck in `pending` with no job in the channel would make
@@ -479,7 +508,7 @@ fn enqueue_job(state: &AppState, job: SizeJob) -> bool {
         .lock()
         .unwrap()
         .as_ref()
-        .map(|sender| sender.try_send(job).is_ok())
+        .map(|sender| sender.try_send(SizeJob { path: path.clone() }).is_ok())
         .unwrap_or(false);
     if !sent {
         pending.remove(&path);
@@ -592,7 +621,10 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                 record_subdir(&state, subdir_path, CachedSize { size: subdir_size, dir_mtime: sub_mtime });
             }
             record_root(&state, job.path.clone(), CachedSize { size, dir_mtime: mtime });
-            state.size_cache.pending.lock().unwrap().remove(&job.path);
+            // Whoever asked for this walk may have attached tracking after
+            // it started, so read it back here rather than trusting what
+            // the job carried when it was queued.
+            let tracking = state.size_cache.pending.lock().unwrap().remove(&job.path).flatten();
             *state.size_cache.dirty.lock().unwrap() = true;
             start_watching(&state, &job.path);
 
@@ -604,9 +636,9 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                     done: true,
                 },
             );
-            if let Some(TrackedJob { task_id, label }) = &job.tracking {
-                emit_progress(&app, *task_id, label, 0, 0, true, None, true);
-                cleanup_task(*task_id);
+            if let Some(TrackedJob { task_id, label }) = tracking {
+                emit_progress(&app, task_id, &label, 0, 0, true, None, true);
+                cleanup_task(task_id);
             }
         });
     }
@@ -705,7 +737,7 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
     // entry from the cache (as an earlier version of this did) keeps
     // `handle_debounced_events`' contains_key-based dirty-detection intact
     // for any filesystem change that lands while the recompute is in flight.
-    if state.size_cache.pending.lock().unwrap().contains(&path_buf) {
+    if state.size_cache.pending.lock().unwrap().contains_key(&path_buf) {
         return Ok(FolderSizeResponse::Pending);
     }
 
@@ -720,31 +752,16 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
         // until the next launch.
         start_watching(&state, &path_buf);
 
-        // Persisted cache entries (loaded on startup) have a known mtime.
-        // If the folder's mtime on disk is _still_ the same, the size is
-        // valid and we can skip the silent revalidation entirely.
-        // Legacy entries with dir_mtime == 0 always trigger a revalidation
-        // once, which is harmless — after that they're watched and updated
-        // live.
-        //
-        // Note this only detects changes to the folder's *direct* children;
-        // a directory's mtime doesn't move when something nested deeper
-        // changes. That gap is covered by the recursive watcher above while
-        // Flurer is running (which, being tray-resident with optional
-        // launch-at-startup, is most of the time). Edits made while it's
-        // closed are picked up on the next explicit Recalculate.
-        let mtime_matches = cached.dir_mtime > 0
-            && fs::metadata(&path_buf)
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64 == cached.dir_mtime)
-                .unwrap_or(false);
-        if !mtime_matches {
-            // Folder changed (or we don't know its mtime from a legacy
-            // cache file) — silently revalidate in the background. Return
-            // the cached value immediately so the row never falls back to
-            // a "Calculating…" state for a size we already know.
+        // Note mtime only detects changes to the folder's *direct*
+        // children; a directory's mtime doesn't move when something nested
+        // deeper changes. That gap is covered by the recursive watcher
+        // above while Flurer is running (which, being tray-resident with
+        // optional launch-at-startup, is most of the time). Edits made
+        // while it's closed are picked up on the next explicit Recalculate.
+        if needs_revalidation(dir_mtime_secs(&path_buf), cached.dir_mtime) {
+            // Folder changed since we last walked it — silently revalidate
+            // in the background. Return the cached value immediately so the
+            // row never falls back to "Calculating…" for a size we know.
             enqueue(&state, path_buf.clone());
         }
         return Ok(FolderSizeResponse::Ready { size: cached.size });
@@ -818,6 +835,29 @@ mod tests {
 
     fn entry(size: u64) -> CachedSize {
         CachedSize { size, dir_mtime: 42 }
+    }
+
+    #[test]
+    fn revalidation_is_skipped_when_nothing_changed() {
+        assert!(!needs_revalidation(1000, 1000));
+    }
+
+    #[test]
+    fn revalidation_runs_once_for_a_changed_or_legacy_folder() {
+        assert!(needs_revalidation(1001, 1000), "folder changed");
+        assert!(needs_revalidation(1000, 0), "legacy entry with no recorded mtime");
+        // ...and the walk records the real mtime, so it settles instead of
+        // repeating on every listing.
+        assert!(!needs_revalidation(1000, 1000));
+    }
+
+    #[test]
+    fn an_unreadable_mtime_does_not_spin() {
+        // The regression: 0 was treated as a mismatch, so a folder we can't
+        // stat was re-walked on every single listing, and those invisible
+        // walks swallowed the user's Recalculate clicks.
+        assert!(!needs_revalidation(0, 1000));
+        assert!(!needs_revalidation(0, 0));
     }
 
     #[test]
