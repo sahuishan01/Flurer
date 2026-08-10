@@ -8,7 +8,7 @@ use std::{
 };
 
 use indexmap::IndexMap;
-use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode, Debouncer};
+use notify_debouncer_mini::notify::{self, Event, EventKind, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -18,7 +18,6 @@ use crate::{
     state::AppState,
 };
 
-const DEBOUNCE_WINDOW: Duration = Duration::from_millis(800);
 // Recursive folder walks are disk/CPU heavy; capping how many run at once
 // keeps expanding a folder with many large children from saturating disk I/O
 // and slowing the whole app down.
@@ -144,7 +143,7 @@ pub struct SizeCacheState {
     job_sender: Mutex<Option<mpsc::Sender<SizeJob>>>,
     // Holding the debouncer keeps its background thread and OS watch handles
     // alive; dropping it silently stops all watching.
-    debouncer: Mutex<Option<Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>>>,
+    debouncer: Mutex<Option<notify::RecommendedWatcher>>,
     // Set whenever `roots` changes; the autosave thread clears it after
     // persisting, so an idle app doesn't rewrite the cache file every tick.
     dirty: Mutex<bool>,
@@ -415,6 +414,55 @@ fn is_internal_app_path(path: &Path) -> bool {
         .is_some_and(|root| is_path_under(path, &root))
 }
 
+// Windows continually writes diagnostics, update state, event logs and temp
+// files under these locations. They are deliberately ignored only by the
+// live watcher: full scans and manual Recalculate still include their bytes.
+const WINDOWS_VOLATILE_PATH_SUFFIXES: &[&str] = &[
+    r"\$recycle.bin",
+    r"\config.msi",
+    r"\system volume information",
+    r"\windows\logs",
+    r"\windows\prefetch",
+    r"\windows\softwaredistribution\download",
+    r"\windows\system32\logfiles",
+    r"\windows\system32\winevt\logs",
+    r"\windows\servicing\sessions",
+    r"\windows\winsxs\temp",
+    r"\programdata\microsoft\windows\wer",
+    r"\programdata\microsoft\windows defender\scans",
+    r"\programdata\microsoft\windows\deliveryoptimization\cache",
+];
+
+fn normalized_windows_path(path: &Path) -> String {
+    path.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase()
+}
+
+fn is_windows_volatile_path(path: &Path) -> bool {
+    if !cfg!(windows) {
+        return false;
+    }
+    let normalized = normalized_windows_path(path);
+    if WINDOWS_VOLATILE_PATH_SUFFIXES.iter().any(|suffix| {
+        normalized.ends_with(suffix) || normalized.contains(&format!("{suffix}\\"))
+    }) {
+        return true;
+    }
+
+    for variable in ["TEMP", "TMP"] {
+        if let Ok(root) = std::env::var(variable) {
+            let normalized_root = normalized_windows_path(Path::new(&root));
+            if normalized == normalized_root || normalized.starts_with(&(normalized_root + "\\")) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn is_ignored_watcher_path(path: &Path) -> bool {
+    is_internal_app_path(path) || is_windows_volatile_path(path)
+}
+
 fn apply_size_delta(size: u64, delta: i128) -> u64 {
     if delta >= 0 {
         size.saturating_add(delta as u64)
@@ -423,10 +471,17 @@ fn apply_size_delta(size: u64, delta: i128) -> u64 {
     }
 }
 
+#[derive(Clone, Copy)]
+enum IncrementalChange {
+    Create,
+    Modify,
+    Remove,
+}
+
 // Applies a file-size change to every cached directory containing the file.
 // A full walk is still used when the previous file size is unknown, because
 // treating an unknown modification as a creation would corrupt the cache.
-fn apply_incremental_file_event(app: &AppHandle, state: &AppState, path: &Path) -> bool {
+fn apply_incremental_file_event(app: &AppHandle, state: &AppState, path: &Path, change: IncrementalChange) -> bool {
     let current_size = match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() || metadata.is_dir() => return false,
         Ok(metadata) if metadata.is_file() => Some(metadata.len()),
@@ -436,12 +491,14 @@ fn apply_incremental_file_event(app: &AppHandle, state: &AppState, path: &Path) 
 
     let mut tracked = state.size_cache.tracked_files.lock().unwrap();
     let previous_size = tracked.get(path).copied();
-    let delta = match (previous_size, current_size) {
-        (Some(previous), Some(current)) => current as i128 - previous as i128,
-        (Some(previous), None) => -(previous as i128),
-        // A new file has no trustworthy baseline. Let the normal full-walk
-        // fallback discover it and seed the tracker correctly.
-        (None, _) => return false,
+    let delta = match (change, previous_size, current_size) {
+        (IncrementalChange::Create, None, Some(current)) => current as i128,
+        (IncrementalChange::Create, Some(previous), Some(current)) => current as i128 - previous as i128,
+        (IncrementalChange::Modify, Some(previous), Some(current)) => current as i128 - previous as i128,
+        (IncrementalChange::Remove, Some(previous), None) => -(previous as i128),
+        // Without a matching raw event and baseline, let the full-walk
+        // fallback discover the correct directory contents.
+        _ => return false,
     };
 
     match current_size {
@@ -722,11 +779,11 @@ fn start_watching_exact(state: &AppState, path: &Path) {
     if roots.len() >= MAX_WATCHED_ROOTS {
         let removed = roots.remove(0);
         if let Some(debouncer) = state.size_cache.debouncer.lock().unwrap().as_mut() {
-            let _ = debouncer.watcher().unwatch(&removed);
+            let _ = debouncer.unwatch(&removed);
         }
     }
     if let Some(debouncer) = state.size_cache.debouncer.lock().unwrap().as_mut() {
-        let _ = debouncer.watcher().watch(path, RecursiveMode::Recursive);
+        let _ = debouncer.watch(path, RecursiveMode::Recursive);
     }
     roots.push(path.to_path_buf());
 }
@@ -858,9 +915,9 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
     }
 }
 
-/// Starts the worker pool and the single, process-lifetime debounced
-/// watcher. Call once during app setup; `get_folder_size` enqueues specific
-/// directories on demand.
+/// Starts the worker pool and the single, process-lifetime filesystem watcher.
+/// Raw notify events retain Windows create/modify/remove actions so ordinary
+/// file changes can update cached sizes incrementally.
 pub fn init(app: &AppHandle) {
     let (tx, rx) = mpsc::channel::<SizeJob>();
     let receiver = Arc::new(Mutex::new(rx));
@@ -875,11 +932,9 @@ pub fn init(app: &AppHandle) {
     spawn_autosave(app.clone());
 
     let app_handle = app.clone();
-    let result = new_debouncer(DEBOUNCE_WINDOW, move |result: notify_debouncer_mini::DebounceEventResult| {
-        let Ok(events) = result else {
-            return;
-        };
-        handle_debounced_events(&app_handle, events);
+    let result = notify::recommended_watcher(move |result: notify::Result<Event>| match result {
+        Ok(event) => handle_file_system_event(&app_handle, event),
+        Err(error) => log::warn!("folder watcher reported an error: {error}"),
     });
 
     let Ok(debouncer) = result else {
@@ -916,7 +971,23 @@ pub fn flush(app: &AppHandle) {
     *state.size_cache.dirty.lock().unwrap() = false;
 }
 
-fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::DebouncedEvent>) {
+fn incremental_change_for(kind: &EventKind) -> Option<IncrementalChange> {
+    match kind {
+        EventKind::Create(notify::event::CreateKind::File | notify::event::CreateKind::Any | notify::event::CreateKind::Other) => {
+            Some(IncrementalChange::Create)
+        }
+        EventKind::Modify(notify::event::ModifyKind::Any)
+        | EventKind::Modify(notify::event::ModifyKind::Data(_))
+        | EventKind::Modify(notify::event::ModifyKind::Metadata(_))
+        | EventKind::Modify(notify::event::ModifyKind::Other) => Some(IncrementalChange::Modify),
+        EventKind::Remove(notify::event::RemoveKind::File | notify::event::RemoveKind::Any | notify::event::RemoveKind::Other) => {
+            Some(IncrementalChange::Remove)
+        }
+        _ => None,
+    }
+}
+
+fn handle_file_system_event(app: &AppHandle, event: Event) {
     let state = app.state::<AppState>();
     if !state.settings.blocking_lock().live_folder_size_updates {
         return;
@@ -927,14 +998,22 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
     // renames, or an unknown baseline) invalidate only the cached ancestors
     // that need a full walk.
     let mut dirty: Vec<PathBuf> = Vec::new();
-    for event in &events {
-        if is_internal_app_path(&event.path) {
+    for path in &event.paths {
+        if is_ignored_watcher_path(path) {
             continue;
         }
-        if apply_incremental_file_event(app, &state, &event.path) {
+        if let Some(change) = incremental_change_for(&event.kind) {
+            if apply_incremental_file_event(app, &state, path, change) {
+                continue;
+            }
+        }
+        // Access notifications are not mutations and must not cause any
+        // size work. Create/modify/remove events without a safe file delta
+        // (notably renames and directory changes) use the full-walk fallback.
+        if !matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)) {
             continue;
         }
-        let mut current = event.path.parent().map(Path::to_path_buf);
+        let mut current = path.parent().map(Path::to_path_buf);
         while let Some(dir) = current {
             if !dirty.contains(&dir) && is_cached(&state, &dir) {
                 dirty.push(dir.clone());
@@ -945,7 +1024,11 @@ fn handle_debounced_events(app: &AppHandle, events: Vec<notify_debouncer_mini::D
 
     for dir in dirty {
         if enqueue_watcher_recompute(&state, dir.clone()) {
-            log::info!("folder watcher fallback full recompute queued for {}", dir.display());
+            log::info!(
+                "folder watcher fallback full recompute queued for {} (event={:?})",
+                dir.display(),
+                event.kind,
+            );
         }
     }
 }
@@ -965,8 +1048,8 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
     // A recompute (manual or silent revalidation, below) already has this
     // path in `pending` — report Pending instead of the cached value that's
     // about to be replaced. Checking `pending` rather than removing the
-    // entry from the cache (as an earlier version of this did) keeps
-    // `handle_debounced_events`' contains_key-based dirty-detection intact
+    // entry from the cache (as an earlier version of this did) keeps the
+    // watcher's contains_key-based dirty-detection intact
     // for any filesystem change that lands while the recompute is in flight.
     if state.size_cache.pending.lock().unwrap().contains_key(&path_buf) {
         return Ok(FolderSizeResponse::Pending);
@@ -1031,7 +1114,7 @@ pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, 
 
     // Enqueueing puts the path in `pending`, which is what makes
     // get_folder_size report Pending during the recompute (see above) —
-    // without removing it from `sizes`, which handle_debounced_events needs
+    // without removing it from the cache, which the watcher needs
     // to keep recognizing this folder as one to watch for live changes.
     enqueue_tracked(&app, &state, path_buf)?;
     Ok(FolderSizeResponse::Pending)
@@ -1230,6 +1313,13 @@ mod tests {
     }
 
     #[test]
+    fn windows_volatile_path_normalization_handles_nested_paths() {
+        let path = normalized_windows_path(Path::new(r"C:/Windows/Logs/CBSPersist.log"));
+        assert_eq!(path, r"c:\windows\logs\cbspersist.log");
+        assert!(path.contains(r"\windows\logs\"));
+    }
+
+    #[test]
     fn compute_dir_size_sums_nested_files() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("a.txt"), vec![0u8; 100]).unwrap();
@@ -1254,7 +1344,7 @@ mod tests {
         fs::write(dir.path().join("initial.txt"), vec![0u8; 10]).unwrap();
 
         let (tx, rx) = std::sync::mpsc::channel();
-        let mut debouncer = new_debouncer(Duration::from_millis(200), tx).unwrap();
+        let mut debouncer = notify_debouncer_mini::new_debouncer(Duration::from_millis(200), tx).unwrap();
         debouncer
             .watcher()
             .watch(dir.path(), RecursiveMode::Recursive)
