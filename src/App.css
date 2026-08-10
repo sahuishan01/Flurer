@@ -327,6 +327,75 @@ body {
     opacity: 0.6;
 }
 
+.explorer-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0.35em 0.6em 0;
+    flex-shrink: 0;
+    overflow-x: auto;
+    background-color: rgba(var(--glass-tint-rgb), var(--glass-opacity));
+    border-bottom: var(--glass-border);
+}
+
+.explorer-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    max-width: 180px;
+    padding: 0.4em 0.5em 0.4em 0.7em;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.explorer-tab:hover {
+    background-color: var(--hover-bg);
+}
+
+.explorer-tab.active {
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    color: var(--text-color);
+}
+
+.explorer-tab-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-caption);
+}
+
+.explorer-tab-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15em;
+    border-radius: var(--radius-sm);
+    color: inherit;
+    opacity: 0.7;
+}
+
+.explorer-tab-close:hover {
+    opacity: 1;
+    background-color: var(--hover-bg);
+}
+
+.explorer-tab-new {
+    flex-shrink: 0;
+    padding: 0.3em 0.6em;
+    color: var(--text-secondary);
+    font-size: var(--text-body);
+    line-height: 1;
+}
+
+.explorer-tab-new:hover {
+    color: var(--text-color);
+    background-color: var(--hover-bg);
+}
+
 .explorer-view {
     display: flex;
     flex: 1;
@@ -1281,13 +1350,110 @@ button.sidebar-drive,
 
 .file-list {
     flex: 1;
-    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
     padding: 1em;
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border-left: var(--glass-border);
     box-shadow: var(--glass-shadow);
+}
+
+/* The table used to own .file-list's own overflow: auto directly; now that
+   a preview panel can sit beside it, only the table side should scroll —
+   the preview panel manages its own internal scrolling instead so a long
+   text preview doesn't drag the file list along with it. */
+.file-list-split {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    gap: 1em;
+}
+
+.file-list-table-wrap {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+}
+
+.preview-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 280px;
+    min-width: 0;
+    border-radius: var(--radius-md);
+    background-color: var(--control-bg);
+    overflow: hidden;
+}
+
+.preview-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    padding: 0.5em 0.5em 0.5em 0.8em;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.preview-panel-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-caption);
+    font-weight: 600;
+}
+
+.preview-panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.6em;
+}
+
+.preview-panel-image {
+    display: block;
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+}
+
+.preview-panel-text {
+    margin: 0;
+    font-family: var(--text-mono);
+    font-size: var(--text-caption);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.preview-panel-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6em;
+    height: 100%;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.preview-panel-hint {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+}
+
+/* Below this a fixed 280px preview panel would leave too little room for
+   the file table itself to stay usable — same reasoning as every other
+   narrow-width tradeoff in this file, just for a feature that's additive
+   rather than core, so it's the one that gives way. */
+@media (max-width: 700px) {
+    .preview-panel {
+        display: none;
+    }
 }
 
 /* Enhanced legibility text shadows over dynamic backgrounds */
