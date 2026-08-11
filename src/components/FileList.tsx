@@ -2,7 +2,6 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
 import { BulkRenameDialog } from "./BulkRenameDialog";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
@@ -200,15 +199,15 @@ export function FileList(props: FileListProps) {
   // Directories navigate the explorer itself; files hand off to whatever
   // the OS has registered as the default handler for their type (Notepad
   // for .txt, the browser for .html, …) — the same as double-clicking a
-  // file in Windows Explorer. tauri-plugin-opener's openPath shells out to
-  // the OS's own "open" verb rather than us maintaining any file-type map.
+  // file in Windows Explorer. The Rust command delegates to the OS opener
+  // rather than maintaining any file-type map in Flurer.
   async function openEntry(entry: DirEntry) {
     if (entry.isDir) {
       props.onNavigate(entry.path);
       return;
     }
     try {
-      await openPath(entry.path);
+      await invoke("open_file_with_default", { path: entry.path });
     } catch (err) {
       setError(String(err));
     }

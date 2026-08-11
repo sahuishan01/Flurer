@@ -9,6 +9,7 @@ use std::{
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
+use tauri_plugin_opener::OpenerExt;
 
 use crate::progress::{cancel_task, cleanup_task, emit_progress, is_cancelled, register_task};
 
@@ -481,6 +482,23 @@ pub fn cancel_operation(task_id: u64) -> Result<(), String> {
     } else {
         Err(format!("No active task with id {task_id}"))
     }
+}
+
+/// Opens a file through the operating system's default file association.
+/// Keeping this behind a Rust command avoids renderer-side opener scope
+/// issues while still delegating the actual launch to Windows.
+#[tauri::command]
+pub fn open_file_with_default(app: AppHandle, path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.is_file() {
+        return Err(format!("{} is not a file", path));
+    }
+    app.opener()
+        .open_path(path, None::<String>)
+        .map_err(|error| {
+            log::error!("open_file_with_default failed for {}: {error}", path_buf.display());
+            error.to_string()
+        })
 }
 
 #[tauri::command]
