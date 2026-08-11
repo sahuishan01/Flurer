@@ -16,7 +16,7 @@ pub async fn pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String
     use tauri_plugin_dialog::DialogExt;
 
     let path = app.dialog().file().blocking_pick_folder();
-    Ok(path.map(|path| path.to_string_lossy().to_string()))
+    Ok(path.map(|path| path.to_string()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
