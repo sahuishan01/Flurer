@@ -20,7 +20,7 @@ use fs::{
 use helpers::settings::{get_settings, load_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
 use sizecache::{get_folder_size, recompute_folder_size};
-use tauri::Manager;
+use tauri::{Manager, PhysicalSize};
 use tokio::sync::Mutex;
 
 use configs::{has_unsplash_api_key, set_unsplash_api_key};
@@ -55,19 +55,24 @@ pub fn run() {
             shortcuts::register(&app.handle(), &settings.global_shortcut);
             tray::sync_autostart(&app.handle(), settings.launch_at_startup);
             tray::setup(&app.handle())?;
-            // The window starts hidden (see tauri.conf.json) so a
-            // login-triggered autostart launch never flashes it open before
-            // we get a chance to check for --minimized — show it now unless
-            // that's how we were launched.
-            if !tray::launched_minimized() {
-                shortcuts::show_and_focus_main_window(&app.handle());
-            }
             let config = Config::load();
+            let window_width = settings.window_width.clamp(400, 3840);
+            let window_height = settings.window_height.clamp(300, 2160);
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 config,
                 size_cache: Default::default(),
             });
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_size(PhysicalSize::new(window_width, window_height))?;
+            }
+            // The window starts hidden (see tauri.conf.json) so a
+            // login-triggered autostart launch never flashes it open before
+            // we get a chance to restore its saved size and check for
+            // --minimized.
+            if !tray::launched_minimized() {
+                shortcuts::show_and_focus_main_window(&app.handle());
+            }
             sizecache::init(&app.handle());
             Ok(())
         })

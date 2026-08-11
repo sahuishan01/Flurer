@@ -151,6 +151,10 @@ pub struct Settings {
     // without asking.
     #[serde(default)]
     pub launch_at_startup: bool,
+    #[serde(default = "default_window_width")]
+    pub window_width: u32,
+    #[serde(default = "default_window_height")]
+    pub window_height: u32,
 }
 
 fn default_global_shortcut() -> String {
@@ -163,6 +167,14 @@ fn default_max_history_items() -> usize {
 
 fn default_live_folder_size_updates() -> bool {
     true
+}
+
+fn default_window_width() -> u32 {
+    800
+}
+
+fn default_window_height() -> u32 {
+    600
 }
 
 impl Default for Settings {
@@ -191,6 +203,8 @@ impl Default for Settings {
             folder_sizes: HashMap::new(),
             global_shortcut: default_global_shortcut(),
             launch_at_startup: false,
+            window_width: default_window_width(),
+            window_height: default_window_height(),
         }
     }
 }

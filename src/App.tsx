@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CommandBar } from "./components/CommandBar";
 import { ExplorerPathBar } from "./components/ExplorerPathBar";
 import { ExplorerTabs, type ExplorerTab } from "./components/ExplorerTabs";
@@ -214,6 +215,31 @@ function App() {
     } finally {
       setSettingsLoaded(true);
     }
+  });
+
+  onMount(async () => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    let resizeSaveTimeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      unlisten = await getCurrentWindow().onResized(({ payload }) => {
+        if (!settingsLoaded()) return;
+        clearTimeout(resizeSaveTimeout);
+        resizeSaveTimeout = setTimeout(() => {
+          setSettings("windowWidth", payload.width);
+          setSettings("windowHeight", payload.height);
+          persistSettings();
+        }, SETTINGS_SAVE_DEBOUNCE_MS);
+      });
+      if (disposed) unlisten();
+    } catch (err) {
+      console.error("Failed to listen for window resize", err);
+    }
+    onCleanup(() => {
+      disposed = true;
+      clearTimeout(resizeSaveTimeout);
+      unlisten?.();
+    });
   });
 
   onMount(async () => {
