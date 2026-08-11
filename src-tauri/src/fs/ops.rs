@@ -521,8 +521,14 @@ pub fn open_terminal_here(path: String) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
+        // `current_dir` sets the child's working directory at the OS level
+        // (CreateProcess's lpCurrentDirectory) — the new cmd.exe window
+        // opens already rooted in `path_buf` with no `cd /D "<path>"`
+        // string ever built or interpolated, so there's nothing for a path
+        // containing shell-meaningful characters to break out of.
         std::process::Command::new("cmd")
-            .args(["/C", "start", "cmd", "/K", &format!("cd /D \"{path}\"")])
+            .args(["/C", "start", "cmd", "/K"])
+            .current_dir(&path_buf)
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| {
@@ -533,9 +539,13 @@ pub fn open_terminal_here(path: String) -> Result<(), String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!("cd {:?} && exec ${{SHELL:-/bin/sh}}", path_buf))
+        // Same reasoning as the Windows branch: launch the shell directly
+        // with `current_dir` rather than building a `sh -c "cd <path> && …"`
+        // string. A path containing `$`, backticks, quotes, or `;` can't
+        // inject anything if it's never interpolated into shell syntax.
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        std::process::Command::new(shell)
+            .current_dir(&path_buf)
             .spawn()
             .map_err(|e| {
                 log::error!("open_terminal_here failed for {path}: {e}");
