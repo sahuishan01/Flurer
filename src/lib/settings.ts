@@ -40,8 +40,10 @@ export type Settings = {
   graphState: GraphState | null;
   favouritePaths: string[];
   // Path -> hex color, for the color-tag dot shown next to a file or folder
-  // in the file list and sidebar. Absence of a key means "no tag".
-  folderColors: Record<string, string>;
+  // in the file list and sidebar. Absence of a key means "no tag" — cleared
+  // via the store's nested-path setter with `undefined`, which is why the
+  // value type includes it (see setFolderColor in App.tsx).
+  folderColors: Record<string, string | undefined>;
   recentPaths: string[];
   maxHistoryItems: number;
   sortKey: SortKey;

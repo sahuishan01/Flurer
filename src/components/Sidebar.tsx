@@ -50,7 +50,7 @@ type SidebarProps = {
   activeView: MainView;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
-  folderColors: Record<string, string>;
+  folderColors: Record<string, string | undefined>;
   recentPaths: string[];
   onRemoveRecent: (path: string) => void;
   customContent?: JSX.Element;

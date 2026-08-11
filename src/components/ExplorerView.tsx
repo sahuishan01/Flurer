@@ -9,7 +9,7 @@ type ExplorerViewProps = {
   searchRecursive: boolean;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
-  folderColors: Record<string, string>;
+  folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
   sortKey: SortKey;
   sortDirection: SortDirection;
