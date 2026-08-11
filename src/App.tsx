@@ -360,13 +360,20 @@ function App() {
     persistSettings();
   }
 
-  // color === null clears the tag rather than setting it to a "no color"
-  // value, so an untagged folder has no key at all in the map.
+  // Nested-path form (setSettings("folderColors", path, value)), not a
+  // spread-and-delete replacement object — Solid's store setter merges keys
+  // present in a replacement object onto the existing one, it doesn't prune
+  // keys the replacement leaves out. A {...settings.folderColors} copy with
+  // `delete next[path]` therefore never actually removed the entry from the
+  // live store: the "Clear color tag" menu item fired, persisted an object
+  // missing that key, but the in-memory store (and thus every reactive read
+  // of it) kept the old value. Setting the specific key to undefined via
+  // the path setter both updates the store correctly and — since
+  // JSON.stringify drops undefined-valued properties — persists as "no key"
+  // on the Rust side, matching favouritePaths/recentPaths' convention of
+  // "absent key means no tag" without needing an explicit delete step.
   function setFolderColor(path: string, color: string | null) {
-    const next = { ...settings.folderColors };
-    if (color === null) delete next[path];
-    else next[path] = color;
-    setSettings("folderColors", next);
+    setSettings("folderColors", path, color ?? undefined);
     persistSettings();
   }
 
