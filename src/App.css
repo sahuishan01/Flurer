@@ -764,8 +764,21 @@ button.sidebar-drive,
     width: min(260px, calc(100vw - 16px));
 }
 
-.search-popover .search-field {
+/* .search-field carries its own border/background/shadow for its normal
+   home in the toolbar, but inside a popover that chrome is already provided
+   by .search-popover itself — stacking both drew two concentric bordered
+   boxes around one small input. Flatten it here so the popover border is
+   the only one visible, matching how .path-input sits chrome-free inside
+   .path-popover below. */
+.search-popover .search-field,
+.search-popover .search-field:hover,
+.search-popover .search-field:focus-within {
     flex: 1;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .path-popover {
@@ -994,6 +1007,11 @@ button.sidebar-drive,
 
 .plugin-install-row input {
     min-width: 120px;
+    /* .plugin-install-section already carries its own border/background —
+       the global `input` rule stacking a second border+background inside it
+       drew a box within a box. Sit flush instead. */
+    border: none;
+    background: transparent;
 }
 
 .plugin-install-hint {
@@ -1117,6 +1135,10 @@ button.sidebar-drive,
     padding: 0.2em 0.5em;
     font-size: var(--text-caption);
     font-family: var(--text-mono);
+    /* .plugin-card already has its own border/background; see
+       .plugin-install-row input above for why this drops its own. */
+    border: none;
+    background: transparent;
 }
 
 .plugin-description {
