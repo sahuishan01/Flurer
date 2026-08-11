@@ -1,51 +1,44 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { FolderIcon, CloseIcon, Button } from "./shared";
 
-type DirEntry = {
-  name: string;
-  path: string;
-  isDir: boolean;
-  size: number;
-  modified: number | null;
-};
-
-type DirListing = {
-  entries: DirEntry[];
-  unreadable: number;
-};
-
-type DiskVolume = {
+interface DiskVolume {
   driveLetter: string;
   volumeName: string;
   fileSystem: string;
   totalSpace: number;
   freeSpace: number;
-};
+}
 
-type PhysicalDisk = {
+interface PhysicalDisk {
+  index: number;
+  model: string;
   volumes: DiskVolume[];
-};
-
-function defaultPath(): string {
-  return navigator.platform.toLowerCase().includes("win") ? "C:\\" : "/";
 }
 
-function parentPath(path: string): string {
-  const normalized = path.replace(/[\\/]+$/, "");
-  if (/^[a-zA-Z]:$/.test(normalized)) return `${normalized}\\`;
-  const index = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
-  if (index < 0) return normalized;
-  if (index === 2 && normalized[1] === ":") return normalized.slice(0, index + 1);
-  return normalized.slice(0, index) || "/";
+interface QuickAccessEntry {
+  label: string;
+  path: string;
 }
 
-function formatModified(value: number | null): string {
-  return value === null ? "" : new Date(value * 1000).toLocaleString();
+interface PickerEntry {
+  name: string;
+  isDir?: boolean;
+  is_dir?: boolean;
+  path: string;
+}
+
+interface DirListing {
+  entries: PickerEntry[];
+  unreadable: number;
+}
+
+interface PickerSettings {
+  recentPaths?: string[];
+  favouritePaths?: string[];
 }
 
 function driveRoot(letter: string): string {
-  if (/^[a-zA-Z]:\\?$/.test(letter)) return `${letter.slice(0, 2)}\\`;
-  return letter;
+  return /^[a-zA-Z]:\\?$/.test(letter) ? `${letter.slice(0, 2)}\\` : letter;
 }
 
 export function DirectoryPickerModal(props: {
@@ -54,72 +47,144 @@ export function DirectoryPickerModal(props: {
   onSelect: (path: string) => void;
   onClose: () => void;
 }) {
-  const [currentPath, setCurrentPath] = createSignal(props.initialPath || defaultPath());
-  const [selectedPath, setSelectedPath] = createSignal(props.initialPath || defaultPath());
+  const [currentPath, setCurrentPath] = createSignal(props.initialPath || "");
+  const [items, setItems] = createSignal<{ name: string; is_dir: boolean; path: string }[]>([]);
   const [drives, setDrives] = createSignal<DiskVolume[]>([]);
-  const [entries, setEntries] = createSignal<DirEntry[]>([]);
-  const [unreadable, setUnreadable] = createSignal(0);
+  const [quickAccess, setQuickAccess] = createSignal<QuickAccessEntry[]>([]);
+  const [recentPaths, setRecentPaths] = createSignal<string[]>([]);
+  const [favouritePaths, setFavouritePaths] = createSignal<string[]>([]);
   const [loading, setLoading] = createSignal(false);
-  const [error, setError] = createSignal("");
 
-  async function loadDirectory(path: string) {
+  async function loadDrivesAndQuickAccess() {
     if (!window.TauriCore?.invoke) return;
-    setLoading(true);
-    setError("");
+
+    // Try Windows disk topology first
     try {
-      const listing = await window.TauriCore.invoke<DirListing>("list_directory", {
-        path,
-        sortKey: "name",
-        sortDirection: "ascending",
-      });
-      setCurrentPath(path);
-      setSelectedPath(path);
-      setEntries(listing.entries);
-      setUnreadable(listing.unreadable);
+      const topo = await window.TauriCore.invoke<PhysicalDisk[]>("get_disk_topology");
+      if (Array.isArray(topo) && topo.length > 0) {
+        const vols: DiskVolume[] = [];
+        topo.forEach((d) => {
+          if (d.volumes) vols.push(...d.volumes);
+        });
+        setDrives(vols.map((volume) => ({ ...volume, driveLetter: driveRoot(volume.driveLetter) })));
+        if (!currentPath() && vols.length > 0) {
+          loadDir(driveRoot(vols[0].driveLetter || "C:\\"));
+        }
+      }
+    } catch {}
+
+    // Linux/macOS fallback: probe common mount points via list_directory
+    if (drives().length === 0) {
+      try {
+        const isWin = navigator.platform.includes("Win");
+        if (!isWin && window.TauriCore?.invoke) {
+          const candidates = ["/home", "/mnt", "/media", "/run/media", "/Volumes", "/opt", "/data"];
+          const found: DiskVolume[] = [];
+          for (const p of candidates) {
+            try {
+              const res = await window.TauriCore.invoke<any[]>("list_directory", {
+                path: p,
+                sortKey: "name",
+                sortDirection: "ascending",
+              });
+              if (Array.isArray(res) && res.length > 0) {
+                for (const item of res) {
+                  if (item.is_dir || item.isDir) {
+                    const fullPath = item.path || `${p}/${item.name}`.replace(/\/+/g, "/");
+                    found.push({
+                      driveLetter: fullPath,
+                      volumeName: item.name,
+                      fileSystem: "",
+                      totalSpace: 0,
+                      freeSpace: 0,
+                    });
+                  }
+                }
+              }
+            } catch {}
+          }
+          if (found.length > 0) {
+        setDrives(found);
+            if (!currentPath()) {
+              const home = found.find((v) => v.driveLetter.startsWith("/home"));
+              loadDir(home ? home.driveLetter : found[0].driveLetter);
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Quick access (works cross-platform)
+    try {
+      const qa = await window.TauriCore.invoke<QuickAccessEntry[]>("get_quick_access");
+      if (Array.isArray(qa)) {
+        setQuickAccess(qa);
+        if (!currentPath() && qa.length > 0) {
+          loadDir(qa[0].path);
+        }
+      }
+    } catch {}
+
+    try {
+      const settings = await window.TauriCore.invoke<PickerSettings>("get_settings");
+      setRecentPaths(settings.recentPaths ?? []);
+      setFavouritePaths(settings.favouritePaths ?? []);
+    } catch {}
+
+    if (!currentPath()) {
+      loadDir("/");
+    }
+  }
+
+  async function loadDir(dirPath: string) {
+    if (!dirPath) return;
+    setLoading(true);
+    setCurrentPath(dirPath);
+    try {
+      if (window.TauriCore?.invoke) {
+        const res = await window.TauriCore.invoke<DirListing | PickerEntry[]>("list_directory", {
+          path: dirPath,
+          sortKey: "name",
+          sortDirection: "ascending",
+        });
+        const listed = Array.isArray(res) ? res : res.entries;
+        if (Array.isArray(listed)) {
+          const dirs = listed
+            .filter((item) => item.is_dir || item.isDir)
+            .map((item) => ({
+              name: item.name,
+              is_dir: true,
+              path: item.path || `${dirPath}/${item.name}`.replace(/\/+/g, "/"),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          setItems(dirs);
+        }
+      }
     } catch (err) {
-      setEntries([]);
-      setUnreadable(0);
-      setError(String(err));
+      setItems([]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadDrives(): Promise<DiskVolume[]> {
-    try {
-      const disks = await window.TauriCore?.invoke<PhysicalDisk[]>("get_disk_topology");
-      const volumes = (disks ?? []).flatMap((disk) => disk.volumes ?? []);
-      setDrives(volumes);
-      return volumes;
-    } catch (err) {
-      console.error("Failed to load disk volumes for folder picker", err);
-      setDrives([]);
-      return [];
-    }
-  }
-
   createEffect(() => {
-    if (!props.open) return;
-    void (async () => {
-      const volumes = await loadDrives();
-      const initial = props.initialPath || driveRoot(volumes[0]?.driveLetter || defaultPath());
-      setCurrentPath(initial);
-      setSelectedPath(initial);
-      await loadDirectory(initial);
-    })();
+    if (props.open) {
+      loadDrivesAndQuickAccess();
+      if (props.initialPath) loadDir(props.initialPath);
+    }
   });
 
-  function selectEntry(entry: DirEntry) {
-    if (entry.isDir) setSelectedPath(entry.path);
+  function handleNavigateUp() {
+    const p = currentPath();
+    const parent = p.substring(0, Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")));
+    if (parent) loadDir(parent);
+    else if (p.includes(":") && !p.endsWith("\\")) loadDir(`${p.split(":")[0]}:\\`);
+    else if (p !== "/") loadDir("/");
   }
 
-  function openEntry(entry: DirEntry) {
-    if (entry.isDir) loadDirectory(entry.path);
-  }
-
-  function goUp() {
-    const parent = parentPath(currentPath());
-    if (parent !== currentPath()) loadDirectory(parent);
+  function handleConfirm() {
+    props.onSelect(currentPath());
+    props.onClose();
   }
 
   return (
@@ -128,101 +193,242 @@ export function DirectoryPickerModal(props: {
         style={{
           position: "fixed",
           inset: 0,
+          background: "rgba(0, 0, 0, 0.65)",
           display: "flex",
           "align-items": "center",
           "justify-content": "center",
-          padding: "20px",
-          background: "rgba(0, 0, 0, 0.55)",
           "z-index": 100000,
+          padding: "20px",
         }}
         onClick={props.onClose}
       >
         <div
           style={{
+            background: "var(--glass-bg, rgba(32, 32, 32, 0.85))",
+            border: "var(--glass-border, 1px solid rgba(255, 255, 255, 0.12))",
+            "border-radius": "12px",
+            width: "680px",
+            "max-width": "95vw",
+            height: "520px",
+            "max-height": "85vh",
             display: "flex",
             "flex-direction": "column",
-            width: "min(760px, 95vw)",
-            height: "min(620px, 88vh)",
             overflow: "hidden",
-            background: "var(--surface-bg, rgba(30, 30, 30, 0.94))",
-            border: "1px solid var(--border-strong)",
-            "border-radius": "var(--radius-md, 8px)",
-            "box-shadow": "0 16px 48px rgba(0, 0, 0, 0.45)",
+            "box-shadow": "var(--glass-shadow, 0 16px 40px rgba(0, 0, 0, 0.6))",
           }}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ display: "flex", "align-items": "center", gap: "8px", padding: "12px 14px", "border-bottom": "1px solid var(--border-color)" }}>
-            <FolderIcon size={17} />
-            <strong style={{ flex: 1 }}>Select Repository Folder</strong>
-            <button type="button" class="icon-btn" aria-label="Close folder picker" title="Close" onClick={props.onClose}>
-              <CloseIcon size={14} />
+          {/* Header */}
+          <div style={{ padding: "14px 18px", "border-bottom": "var(--glass-border, 1px solid rgba(255,255,255,0.08))", display: "flex", "align-items": "center", "justify-content": "space-between" }}>
+            <div style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+              <FolderIcon size={18} />
+              <span style={{ "font-weight": 600, "font-size": "14px", color: "var(--text-primary, var(--text-color))", "text-shadow": "var(--text-shadow)" }}>Select Repository Directory</span>
+            </div>
+            <button
+              type="button"
+              onClick={props.onClose}
+              style={{ background: "none", border: "none", color: "var(--text-secondary, #888)", cursor: "pointer", padding: "4px", display: "inline-flex", "align-items": "center" }}
+            >
+              <CloseIcon size={16} />
             </button>
           </div>
 
-          <div style={{ display: "flex", gap: "8px", padding: "10px 14px", "border-bottom": "1px solid var(--border-color)" }}>
-            <Button onClick={goUp} disabled={parentPath(currentPath()) === currentPath()}>Up</Button>
-            <div style={{ flex: 1, padding: "7px 9px", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", background: "var(--control-bg)", border: "1px solid var(--border-color)", "border-radius": "var(--radius-sm)" }} title={currentPath()}>
-              {currentPath()}
-            </div>
-          </div>
+          {/* Body: Sidebar + File View */}
+          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+            {/* Disks & Quick Access Sidebar */}
+            <div style={{ width: "190px", "border-right": "var(--glass-border, 1px solid rgba(255,255,255,0.08))", background: "var(--acrylic-bg, rgba(0,0,0,0.15))", padding: "12px 8px", display: "flex", "flex-direction": "column", gap: "16px", "overflow-y": "auto", "flex-shrink": 0 }}>
+              {/* Disks Section */}
+              <Show when={drives().length > 0}>
+                <div>
+                  <div style={{ "font-size": "11px", "font-weight": 600, color: "var(--text-secondary, #888)", "text-shadow": "var(--text-shadow)", "text-transform": "uppercase", "letter-spacing": "0.5px", "margin-bottom": "6px", padding: "0 6px" }}>
+                    Drives & Volumes
+                  </div>
+                  <For each={drives()}>
+                    {(vol) => (
+                      <div
+                        style={{
+                          display: "flex",
+                          "align-items": "center",
+                          gap: "8px",
+                          padding: "6px 8px",
+                          "border-radius": "6px",
+                          cursor: "pointer",
+                          "font-size": "12px",
+                          color: currentPath() === vol.driveLetter || currentPath().startsWith(vol.driveLetter + "/") ? "var(--accent-default, var(--accent-color, #60cdff))" : "var(--text-primary, var(--text-color))",
+                          "text-shadow": "var(--text-shadow)",
+                          background: currentPath() === vol.driveLetter || currentPath().startsWith(vol.driveLetter + "/") ? "var(--accent-bg-soft, rgba(96,205,255,0.12))" : "transparent",
+                          transition: "background 0.15s",
+                        }}
+                        onClick={() => loadDir(vol.driveLetter)}
+                      >
+                        💾 <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", "font-weight": 500 }}>
+                          {vol.volumeName && vol.volumeName !== vol.driveLetter ? `${vol.volumeName} — ${vol.driveLetter}` : vol.driveLetter}
+                        </span>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
 
-          <Show when={drives().length > 0}>
-            <div style={{ display: "flex", gap: "6px", padding: "8px 14px", overflow: "auto", "border-bottom": "1px solid var(--border-color)" }}>
-              <For each={drives()}>
-                {(drive) => {
-                  const root = driveRoot(drive.driveLetter);
-                  return (
-                    <Button
-                      variant={currentPath().toLowerCase().startsWith(root.toLowerCase()) ? "primary" : "secondary"}
-                      onClick={() => loadDirectory(root)}
+              {/* Quick Access Section */}
+              <Show when={quickAccess().length > 0}>
+                <div>
+                  <div style={{ "font-size": "11px", "font-weight": 600, color: "var(--text-secondary, #888)", "text-shadow": "var(--text-shadow)", "text-transform": "uppercase", "letter-spacing": "0.5px", "margin-bottom": "6px", padding: "0 6px" }}>
+                    Quick Access
+                  </div>
+                  <For each={quickAccess()}>
+                    {(qa) => (
+                      <div
+                        style={{
+                          display: "flex",
+                          "align-items": "center",
+                          gap: "8px",
+                          padding: "6px 8px",
+                          "border-radius": "6px",
+                          cursor: "pointer",
+                          "font-size": "12px",
+                          color: currentPath() === qa.path ? "var(--accent-default, var(--accent-color, #60cdff))" : "var(--text-primary, var(--text-color))",
+                          "text-shadow": "var(--text-shadow)",
+                          background: currentPath() === qa.path ? "var(--accent-bg-soft, rgba(96,205,255,0.12))" : "transparent",
+                          transition: "background 0.15s",
+                        }}
+                        onClick={() => loadDir(qa.path)}
+                      >
+                        <FolderIcon size={14} />
+                        <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+                          {qa.label}
+                        </span>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+
+              <Show when={recentPaths().length > 0}>
+                <div>
+                  <div style={{ "font-size": "11px", "font-weight": 600, color: "var(--text-secondary, #888)", "text-transform": "uppercase", "margin-bottom": "6px", padding: "0 6px" }}>
+                    Recents
+                  </div>
+                  <For each={recentPaths()}>
+                    {(path) => (
+                      <div style={{ padding: "6px 8px", cursor: "pointer", "font-size": "12px", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }} title={path} onClick={() => loadDir(path)}>
+                        🕘 {path}
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+
+              <Show when={favouritePaths().length > 0}>
+                <div>
+                  <div style={{ "font-size": "11px", "font-weight": 600, color: "var(--text-secondary, #888)", "text-transform": "uppercase", "margin-bottom": "6px", padding: "0 6px" }}>
+                    Favourites
+                  </div>
+                  <For each={favouritePaths()}>
+                    {(path) => (
+                      <div style={{ padding: "6px 8px", cursor: "pointer", "font-size": "12px", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }} title={path} onClick={() => loadDir(path)}>
+                        ★ {path}
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+
+              {/* Fallback Root shortcut if no drives detected */}
+              <Show when={drives().length === 0 && quickAccess().length === 0}>
+                <div>
+                  <div style={{ "font-size": "11px", "font-weight": 600, color: "var(--text-secondary, #888)", "text-shadow": "var(--text-shadow)", "text-transform": "uppercase", "margin-bottom": "6px", padding: "0 6px" }}>
+                    Shortcuts
+                  </div>
+                  <div style={{ padding: "6px 8px", cursor: "pointer", "font-size": "12px", color: "var(--text-primary, var(--text-color))", "text-shadow": "var(--text-shadow)" }} onClick={() => loadDir("/")}>📁 Root (/)</div>
+                </div>
+              </Show>
+            </div>
+
+            {/* Directory Explorer Pane */}
+            <div style={{ flex: 1, display: "flex", "flex-direction": "column", overflow: "hidden" }}>
+              {/* Path Navigation Bar */}
+              <div style={{ padding: "10px 14px", background: "var(--control-bg, rgba(0,0,0,0.15))", "border-bottom": "var(--glass-border, 1px solid rgba(255,255,255,0.08))", display: "flex", "align-items": "center", gap: "8px" }}>
+                <Button size="sm" onClick={handleNavigateUp}>
+                  ↑ Up
+                </Button>
+                <input
+                  type="text"
+                  value={currentPath()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") loadDir((e.currentTarget as HTMLInputElement).value);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "6px 10px",
+                    "font-size": "12px",
+                    "font-family": "var(--fluent-font, Space Mono, monospace)",
+                    background: "var(--control-bg, var(--text-backplate, rgba(0,0,0,0.35)))",
+                    border: "var(--control-border, 1px solid rgba(255,255,255,0.12))",
+                    color: "var(--text-primary, var(--text-color))",
+                    "text-shadow": "var(--text-shadow)",
+                    "border-radius": "4px",
+                  }}
+                />
+              </div>
+
+              {/* Items List */}
+              <div style={{ flex: 1, "overflow-y": "auto", padding: "8px 12px" }}>
+                <Show when={loading()}>
+                  <div style={{ padding: "20px", "text-align": "center", color: "var(--text-secondary, #888)", "text-shadow": "var(--text-shadow)", "font-size": "13px" }}>
+                    Loading directories...
+                  </div>
+                </Show>
+                <Show when={!loading() && items().length === 0}>
+                  <div style={{ padding: "20px", "text-align": "center", color: "var(--text-secondary, #888)", "text-shadow": "var(--text-shadow)", "font-size": "13px" }}>
+                    No subdirectories found in this folder.
+                  </div>
+                </Show>
+                <For each={items()}>
+                  {(item) => (
+                    <div
+                      style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "10px",
+                        padding: "8px 10px",
+                        "border-radius": "6px",
+                        cursor: "pointer",
+                        "font-size": "13px",
+                        transition: "background 0.15s",
+                        color: "var(--text-primary, var(--text-color))",
+                        "text-shadow": "var(--text-shadow)",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--control-hover-bg, rgba(255,255,255,0.1))"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                      onDblClick={() => loadDir(item.path)}
+                      onClick={() => setCurrentPath(item.path)}
                     >
-                      {drive.volumeName ? `${drive.volumeName} (${root.slice(0, 2)})` : root.slice(0, 2)}
-                    </Button>
-                  );
-                }}
-              </For>
+                      <FolderIcon size={16} />
+                      <span style={{ flex: 1, overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+                        {item.name}
+                      </span>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); loadDir(item.path); }}>
+                        Enter
+                      </Button>
+                    </div>
+                  )}
+                </For>
+              </div>
             </div>
-          </Show>
-
-          <Show when={error()}>
-            <div style={{ padding: "8px 14px", color: "var(--danger)", "border-bottom": "1px solid var(--border-color)" }}>{error()}</div>
-          </Show>
-          <Show when={unreadable() > 0}>
-            <div style={{ padding: "8px 14px", color: "var(--text-secondary)", "border-bottom": "1px solid var(--border-color)" }}>
-              {unreadable()} item{unreadable() === 1 ? "" : "s"} could not be read.
-            </div>
-          </Show>
-
-          <div style={{ flex: 1, overflow: "auto", padding: "0 14px" }}>
-            <Show when={!loading()} fallback={<p style={{ padding: "20px", color: "var(--text-secondary)" }}>Loading…</p>}>
-              <table class="file-table" style={{ width: "100%" }}>
-                <thead>
-                  <tr><th>Name</th><th>Modified</th></tr>
-                </thead>
-                <tbody>
-                  <Show when={entries().length > 0} fallback={<tr><td colspan="2" style={{ padding: "24px", "text-align": "center", color: "var(--text-secondary)" }}>This folder is empty</td></tr>}>
-                    <For each={entries()}>
-                      {(entry) => (
-                        <tr
-                          class="file-row"
-                          classList={{ "file-row-selected": selectedPath() === entry.path, "file-row-dir": entry.isDir }}
-                          onClick={() => selectEntry(entry)}
-                          onDblClick={() => openEntry(entry)}
-                        >
-                          <td class="file-name-cell"><Show when={entry.isDir}><FolderIcon size={15} /></Show>{entry.name}</td>
-                          <td>{formatModified(entry.modified)}</td>
-                        </tr>
-                      )}
-                    </For>
-                  </Show>
-                </tbody>
-              </table>
-            </Show>
           </div>
 
-          <div style={{ display: "flex", "justify-content": "flex-end", gap: "8px", padding: "10px 14px", "border-top": "1px solid var(--border-color)" }}>
-            <Button onClick={props.onClose}>Cancel</Button>
-            <Button variant="primary" onClick={() => { props.onSelect(selectedPath() || currentPath()); props.onClose(); }}>Select Folder</Button>
+          {/* Footer */}
+          <div style={{ padding: "12px 18px", "border-top": "var(--glass-border, 1px solid rgba(255,255,255,0.08))", display: "flex", "align-items": "center", "justify-content": "space-between", background: "var(--control-bg, rgba(0,0,0,0.15))" }}>
+            <span style={{ "font-size": "11px", color: "var(--text-secondary, #888)", "text-shadow": "var(--text-shadow)", "font-family": "var(--fluent-font, Space Mono, monospace)", overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap", "max-width": "360px" }}>
+              Selected: {currentPath()}
+            </span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <Button onClick={props.onClose}>Cancel</Button>
+              <Button variant="primary" onClick={handleConfirm}>
+                Select Directory
+              </Button>
+            </div>
           </div>
         </div>
       </div>
