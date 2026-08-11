@@ -15,7 +15,7 @@ mod updater;
 use disks::get_disk_topology;
 use fs::{
     cancel_operation, copy_items, create_file, create_folder, delete_items, get_file_preview, get_path_metadata,
-    get_quick_access, list_directory, list_graph_children, move_items, open_file_with_default, rename_item, search_directory,
+    get_quick_access, list_directory, list_graph_children, move_items, open_file_with_default, pick_folder, rename_item, search_directory,
 };
 use helpers::settings::{get_settings, load_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
@@ -77,6 +77,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
         .plugin(tauri_plugin_drag::init())
@@ -114,6 +115,7 @@ pub fn run() {
             get_folder_size,
             recompute_folder_size,
             open_file_with_default,
+            pick_folder,
             cancel_operation,
             get_settings,
             set_settings,
