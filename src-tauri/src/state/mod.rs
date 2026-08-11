@@ -111,9 +111,10 @@ pub struct Settings {
     pub persist_graph_state: bool,
     pub graph_state: Option<GraphState>,
     pub favourite_paths: Vec<String>,
-    // Path -> hex color ("#rrggbb"), for the color-tag dot shown next to a
-    // folder in the file list and sidebar. A plain map rather than a struct
-    // per entry since color is the only per-folder attribute this feature
+    // Path -> hex color ("#rrggbb"), for the color-tag dot shown next to an
+    // item (file or folder — the field name predates files getting tags
+    // too) in the file list and sidebar. A plain map rather than a struct
+    // per entry since color is the only per-path attribute this feature
     // needs; absence of a key means "no tag", not "default color".
     #[serde(default)]
     pub folder_colors: HashMap<String, String>,

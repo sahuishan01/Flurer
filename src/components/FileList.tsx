@@ -834,24 +834,23 @@ export function FileList(props: FileListProps) {
         onSelect: () => openTerminalAt(targetEntry?.isDir ? menu.targetPath! : parentDir(menu.targetPath!)),
         disabled: selected().size > 1,
       },
-      ...(targetEntry?.isDir
+      // Color tags apply to any entry, not just folders — files get the
+      // same dot in the list (and the map itself has no isDir concept, it's
+      // just path -> color).
+      ...FOLDER_COLOR_PRESETS.map((preset) => ({
+        label: `Tag: ${preset.label}`,
+        icon: <span class="folder-color-swatch" style={{ background: preset.hex }} />,
+        onSelect: () => props.onSetFolderColor(menu.targetPath!, preset.hex),
+        disabled: selected().size !== 1,
+      })),
+      ...(props.folderColors[menu.targetPath]
         ? [
-            ...FOLDER_COLOR_PRESETS.map((preset) => ({
-              label: `Tag: ${preset.label}`,
-              icon: <span class="folder-color-swatch" style={{ background: preset.hex }} />,
-              onSelect: () => props.onSetFolderColor(menu.targetPath!, preset.hex),
+            {
+              label: "Clear color tag",
+              icon: <span class="folder-color-swatch folder-color-swatch-clear" />,
+              onSelect: () => props.onSetFolderColor(menu.targetPath!, null),
               disabled: selected().size !== 1,
-            })),
-            ...(props.folderColors[menu.targetPath]
-              ? [
-                  {
-                    label: "Clear color tag",
-                    icon: <span class="folder-color-swatch folder-color-swatch-clear" />,
-                    onSelect: () => props.onSetFolderColor(menu.targetPath!, null),
-                    disabled: selected().size !== 1,
-                  },
-                ]
-              : []),
+            },
           ]
         : []),
       {
@@ -1062,7 +1061,7 @@ export function FileList(props: FileListProps) {
                 >
                   <td class="file-name-cell">
                     {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
-                    {entry.isDir && props.folderColors[entry.path] && (
+                    {props.folderColors[entry.path] && (
                       <span
                         class="folder-color-dot"
                         style={{ background: props.folderColors[entry.path] }}

@@ -39,8 +39,8 @@ export type Settings = {
   persistGraphState: boolean;
   graphState: GraphState | null;
   favouritePaths: string[];
-  // Path -> hex color, for the color-tag dot shown next to a folder in the
-  // file list and sidebar. Absence of a key means "no tag".
+  // Path -> hex color, for the color-tag dot shown next to a file or folder
+  // in the file list and sidebar. Absence of a key means "no tag".
   folderColors: Record<string, string>;
   recentPaths: string[];
   maxHistoryItems: number;
