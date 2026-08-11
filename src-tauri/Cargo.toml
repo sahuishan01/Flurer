@@ -43,3 +43,4 @@ tempfile = "3.27.0"
 log = { version = "0.4", features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 indexmap = "2"
+tauri-plugin-dialog = "2.7.2"
