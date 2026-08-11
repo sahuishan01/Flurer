@@ -360,6 +360,16 @@ function App() {
     persistSettings();
   }
 
+  // color === null clears the tag rather than setting it to a "no color"
+  // value, so an untagged folder has no key at all in the map.
+  function setFolderColor(path: string, color: string | null) {
+    const next = { ...settings.folderColors };
+    if (color === null) delete next[path];
+    else next[path] = color;
+    setSettings("folderColors", next);
+    persistSettings();
+  }
+
   // Most-recent-first, deduped (revisiting a path just moves it back to the
   // front rather than adding a second entry), capped so the list can't grow
   // forever.
@@ -909,6 +919,7 @@ function App() {
               activeView={mainView()}
               favouritePaths={settings.favouritePaths}
               onToggleFavourite={toggleFavourite}
+              folderColors={settings.folderColors}
               recentPaths={settings.recentPaths}
               onRemoveRecent={removeRecent}
               customContent={activePlugin()?.sidebar?.({
@@ -930,6 +941,8 @@ function App() {
                   searchRecursive={searchRecursive()}
                   favouritePaths={settings.favouritePaths}
                   onToggleFavourite={toggleFavourite}
+                  folderColors={settings.folderColors}
+                  onSetFolderColor={setFolderColor}
                   sortKey={settings.sortKey}
                   sortDirection={settings.sortDirection}
                   onSortChange={updateSort}

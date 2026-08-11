@@ -205,11 +205,11 @@ pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> 
 // so it survives our own process exiting moments later (see the app.exit
 // call above): a child process is NOT killed when its parent exits on
 // Windows unless a Job Object says otherwise, and we never set one up.
-fn launch_elevated_and_relaunch(path: &str, args: &[&str]) -> std::io::Result<std::process::Child> {
-    fn ps_quote(s: &str) -> String {
-        format!("'{}'", s.replace('\'', "''"))
-    }
+fn ps_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
 
+fn launch_elevated_and_relaunch(path: &str, args: &[&str]) -> std::io::Result<std::process::Child> {
     let mut command = format!("Start-Process -FilePath {}", ps_quote(path));
     if !args.is_empty() {
         let arg_list = args.iter().map(|a| ps_quote(a)).collect::<Vec<_>>().join(",");
@@ -243,4 +243,48 @@ fn launch_elevated_and_relaunch(path: &str, args: &[&str]) -> std::io::Result<st
     }
 
     cmd.spawn()
+}
+
+/// Relaunches the running Flurer instance elevated (triggers a UAC prompt),
+/// for reaching folders this process can't otherwise — e.g. anything
+/// admin-protected but not TrustedInstaller-locked (WindowsApps and similar
+/// stay out of reach even elevated; see describe_dir_error in fs/mod.rs).
+///
+/// Deliberately does NOT reuse `launch_elevated_and_relaunch`: that helper
+/// waits for the elevated process to exit and then reopens an *unelevated*
+/// copy, which is right for "elevation only for the installer, then back to
+/// normal" but wrong here — the elevated instance IS the app going forward,
+/// so this just starts it and exits the current one, no -Wait/relaunch
+/// chain.
+///
+/// Same caveat as the updater flow: if the user cancels the UAC prompt,
+/// `cmd.spawn()` below has already succeeded (it only spawned the
+/// PowerShell wrapper, not the elevated Flurer itself) and `app.exit(0)`
+/// still runs, closing Flurer with no elevated instance to replace it.
+#[tauri::command]
+pub fn relaunch_as_admin(app: tauri::AppHandle) -> Result<(), String> {
+    let current_exe = std::env::current_exe().map_err(|e| format!("Could not resolve current executable: {e}"))?;
+    let command = format!("Start-Process -FilePath {} -Verb RunAs", ps_quote(&current_exe.to_string_lossy()));
+
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    match cmd.spawn() {
+        Ok(_) => {
+            log::info!("relaunch_as_admin: launched elevated instance, exiting current one");
+            app.exit(0);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("relaunch_as_admin: failed to launch elevated instance: {e}");
+            Err(format!("Failed to relaunch as administrator: {e}"))
+        }
+    }
 }

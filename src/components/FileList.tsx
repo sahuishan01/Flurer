@@ -20,6 +20,7 @@ import {
   RefreshIcon,
   ScissorsIcon,
   StarIcon,
+  TerminalIcon,
   TrashIcon,
   UndoIcon,
 } from "./icons";
@@ -34,7 +35,9 @@ import {
   type FolderSizeResponse,
   type SortDirection,
   type SortKey,
+  type UnreadableEntry,
 } from "../lib/fs";
+import { FOLDER_COLOR_PRESETS } from "../lib/settings";
 
 type FileListProps = {
   path: string;
@@ -48,6 +51,8 @@ type FileListProps = {
   searchRecursive: boolean;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
+  folderColors: Record<string, string>;
+  onSetFolderColor: (path: string, color: string | null) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -89,8 +94,29 @@ export function FileList(props: FileListProps) {
   // rather than silently omitted — an incomplete listing that looks
   // complete is worse than a visible gap.
   const [unreadable, setUnreadable] = createSignal(0);
+  const [unreadableEntries, setUnreadableEntries] = createSignal<UnreadableEntry[]>([]);
+  const [unreadableExpanded, setUnreadableExpanded] = createSignal(false);
   const [error, setError] = createSignal("");
   const [opError, setOpError] = createSignal("");
+  const [adminRelaunchError, setAdminRelaunchError] = createSignal("");
+
+  // Shown next to any "Access denied" size/listing error — WindowsApps and
+  // similar TrustedInstaller-owned folders stay out of reach even elevated
+  // (see describe_dir_error/known_unwalkable_reason on the Rust side),
+  // hence the "even for administrators" substring check: no point offering
+  // an action that provably can't help.
+  function canRetryAsAdmin(reason: string): boolean {
+    return reason.includes("Access denied") && !reason.includes("even for administrators");
+  }
+
+  async function relaunchAsAdmin() {
+    setAdminRelaunchError("");
+    try {
+      await invoke("relaunch_as_admin");
+    } catch (err) {
+      setAdminRelaunchError(String(err));
+    }
+  }
 
   // Delete already has a safety net (Recycle Bin), so undo here is scoped to
   // the operations that don't: rename, move (cut/paste and drag), and the
@@ -213,9 +239,27 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  async function copyPathsToClipboard(paths: string[]) {
+    try {
+      await navigator.clipboard.writeText(paths.join("\n"));
+    } catch (err) {
+      setOpError(`Couldn't copy to clipboard: ${String(err)}`);
+    }
+  }
+
+  async function openTerminalAt(path: string) {
+    try {
+      await invoke("open_terminal_here", { path });
+    } catch (err) {
+      setOpError(String(err));
+    }
+  }
+
   async function refresh() {
     setEntries([]);
     setUnreadable(0);
+    setUnreadableEntries([]);
+    setUnreadableExpanded(false);
     const currentPathReq = props.path;
     const currentSearchQueryReq = props.searchQuery;
     const currentSearchRecursiveReq = props.searchRecursive;
@@ -225,7 +269,7 @@ export function FileList(props: FileListProps) {
             root: props.path,
             query: props.searchQuery.trim(),
             recursive: props.searchRecursive,
-          }), unreadable: 0 }
+          }), unreadable: 0, unreadableEntries: [] }
         : await invoke<DirListing>("list_directory", {
             path: props.path,
             sortKey: props.sortKey,
@@ -241,6 +285,7 @@ export function FileList(props: FileListProps) {
       setError("");
       setEntries(result.entries);
       setUnreadable(result.unreadable);
+      setUnreadableEntries(result.unreadableEntries);
     } catch (err) {
       if (
         currentPathReq === props.path &&
@@ -403,14 +448,28 @@ export function FileList(props: FileListProps) {
       const formatted = formatBytes(state.size);
       if (state.done) {
         if (state.error) {
+          const errorText = state.error;
           return (
             <span
               class="folder-size-warning"
-              title={state.error}
-              aria-label={`Folder size warning: ${state.error}`}
+              title={errorText}
+              aria-label={`Folder size warning: ${errorText}`}
             >
               <InfoIcon size={12} />
               {state.size === 0 ? "Unavailable" : formatted}
+              {canRetryAsAdmin(errorText) && (
+                <button
+                  type="button"
+                  class="folder-size-admin-btn"
+                  title="Relaunch Flurer as Administrator to try again"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    relaunchAsAdmin();
+                  }}
+                >
+                  Run as Admin
+                </button>
+              )}
             </span>
           );
         }
@@ -707,6 +766,8 @@ export function FileList(props: FileListProps) {
         { label: "New folder", icon: <FolderPlusIcon size={15} />, onSelect: startNewFolder },
         { label: "New file", icon: <FilePlusIcon size={15} />, onSelect: startNewFile },
         { label: "Paste", icon: <ClipboardIcon size={15} />, onSelect: pasteClipboard, disabled: !canPaste },
+        { label: "Open in Terminal", icon: <TerminalIcon size={15} />, onSelect: () => openTerminalAt(props.path) },
+        { label: "Copy path", icon: <CopyIcon size={15} />, onSelect: () => copyPathsToClipboard([props.path]) },
       ];
     }
 
@@ -759,6 +820,38 @@ export function FileList(props: FileListProps) {
               onSelect: () => props.onToggleFavourite(menu.targetPath!),
               disabled: selected().size !== 1,
             },
+          ]
+        : []),
+      {
+        label: "Copy as path",
+        icon: <CopyIcon size={15} />,
+        onSelect: () => copyPathsToClipboard(hasSelection ? [...selected()] : [menu.targetPath!]),
+        disabled: !hasSelection,
+      },
+      {
+        label: "Open in Terminal",
+        icon: <TerminalIcon size={15} />,
+        onSelect: () => openTerminalAt(targetEntry?.isDir ? menu.targetPath! : parentDir(menu.targetPath!)),
+        disabled: selected().size > 1,
+      },
+      ...(targetEntry?.isDir
+        ? [
+            ...FOLDER_COLOR_PRESETS.map((preset) => ({
+              label: `Tag: ${preset.label}`,
+              icon: <span class="folder-color-swatch" style={{ background: preset.hex }} />,
+              onSelect: () => props.onSetFolderColor(menu.targetPath!, preset.hex),
+              disabled: selected().size !== 1,
+            })),
+            ...(props.folderColors[menu.targetPath]
+              ? [
+                  {
+                    label: "Clear color tag",
+                    icon: <span class="folder-color-swatch folder-color-swatch-clear" />,
+                    onSelect: () => props.onSetFolderColor(menu.targetPath!, null),
+                    disabled: selected().size !== 1,
+                  },
+                ]
+              : []),
           ]
         : []),
       {
@@ -881,10 +974,33 @@ export function FileList(props: FileListProps) {
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
         {error() && <p class="file-list-error">{error()}</p>}
         <Show when={unreadable() > 0}>
-          <p class="file-list-notice">
-            {unreadable()} item{unreadable() === 1 ? "" : "s"} in this folder couldn't be read and {unreadable() === 1 ? "isn't" : "aren't"} shown.
-          </p>
+          <div class="file-list-notice">
+            <button type="button" class="file-list-notice-toggle" onClick={() => setUnreadableExpanded((v) => !v)}>
+              {unreadable()} item{unreadable() === 1 ? "" : "s"} in this folder couldn't be read and {unreadable() === 1 ? "isn't" : "aren't"} shown.
+              {unreadableEntries().length > 0 && (unreadableExpanded() ? " (hide details)" : " (show details)")}
+            </button>
+            <Show when={unreadableExpanded() && unreadableEntries().length > 0}>
+              <ul class="file-list-notice-details">
+                <For each={unreadableEntries()}>
+                  {(entry) => (
+                    <li>
+                      <strong>{entry.name}</strong> — {entry.reason}
+                    </li>
+                  )}
+                </For>
+                {unreadable() > unreadableEntries().length && (
+                  <li>…and {unreadable() - unreadableEntries().length} more.</li>
+                )}
+              </ul>
+            </Show>
+            <Show when={unreadableEntries().some((e) => canRetryAsAdmin(e.reason))}>
+              <button type="button" class="file-list-notice-action" onClick={relaunchAsAdmin}>
+                Relaunch as Administrator
+              </button>
+            </Show>
+          </div>
         </Show>
+        {adminRelaunchError() && <p class="file-list-error">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
         {opError() && <p class="file-list-error">{opError()}</p>}
         <div class="file-list-split">
         <div class="file-list-table-wrap">
@@ -946,6 +1062,13 @@ export function FileList(props: FileListProps) {
                 >
                   <td class="file-name-cell">
                     {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
+                    {entry.isDir && props.folderColors[entry.path] && (
+                      <span
+                        class="folder-color-dot"
+                        style={{ background: props.folderColors[entry.path] }}
+                        title="Color tag"
+                      />
+                    )}
                     {renamingPath() === entry.path ? (
                       <input
                         class="rename-input"

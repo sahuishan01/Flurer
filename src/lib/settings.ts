@@ -39,6 +39,9 @@ export type Settings = {
   persistGraphState: boolean;
   graphState: GraphState | null;
   favouritePaths: string[];
+  // Path -> hex color, for the color-tag dot shown next to a folder in the
+  // file list and sidebar. Absence of a key means "no tag".
+  folderColors: Record<string, string>;
   recentPaths: string[];
   maxHistoryItems: number;
   sortKey: SortKey;
@@ -85,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   persistGraphState: true,
   graphState: null,
   favouritePaths: [],
+  folderColors: {},
   recentPaths: [],
   maxHistoryItems: 15,
   sortKey: "name",
@@ -108,6 +112,14 @@ export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [
   { label: "Segoe UI", value: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" },
   { label: "Georgia", value: "Georgia, Cambria, 'Times New Roman', Times, serif" },
   { label: "Consolas", value: "Consolas, Monaco, 'Courier New', monospace" },
+];
+
+export const FOLDER_COLOR_PRESETS: { label: string; hex: string }[] = [
+  { label: "Red", hex: "#e5484d" },
+  { label: "Orange", hex: "#f5a524" },
+  { label: "Green", hex: "#45a163" },
+  { label: "Blue", hex: "#3b82f6" },
+  { label: "Purple", hex: "#8b5cf6" },
 ];
 
 export const MIN_FONT_SIZE_PX = 12;
