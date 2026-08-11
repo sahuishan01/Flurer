@@ -1574,6 +1574,14 @@ button.sidebar-drive,
     background-color: var(--hover-bg);
 }
 
+.file-table tbody tr:nth-child(even):not(.file-row-selected) {
+    background-color: color-mix(in srgb, var(--control-bg) 38%, transparent);
+}
+
+.file-table tbody tr:nth-child(even):not(.file-row-selected):hover {
+    background-color: var(--hover-bg);
+}
+
 .file-row-selected,
 .file-row-selected:hover {
     background-color: var(--active-bg);

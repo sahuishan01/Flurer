@@ -56,9 +56,13 @@ export type Settings = {
   // Launches Flurer minimized to the tray on login, so the shortcut above
   // is live from boot instead of only after the app's been opened once.
   launchAtStartup: boolean;
+  windowWidth: number;
+  windowHeight: number;
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
+export const DEFAULT_WINDOW_WIDTH = 800;
+export const DEFAULT_WINDOW_HEIGHT = 600;
 
 export const DEFAULT_SETTINGS: Settings = {
   wallpaper: null,
@@ -94,6 +98,8 @@ export const DEFAULT_SETTINGS: Settings = {
   disabledPlugins: [],
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   launchAtStartup: false,
+  windowWidth: DEFAULT_WINDOW_WIDTH,
+  windowHeight: DEFAULT_WINDOW_HEIGHT,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [
