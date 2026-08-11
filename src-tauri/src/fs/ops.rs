@@ -501,6 +501,51 @@ pub fn open_file_with_default(app: AppHandle, path: String) -> Result<(), String
         })
 }
 
+/// Opens a new terminal window rooted at `path` — Explorer's "Open in
+/// Terminal" equivalent. Uses `cmd.exe /K "cd /D <path>"` rather than
+/// spawning a shell as a hidden child of this process: `/K` keeps the
+/// window open with the user in an interactive prompt (as opposed to `/C`,
+/// which would run the cd and immediately close), and `/D` allows changing
+/// drive letter, not just directory, since `path` can be on any volume.
+/// Spawned via `cmd.exe /C start` so the terminal is fully detached from
+/// Flurer — it must keep running after Flurer closes, unlike every other
+/// spawned helper process in this file which are meant to finish quickly.
+#[tauri::command]
+pub fn open_terminal_here(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.is_dir() {
+        return Err(format!("{} is not a directory", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "cmd", "/K", &format!("cd /D \"{path}\"")])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| {
+                log::error!("open_terminal_here failed for {path}: {e}");
+                format!("Failed to open terminal: {e}")
+            })?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(format!("cd {:?} && exec ${{SHELL:-/bin/sh}}", path_buf))
+            .spawn()
+            .map_err(|e| {
+                log::error!("open_terminal_here failed for {path}: {e}");
+                format!("Failed to open terminal: {e}")
+            })?;
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn create_folder(parent_dir: String, name: String) -> Result<String, String> {
     validate_filename(&name)?;

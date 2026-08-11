@@ -1364,6 +1364,14 @@ button.sidebar-drive,
     margin-top: 0.75em;
 }
 
+.cache-stats-control {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35em;
+    margin-top: 0.75em;
+}
+
 .shortcut-label {
     font-size: var(--text-label);
 }
@@ -1532,6 +1540,51 @@ button.sidebar-drive,
     color: var(--text-secondary);
     font-size: var(--text-caption);
     padding: 0.2em 0.6em;
+}
+
+.file-list-notice-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.file-list-notice-toggle:hover {
+    text-decoration: underline;
+}
+
+.file-list-notice-details {
+    margin: 0.4em 0 0;
+    padding: 0.4em 0.6em;
+    max-height: 160px;
+    overflow-y: auto;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    list-style: none;
+}
+
+.file-list-notice-details li {
+    padding: 0.15em 0;
+}
+
+.file-list-notice-action {
+    display: inline-block;
+    margin-top: 0.4em;
+    padding: 0.3em 0.7em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.file-list-notice-action:hover {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .file-list-skeleton {
@@ -2852,6 +2905,41 @@ button.danger:not(.context-menu-item):hover {
     color: var(--danger);
     cursor: help;
     vertical-align: middle;
+}
+
+.folder-size-admin-btn {
+    padding: 0.1em 0.5em;
+    border-radius: var(--radius-sm);
+    border: 1px solid currentColor;
+    background: transparent;
+    color: inherit;
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.folder-size-admin-btn:hover {
+    background: color-mix(in oklch, var(--danger) 12%, transparent);
+}
+
+.folder-color-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.folder-color-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.folder-color-swatch-clear {
+    background: transparent;
+    border: 1px solid var(--text-secondary);
 }
 
 .size-loading-spinner {

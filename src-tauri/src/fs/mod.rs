@@ -46,6 +46,21 @@ pub enum SortDirection {
     Descending,
 }
 
+/// One item a directory listing couldn't read, with a human-readable reason
+/// — surfaced so "N items couldn't be read" can be expanded into something
+/// actionable instead of just a count.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadableEntry {
+    pub name: String,
+    pub reason: String,
+}
+
+// Bounds the response size for a folder with thousands of unreadable
+// children (e.g. an ACL'd system tree) — the count in `unreadable` already
+// covers the full total, this only caps how many get named individually.
+const MAX_UNREADABLE_ENTRIES: usize = 200;
+
 /// A directory listing plus a count of items that were present but couldn't
 /// be read at all. Reported rather than silently dropped: quietly showing an
 /// incomplete folder is how people lose track of files.
@@ -54,12 +69,16 @@ pub enum SortDirection {
 pub struct DirListing {
     pub entries: Vec<DirEntry>,
     pub unreadable: usize,
+    #[serde(default)]
+    pub unreadable_entries: Vec<UnreadableEntry>,
 }
 
 /// Turns an io::Error on the directory itself into something a person can
 /// act on. Raw OS strings ("Access is denied. (os error 5)") say nothing
-/// about which folder failed or why it's refusing.
-fn describe_dir_error(path: &str, error: &std::io::Error) -> String {
+/// about which folder failed or why it's refusing. `pub(crate)` so the
+/// folder-size walker (sizecache) can give the same explanation for the
+/// same underlying error instead of a raw io::Error string.
+pub(crate) fn describe_dir_error(path: &str, error: &std::io::Error) -> String {
     match error.kind() {
         std::io::ErrorKind::PermissionDenied => format!(
             "Access denied — Windows is blocking access to {path}. \
@@ -81,6 +100,7 @@ pub fn list_directory(
 
     let mut entries = Vec::new();
     let mut unreadable = 0usize;
+    let mut unreadable_entries = Vec::new();
     for entry in read_dir {
         // One unreadable child must not sink the whole listing. This used
         // to propagate with `?`, so a single protected item — C:\Program
@@ -90,6 +110,12 @@ pub fn list_directory(
         // it can; so do we.
         let Ok(entry) = entry else {
             unreadable += 1;
+            if unreadable_entries.len() < MAX_UNREADABLE_ENTRIES {
+                unreadable_entries.push(UnreadableEntry {
+                    name: "(unknown entry)".to_string(),
+                    reason: "Directory entry itself could not be read".to_string(),
+                });
+            }
             continue;
         };
         // file_type() comes from the directory scan itself and needs no
@@ -97,6 +123,12 @@ pub fn list_directory(
         // call that actually fails on protected entries.
         let Ok(file_type) = entry.file_type() else {
             unreadable += 1;
+            if unreadable_entries.len() < MAX_UNREADABLE_ENTRIES {
+                unreadable_entries.push(UnreadableEntry {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    reason: "Access denied — couldn't determine file type".to_string(),
+                });
+            }
             continue;
         };
         let metadata = entry.metadata().ok();
@@ -139,7 +171,7 @@ pub fn list_directory(
         }
     });
 
-    Ok(DirListing { entries, unreadable })
+    Ok(DirListing { entries, unreadable, unreadable_entries })
 }
 
 const SEARCH_RESULT_LIMIT: usize = 500;

@@ -1062,6 +1062,23 @@ fn handle_file_system_event(app: &AppHandle, event: Event) {
     }
 }
 
+/// Folders Windows locks down structurally — owned by TrustedInstaller or
+/// reserved for the OS itself — where a size walk will always end in
+/// PermissionDenied no matter what rights the calling process has, admin
+/// included. Matched by suffix so it catches these under any drive letter.
+/// Short-circuiting these skips a doomed enqueue + worker walk and explains
+/// *why* up front instead of surfacing a generic "Cannot read" after the
+/// fact.
+fn known_unwalkable_reason(path: &Path) -> Option<&'static str> {
+    const PROTECTED_SUFFIXES: [&str; 3] = ["\\WindowsApps", "\\System Volume Information", "\\$Recycle.Bin"];
+    let path_str = path.to_string_lossy();
+    let path_str = path_str.trim_end_matches(['\\', '/']);
+    PROTECTED_SUFFIXES.iter().any(|suffix| path_str.ends_with(suffix)).then_some(
+        "System-protected folder — Windows restricts access to this even for administrators. \
+         Size isn't available, the same as in File Explorer.",
+    )
+}
+
 #[tauri::command]
 pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: String) -> Result<FolderSizeResponse, String> {
     let path_buf = PathBuf::from(&path);
@@ -1069,9 +1086,12 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
         log::warn!("folder size requested for non-directory or inaccessible path: {}", path);
         return Err(format!("{} is not a directory", path));
     }
+    if let Some(reason) = known_unwalkable_reason(&path_buf) {
+        return Ok(FolderSizeResponse::Ready { size: 0, error: Some(reason.to_string()) });
+    }
     if let Err(error) = fs::read_dir(&path_buf) {
         log::warn!("folder size cannot read {}: {}", path_buf.display(), error);
-        return Err(format!("Cannot read {}: {}", path_buf.display(), error));
+        return Err(crate::fs::describe_dir_error(&path, &error));
     }
 
     // A recompute (manual or silent revalidation, below) already has this
@@ -1136,9 +1156,12 @@ pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, 
         log::warn!("folder size recalculation requested for non-directory or inaccessible path: {}", path);
         return Err(format!("{} is not a directory", path));
     }
+    if let Some(reason) = known_unwalkable_reason(&path_buf) {
+        return Ok(FolderSizeResponse::Ready { size: 0, error: Some(reason.to_string()) });
+    }
     if let Err(error) = fs::read_dir(&path_buf) {
         log::warn!("folder size recalculation cannot read {}: {}", path_buf.display(), error);
-        return Err(format!("Cannot read {}: {}", path_buf.display(), error));
+        return Err(crate::fs::describe_dir_error(&path, &error));
     }
 
     // Enqueueing puts the path in `pending`, which is what makes
@@ -1147,6 +1170,43 @@ pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, 
     // to keep recognizing this folder as one to watch for live changes.
     enqueue_tracked(&app, &state, path_buf)?;
     Ok(FolderSizeResponse::Pending)
+}
+
+/// Cache occupancy for the Settings panel — `roots`/`subdirs` are the two
+/// independently-capped tiers described on `SizeCacheState` above.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderSizeCacheStats {
+    pub visited_folders: usize,
+    pub visited_folders_cap: usize,
+    pub discovered_subfolders: usize,
+    pub discovered_subfolders_cap: usize,
+}
+
+#[tauri::command]
+pub fn get_folder_size_cache_stats(state: tauri::State<'_, AppState>) -> FolderSizeCacheStats {
+    FolderSizeCacheStats {
+        visited_folders: state.size_cache.roots.lock().unwrap().len(),
+        visited_folders_cap: MAX_CACHED_ROOTS,
+        discovered_subfolders: state.size_cache.subdirs.lock().unwrap().len(),
+        discovered_subfolders_cap: MAX_CACHED_SUBDIRS,
+    }
+}
+
+/// Drops every cached folder size (both tiers) and persists the now-empty
+/// cache immediately, so a crash right after clearing doesn't resurrect the
+/// old sizes from disk on next launch. Sizes recompute lazily as folders are
+/// revisited — this doesn't touch anything else (favourites, recents,
+/// watchers keep running against whatever's opened next).
+#[tauri::command]
+pub fn clear_folder_size_cache(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.size_cache.roots.lock().unwrap().clear();
+    state.size_cache.subdirs.lock().unwrap().clear();
+    state.size_cache.tracked_files.lock().unwrap().clear();
+    save_persisted_sizes(&app, &IndexMap::new());
+    *state.size_cache.dirty.lock().unwrap() = false;
+    log::info!("folder size cache cleared by user");
+    Ok(())
 }
 
 #[cfg(test)]

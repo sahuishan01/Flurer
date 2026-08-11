@@ -50,6 +50,7 @@ type SidebarProps = {
   activeView: MainView;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
+  folderColors: Record<string, string>;
   recentPaths: string[];
   onRemoveRecent: (path: string) => void;
   customContent?: JSX.Element;
@@ -63,6 +64,7 @@ type SidebarEntryProps = {
   onNavigate: (path: string) => void;
   onRemove: () => void;
   removeLabel: string;
+  colorHex?: string;
 };
 
 function SidebarEntry(props: SidebarEntryProps) {
@@ -77,6 +79,7 @@ function SidebarEntry(props: SidebarEntryProps) {
         onClick={() => props.onNavigate(props.path)}
       >
         <span class="sidebar-icon">{props.icon}</span>
+        {props.colorHex && <span class="folder-color-dot" style={{ background: props.colorHex }} />}
         <span class="sidebar-entry-label">{baseName(props.path)}</span>
       </button>
       <button
@@ -222,6 +225,7 @@ export function Sidebar(props: SidebarProps) {
             onNavigate={props.onSelectPath}
             onRemove={() => props.onRemoveRecent(path)}
             removeLabel="Remove from Recents"
+            colorHex={props.folderColors[path]}
           />
         )}
       </For>
@@ -240,6 +244,7 @@ export function Sidebar(props: SidebarProps) {
               onNavigate={props.onSelectPath}
               onRemove={() => props.onToggleFavourite(path)}
               removeLabel="Remove from Favourites"
+              colorHex={props.folderColors[path]}
             />
           )}
         </For>

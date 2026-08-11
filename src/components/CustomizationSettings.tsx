@@ -1,5 +1,6 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import type { FolderSizeCacheStats } from "../lib/fs";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
 import {
   DEFAULT_GLOBAL_SHORTCUT,
@@ -67,7 +68,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "folder size", "live update", "automatic", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "folder size", "live update", "automatic", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background", "cache", "clear cache", "size cache", "disk usage"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -118,6 +119,33 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   const showBehavior = () => matchesQuery(props.searchQuery, BEHAVIOR_KEYWORDS);
 
   const [apiKeyInput, setApiKeyInput] = createSignal("");
+
+  const [cacheStats, setCacheStats] = createSignal<FolderSizeCacheStats | null>(null);
+  const [cacheStatsError, setCacheStatsError] = createSignal("");
+  const [clearingCache, setClearingCache] = createSignal(false);
+
+  async function refreshCacheStats() {
+    try {
+      setCacheStats(await invoke<FolderSizeCacheStats>("get_folder_size_cache_stats"));
+      setCacheStatsError("");
+    } catch (err) {
+      setCacheStatsError(String(err));
+    }
+  }
+
+  onMount(refreshCacheStats);
+
+  async function handleClearCache() {
+    setClearingCache(true);
+    try {
+      await invoke("clear_folder_size_cache");
+      await refreshCacheStats();
+    } catch (err) {
+      setCacheStatsError(String(err));
+    } finally {
+      setClearingCache(false);
+    }
+  }
 
   function handleSaveApiKey() {
     props.onSaveUnsplashApiKey(apiKeyInput());
@@ -695,6 +723,29 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           />
         </label>
         <p class="settings-hint">Controls how many recently visited folders are kept in the sidebar.</p>
+
+        <div class="cache-stats-control">
+          <span>Folder size cache</span>
+          <Show
+            when={cacheStats()}
+            fallback={<span class="settings-hint">{cacheStatsError() || "Loading…"}</span>}
+          >
+            {(stats) => (
+              <span class="settings-hint">
+                {stats().visitedFolders.toLocaleString()} / {stats().visitedFoldersCap.toLocaleString()} visited folders
+                remembered, {stats().discoveredSubfolders.toLocaleString()} / {stats().discoveredSubfoldersCap.toLocaleString()}{" "}
+                discovered subfolders cached this session.
+              </span>
+            )}
+          </Show>
+          <button type="button" class="danger" disabled={clearingCache()} onClick={handleClearCache}>
+            {clearingCache() ? "Clearing…" : "Clear cache"}
+          </button>
+        </div>
+        <p class="settings-hint">
+          Sizes recompute automatically as folders are revisited — clearing just frees the memory/disk this has built up, it
+          doesn't affect anything else.
+        </p>
 
         <div class="shortcut-control">
           <span class="shortcut-label">Global shortcut to open Flurer</span>

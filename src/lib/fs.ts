@@ -10,9 +10,22 @@ export type DirEntry = {
 // what it can and reports how many items it had to skip, so a folder like
 // C:\Program Files (which contains items ACL'd to TrustedInstaller) stays
 // browsable instead of rendering as a single "Access is denied" error.
+export type UnreadableEntry = {
+  name: string;
+  reason: string;
+};
+
 export type DirListing = {
   entries: DirEntry[];
   unreadable: number;
+  unreadableEntries: UnreadableEntry[];
+};
+
+export type FolderSizeCacheStats = {
+  visitedFolders: number;
+  visitedFoldersCap: number;
+  discoveredSubfolders: number;
+  discoveredSubfoldersCap: number;
 };
 
 export type SortKey = "name" | "size" | "modified";

@@ -9,6 +9,8 @@ type ExplorerViewProps = {
   searchRecursive: boolean;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
+  folderColors: Record<string, string>;
+  onSetFolderColor: (path: string, color: string | null) => void;
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSortChange: (key: SortKey) => void;
@@ -33,6 +35,8 @@ export function ExplorerView(props: ExplorerViewProps) {
         searchRecursive={props.searchRecursive}
         favouritePaths={props.favouritePaths}
         onToggleFavourite={props.onToggleFavourite}
+        folderColors={props.folderColors}
+        onSetFolderColor={props.onSetFolderColor}
       />
     </div>
   );

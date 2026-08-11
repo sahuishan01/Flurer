@@ -111,6 +111,12 @@ pub struct Settings {
     pub persist_graph_state: bool,
     pub graph_state: Option<GraphState>,
     pub favourite_paths: Vec<String>,
+    // Path -> hex color ("#rrggbb"), for the color-tag dot shown next to a
+    // folder in the file list and sidebar. A plain map rather than a struct
+    // per entry since color is the only per-folder attribute this feature
+    // needs; absence of a key means "no tag", not "default color".
+    #[serde(default)]
+    pub folder_colors: HashMap<String, String>,
     // Most-recently-visited first; the frontend caps and dedupes this list
     // (see recordRecent in App.tsx) rather than the backend, since it's just
     // opaque persisted state from Rust's point of view.
@@ -189,6 +195,7 @@ impl Default for Settings {
             persist_graph_state: true,
             graph_state: None,
             favourite_paths: Vec::new(),
+            folder_colors: HashMap::new(),
             recent_paths: Vec::new(),
             max_history_items: default_max_history_items(),
             sort_key: SortKey::default(),
