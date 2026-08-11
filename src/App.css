@@ -2557,6 +2557,14 @@ button.danger:not(.context-menu-item):hover {
     white-space: nowrap;
 }
 
+.graph-node-color-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
 .graph-node-chevron {
     display: inline-flex;
     opacity: 0.5;
