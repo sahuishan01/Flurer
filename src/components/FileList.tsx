@@ -20,6 +20,7 @@ import {
   RefreshIcon,
   ScissorsIcon,
   StarIcon,
+  TagIcon,
   TerminalIcon,
   TrashIcon,
   UndoIcon,
@@ -503,9 +504,25 @@ export function FileList(props: FileListProps) {
       .map((e) => e.entry);
   }
 
+  // Local, not persisted — a per-session view preference like the search
+  // box, not a setting worth round-tripping through Settings. Applied as a
+  // final stable partition after whatever ordering sortKey/sortDirection
+  // (or the search backend) already produced, so turning it on never
+  // fights with the chosen sort — it just pulls tagged rows to the front
+  // without reordering within each group. Works in search mode too since
+  // it's the last step regardless of how `list` was produced.
+  const [pinTaggedFirst, setPinTaggedFirst] = createSignal(false);
+
+  function pinTagged(list: DirEntry[]): DirEntry[] {
+    if (!pinTaggedFirst()) return list;
+    const tagged = list.filter((e) => props.folderColors[e.path]);
+    const untagged = list.filter((e) => !props.folderColors[e.path]);
+    return tagged.length > 0 ? [...tagged, ...untagged] : list;
+  }
+
   const sortedEntries = createMemo(() => {
     const list = entries();
-    if (props.sortKey !== "size") return list;
+    if (props.sortKey !== "size") return pinTagged(list);
 
     const sizes = folderSizes();
     const dirs = sortBySize(
@@ -522,7 +539,7 @@ export function FileList(props: FileListProps) {
       list.filter((e) => !e.isDir),
       (entry) => entry.size,
     );
-    return [...dirs, ...files];
+    return pinTagged([...dirs, ...files]);
   });
 
   function handleRowClick(e: MouseEvent, entry: DirEntry, index: number) {
@@ -774,6 +791,7 @@ export function FileList(props: FileListProps) {
     const hasSelection = selected().size > 0;
     const targetEntry = entries().find((e) => e.path === menu.targetPath);
     const dirPaths = selectedDirPaths();
+    const tagPaths = () => (hasSelection ? [...selected()] : [menu.targetPath!]);
     return [
       {
         label: "Copy",
@@ -836,20 +854,24 @@ export function FileList(props: FileListProps) {
       },
       // Color tags apply to any entry, not just folders — files get the
       // same dot in the list (and the map itself has no isDir concept, it's
-      // just path -> color).
+      // just path -> color). Works across a whole multi-selection, not just
+      // a single right-clicked row — same tagPaths list either way, so a
+      // right-click on an unselected row (which handleRowContextMenu already
+      // collapses selected() down to just that row) still tags just the one
+      // item.
       ...FOLDER_COLOR_PRESETS.map((preset) => ({
-        label: `Tag: ${preset.label}`,
+        label: selected().size > 1 ? `Tag: ${preset.label} (${selected().size})` : `Tag: ${preset.label}`,
         icon: <span class="folder-color-swatch" style={{ background: preset.hex }} />,
-        onSelect: () => props.onSetFolderColor(menu.targetPath!, preset.hex),
-        disabled: selected().size !== 1,
+        onSelect: () => tagPaths().forEach((path) => props.onSetFolderColor(path, preset.hex)),
+        disabled: !hasSelection,
       })),
-      ...(props.folderColors[menu.targetPath]
+      ...(tagPaths().some((path) => props.folderColors[path])
         ? [
             {
-              label: "Clear color tag",
+              label: selected().size > 1 ? `Clear color tag (${selected().size})` : "Clear color tag",
               icon: <span class="folder-color-swatch folder-color-swatch-clear" />,
-              onSelect: () => props.onSetFolderColor(menu.targetPath!, null),
-              disabled: selected().size !== 1,
+              onSelect: () => tagPaths().forEach((path) => props.onSetFolderColor(path, null)),
+              disabled: !hasSelection,
             },
           ]
         : []),
@@ -1001,6 +1023,21 @@ export function FileList(props: FileListProps) {
         </Show>
         {adminRelaunchError() && <p class="file-list-error">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
         {opError() && <p class="file-list-error">{opError()}</p>}
+        <Show when={entries().some((e) => props.folderColors[e.path])}>
+          <div class="file-list-toolbar-row">
+            <button
+              type="button"
+              class="pin-tagged-toggle"
+              classList={{ active: pinTaggedFirst() }}
+              aria-pressed={pinTaggedFirst()}
+              title="Show tagged items first, ahead of the current sort"
+              onClick={() => setPinTaggedFirst((v) => !v)}
+            >
+              <TagIcon size={13} />
+              Tagged first
+            </button>
+          </div>
+        </Show>
         <div class="file-list-split">
         <div class="file-list-table-wrap">
         <table class="file-table">
