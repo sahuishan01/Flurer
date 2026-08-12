@@ -1587,6 +1587,35 @@ button.sidebar-drive,
     color: var(--accent);
 }
 
+.file-list-toolbar-row {
+    padding: 0.2em 0.6em;
+    display: flex;
+}
+
+.pin-tagged-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.25em 0.6em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.pin-tagged-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.pin-tagged-toggle.active {
+    border-color: var(--accent);
+    background: var(--accent-bg-soft);
+    color: var(--accent);
+}
+
 .file-list-skeleton {
     display: flex;
     flex-direction: column;
