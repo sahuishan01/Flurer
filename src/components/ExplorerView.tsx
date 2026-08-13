@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { FileList } from "./FileList";
 import type { ClipboardState, SortDirection, SortKey } from "../lib/fs";
+import type { InAppShortcutAction } from "../lib/shortcuts";
 
 type ExplorerViewProps = {
   path: string;
@@ -11,6 +12,7 @@ type ExplorerViewProps = {
   onToggleFavourite: (path: string) => void;
   folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
+  inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSortChange: (key: SortKey) => void;
@@ -37,6 +39,7 @@ export function ExplorerView(props: ExplorerViewProps) {
         onToggleFavourite={props.onToggleFavourite}
         folderColors={props.folderColors}
         onSetFolderColor={props.onSetFolderColor}
+        inAppShortcuts={props.inAppShortcuts}
       />
     </div>
   );

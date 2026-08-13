@@ -1,5 +1,7 @@
+mod archive;
 mod configs;
 mod disks;
+mod duplicates;
 mod fs;
 mod helpers;
 mod logging;
@@ -10,9 +12,12 @@ mod shortcuts;
 mod sizecache;
 mod state;
 mod tray;
+mod trash_bin;
 mod updater;
 
+use archive::{compress_to_zip, extract_archive};
 use disks::get_disk_topology;
+use duplicates::find_duplicates;
 use fs::{
     cancel_operation, copy_items, create_file, create_folder, delete_items, get_file_preview, get_path_metadata,
     get_quick_access, list_directory, list_graph_children, move_items, open_file_with_default, open_terminal_here,
@@ -35,6 +40,7 @@ use plugins::{
 };
 
 use crate::{configs::Config, state::AppState};
+use trash_bin::{delete_trash_items_forever, empty_trash, list_trash, restore_trash_items};
 use updater::{check_for_updates, download_and_install_update, relaunch_as_admin};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -147,6 +153,16 @@ pub fn run() {
             check_for_updates,
             download_and_install_update,
             relaunch_as_admin,
+            // Recycle Bin
+            list_trash,
+            restore_trash_items,
+            delete_trash_items_forever,
+            empty_trash,
+            // Archive
+            compress_to_zip,
+            extract_archive,
+            // Duplicate finder
+            find_duplicates,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

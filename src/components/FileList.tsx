@@ -4,11 +4,13 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
 import { BulkRenameDialog } from "./BulkRenameDialog";
+import { DuplicateFinderModal } from "./DuplicateFinderModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import { PreviewPanel } from "./PreviewPanel";
 import { PropertiesDialog } from "./PropertiesDialog";
 import {
+  ArchiveIcon,
   ClipboardIcon,
   CopyIcon,
   FileIcon,
@@ -16,6 +18,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   InfoIcon,
+  LayersIcon,
   PencilIcon,
   RefreshIcon,
   ScissorsIcon,
@@ -39,6 +42,7 @@ import {
   type UnreadableEntry,
 } from "../lib/fs";
 import { FOLDER_COLOR_PRESETS } from "../lib/settings";
+import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "../lib/shortcuts";
 
 type FileListProps = {
   path: string;
@@ -54,6 +58,7 @@ type FileListProps = {
   onToggleFavourite: (path: string) => void;
   folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
+  inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
   "data-bg-lightness"?: string;
 };
 
@@ -212,6 +217,7 @@ export function FileList(props: FileListProps) {
   const [deleteTargets, setDeleteTargets] = createSignal<string[] | null>(null);
   const [propertiesTarget, setPropertiesTarget] = createSignal<string | null>(null);
   const [bulkRenameOpen, setBulkRenameOpen] = createSignal(false);
+  const [duplicatesOpen, setDuplicatesOpen] = createSignal(false);
 
   // Folder sizes are computed lazily in the background by the Rust size
   // cache (never blocking the listing itself) and pushed here as they
@@ -251,6 +257,31 @@ export function FileList(props: FileListProps) {
   async function openTerminalAt(path: string) {
     try {
       await invoke("open_terminal_here", { path });
+    } catch (err) {
+      setOpError(String(err));
+    }
+  }
+
+  async function compressSelection(paths: string[]) {
+    if (paths.length === 0) return;
+    setOpError("");
+    const destName = paths.length === 1 ? `${baseName(paths[0])}.zip` : "Archive.zip";
+    try {
+      // dest_dir/dest_name passed separately (not concatenated here) so the
+      // backend's PathBuf::join does the actual path math — same split
+      // create_folder/create_file already use.
+      await invoke("compress_to_zip", { paths, destDir: props.path, destName });
+      refresh();
+    } catch (err) {
+      setOpError(String(err));
+    }
+  }
+
+  async function extractHere(zipPath: string) {
+    setOpError("");
+    try {
+      await invoke("extract_archive", { zipPath, destDir: props.path });
+      refresh();
     } catch (err) {
       setOpError(String(err));
     }
@@ -785,6 +816,7 @@ export function FileList(props: FileListProps) {
         { label: "Paste", icon: <ClipboardIcon size={15} />, onSelect: pasteClipboard, disabled: !canPaste },
         { label: "Open in Terminal", icon: <TerminalIcon size={15} />, onSelect: () => openTerminalAt(props.path) },
         { label: "Copy path", icon: <CopyIcon size={15} />, onSelect: () => copyPathsToClipboard([props.path]) },
+        { label: "Find duplicate files here…", icon: <LayersIcon size={15} />, onSelect: () => setDuplicatesOpen(true) },
       ];
     }
 
@@ -852,6 +884,21 @@ export function FileList(props: FileListProps) {
         onSelect: () => openTerminalAt(targetEntry?.isDir ? menu.targetPath! : parentDir(menu.targetPath!)),
         disabled: selected().size > 1,
       },
+      {
+        label: selected().size > 1 ? `Compress to ZIP (${selected().size})` : "Compress to ZIP",
+        icon: <ArchiveIcon size={15} />,
+        onSelect: () => compressSelection(hasSelection ? [...selected()] : [menu.targetPath!]),
+        disabled: !hasSelection,
+      },
+      ...(!targetEntry?.isDir && selected().size === 1 && menu.targetPath.toLowerCase().endsWith(".zip")
+        ? [
+            {
+              label: "Extract here",
+              icon: <ArchiveIcon size={15} />,
+              onSelect: () => extractHere(menu.targetPath!),
+            },
+          ]
+        : []),
       // Color tags apply to any entry, not just folders — files get the
       // same dot in the list (and the map itself has no isDir concept, it's
       // just path -> color). Works across a whole multi-selection, not just
@@ -906,22 +953,27 @@ export function FileList(props: FileListProps) {
     if (selectionElement?.closest(".preview-panel-text")) return;
 
     const mod = e.ctrlKey || e.metaKey;
-    if (e.key === "Delete") {
+
+    function bound(action: InAppShortcutAction): boolean {
+      return matchesKeyCombo(e, props.inAppShortcuts[action] ?? DEFAULT_IN_APP_SHORTCUTS[action]);
+    }
+
+    if (bound("delete")) {
       e.preventDefault();
       requestDelete([...selected()]);
-    } else if (e.key === "F2") {
+    } else if (bound("rename")) {
       e.preventDefault();
       if (selected().size === 1) startRename([...selected()][0]);
-    } else if (mod && e.key.toLowerCase() === "c") {
+    } else if (bound("copy")) {
       e.preventDefault();
       if (selected().size > 0) props.onClipboardChange({ mode: "copy", paths: [...selected()] });
-    } else if (mod && e.key.toLowerCase() === "x") {
+    } else if (bound("cut")) {
       e.preventDefault();
       if (selected().size > 0) props.onClipboardChange({ mode: "cut", paths: [...selected()] });
-    } else if (mod && e.key.toLowerCase() === "v") {
+    } else if (bound("paste")) {
       e.preventDefault();
       pasteClipboard();
-    } else if (mod && e.key.toLowerCase() === "a") {
+    } else if (bound("selectAll")) {
       e.preventDefault();
       setSelected(new Set(entries().map((en) => en.path)));
     } else if (!mod && !e.altKey && e.key.length === 1 && /[\p{L}\p{N}]/u.test(e.key)) {
@@ -1198,6 +1250,14 @@ export function FileList(props: FileListProps) {
             setSelected(new Set(renamed.map((r) => r.to)));
             refresh();
           }}
+        />
+      )}
+
+      {duplicatesOpen() && (
+        <DuplicateFinderModal
+          rootPath={props.path}
+          onClose={() => setDuplicatesOpen(false)}
+          onDeleted={refresh}
         />
       )}
 

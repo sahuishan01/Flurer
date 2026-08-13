@@ -1394,6 +1394,20 @@ button.sidebar-drive,
     border-color: var(--accent);
 }
 
+.in-app-shortcuts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin-top: 0.75em;
+    padding: 0.6em;
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+}
+
+.in-app-shortcuts > .shortcut-label {
+    font-weight: 600;
+}
+
 .file-list {
     flex: 1;
     display: flex;
@@ -2977,6 +2991,77 @@ button.danger:not(.context-menu-item):hover {
 .folder-color-swatch-clear {
     background: transparent;
     border: 1px solid var(--text-secondary);
+}
+
+.trash-view {
+    padding: 1em 1.2em;
+}
+
+.trash-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    margin-bottom: 1em;
+}
+
+.trash-title {
+    margin: 0;
+}
+
+.trash-toolbar-actions {
+    display: flex;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+
+.trash-toolbar-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.trash-table {
+    width: 100%;
+}
+
+.duplicate-groups {
+    max-height: 360px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+    margin: 0.6em 0;
+}
+
+.duplicate-group {
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    padding: 0.5em 0.7em;
+}
+
+.duplicate-group-header {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 0.3em;
+}
+
+.duplicate-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.2em 0;
+    cursor: pointer;
+}
+
+.duplicate-entry-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-caption);
+    font-family: var(--text-mono, monospace);
 }
 
 .size-loading-spinner {

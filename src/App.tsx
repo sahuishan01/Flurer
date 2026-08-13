@@ -8,6 +8,7 @@ import { ExplorerTabs, type ExplorerTab } from "./components/ExplorerTabs";
 import { ExplorerView } from "./components/ExplorerView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { TrashView } from "./components/TrashView";
 import { ViewRail } from "./components/ViewRail";
 import {
   DEFAULT_SETTINGS,
@@ -18,6 +19,7 @@ import {
   type Theme,
 } from "./lib/settings";
 import type { SortKey } from "./lib/fs";
+import { DEFAULT_IN_APP_SHORTCUTS, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
 import { loadInstalledPlugins, registeredPlugins } from "./lib/plugins";
@@ -374,6 +376,16 @@ function App() {
   // "absent key means no tag" without needing an explicit delete step.
   function setFolderColor(path: string, color: string | null) {
     setSettings("folderColors", path, color ?? undefined);
+    persistSettings();
+  }
+
+  function updateInAppShortcut(action: InAppShortcutAction, combo: string) {
+    setSettings("inAppShortcuts", action, combo);
+    persistSettings();
+  }
+
+  function resetInAppShortcut(action: InAppShortcutAction) {
+    setSettings("inAppShortcuts", action, DEFAULT_IN_APP_SHORTCUTS[action]);
     persistSettings();
   }
 
@@ -950,6 +962,7 @@ function App() {
                   onToggleFavourite={toggleFavourite}
                   folderColors={settings.folderColors}
                   onSetFolderColor={setFolderColor}
+                  inAppShortcuts={settings.inAppShortcuts}
                   sortKey={settings.sortKey}
                   sortDirection={settings.sortDirection}
                   onSortChange={updateSort}
@@ -991,6 +1004,12 @@ function App() {
               )}
             </For>
 
+            <Show when={mainView() === "trash"}>
+              <div class="view-pane">
+                <TrashView data-bg-lightness={fileListLightness()} />
+              </div>
+            </Show>
+
             <Show when={mainView() === "settings"}>
               <div class="view-pane">
                 <SettingsPanel
@@ -1019,6 +1038,9 @@ function App() {
                    onMaxHistoryItemsChange={updateMaxHistoryItems}
                   globalShortcut={settings.globalShortcut}
                   onGlobalShortcutChange={updateGlobalShortcut}
+                  inAppShortcuts={settings.inAppShortcuts}
+                  onInAppShortcutChange={updateInAppShortcut}
+                  onResetInAppShortcut={resetInAppShortcut}
                   launchAtStartup={settings.launchAtStartup}
                   onLaunchAtStartupChange={updateLaunchAtStartup}
                   hasUnsplashApiKey={hasUnsplashApiKey()}
