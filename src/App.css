@@ -372,7 +372,18 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.15em;
+    /* Was getting outsized by the global button rule's 0.5em 1em padding +
+       1px border (excluded below via :not(.explorer-tab-close), but this
+       still needs its own explicit border/background reset since it no
+       longer inherits any) — line-height: 1 plus a small fixed box keeps it
+       the same height as the tab label's text next to it rather than
+       stretching the whole tab taller. */
+    width: 1.4em;
+    height: 1.4em;
+    line-height: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
     border-radius: var(--radius-sm);
     color: inherit;
     opacity: 0.7;
@@ -385,7 +396,19 @@ body {
 
 .explorer-tab-new {
     flex-shrink: 0;
-    padding: 0.3em 0.6em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Same reasoning as .explorer-tab-close above — explicit border/
+       background reset now that the global button rule excludes this
+       class, sized to the tab strip's own height instead of the global
+       rule's 0.5em 1em padding. */
+    width: 1.8em;
+    height: 1.8em;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
     color: var(--text-secondary);
     font-size: var(--text-body);
     line-height: 1;
@@ -2059,7 +2082,7 @@ a:hover {
 }
 
 input:not([type="range"]):not([type="color"]),
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new),
 select {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
@@ -2077,18 +2100,18 @@ select option {
     background-color: var(--option-bg);
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel),
 select {
     cursor: pointer;
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel):hover,
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):hover,
 select:hover {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 6%, var(--input-bg));
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.progress-task-cancel):active {
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):active {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 12%, var(--input-bg));
 }
