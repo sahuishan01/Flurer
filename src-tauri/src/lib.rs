@@ -1,4 +1,5 @@
 mod archive;
+mod cli;
 mod configs;
 mod disks;
 mod duplicates;
@@ -16,6 +17,7 @@ mod trash_bin;
 mod updater;
 
 use archive::{compress_to_zip, extract_archive};
+use cli::take_launch_path;
 use disks::get_disk_topology;
 use duplicates::find_duplicates;
 use fs::{
@@ -65,10 +67,18 @@ pub fn run() {
             let config = Config::load();
             let window_width = settings.window_width.clamp(400, 3840);
             let window_height = settings.window_height.clamp(300, 2160);
+            // `flurer .` / `flurer <path>` — resolved once here from this
+            // process's own argv/cwd (cold start; see cli.rs's doc comment
+            // on why there's no cross-process forwarding for an
+            // already-running instance).
+            let launch_path = std::env::current_dir()
+                .ok()
+                .and_then(|cwd| cli::resolve_launch_path(&std::env::args().collect::<Vec<_>>(), &cwd));
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 config,
                 size_cache: Default::default(),
+                launch_path: std::sync::Mutex::new(launch_path),
             });
             if let Some(window) = app.get_webview_window("main") {
                 window.set_size(PhysicalSize::new(window_width, window_height))?;
@@ -163,6 +173,8 @@ pub fn run() {
             extract_archive,
             // Duplicate finder
             find_duplicates,
+            // CLI "open this folder" support
+            take_launch_path,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
