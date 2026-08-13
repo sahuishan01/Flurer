@@ -13,6 +13,9 @@ import {
   MIN_HISTORY_ITEMS,
   SOLID_COLOR_PRESETS,
 } from "../lib/settings";
+import { DEFAULT_IN_APP_SHORTCUTS, formatKeyCombo, IN_APP_SHORTCUT_LABELS, type InAppShortcutAction } from "../lib/shortcuts";
+
+const IN_APP_SHORTCUT_ACTIONS = Object.keys(IN_APP_SHORTCUT_LABELS) as InAppShortcutAction[];
 import {
   sizedUnsplashUrl,
   UNSPLASH_FREQUENCY_OPTIONS,
@@ -100,6 +103,9 @@ type CustomizationSettingsProps = {
   onMaxHistoryItemsChange: (limit: number) => void;
   globalShortcut: string;
   onGlobalShortcutChange: (shortcut: string) => void;
+  inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
+  onInAppShortcutChange: (action: InAppShortcutAction, combo: string) => void;
+  onResetInAppShortcut: (action: InAppShortcutAction) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -180,6 +186,25 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
     if (!shortcut) return;
     props.onGlobalShortcutChange(shortcut);
     setRecordingShortcut(false);
+  }
+
+  // Same recorder UX as the global shortcut above, but for FileList's
+  // per-action in-app shortcuts — one signal tracking *which* action is
+  // currently being recorded (rather than a boolean) since there are six of
+  // these, and formatKeyCombo() without requireModifier since a bare
+  // "Delete" or "F2" binding is normal here, unlike an OS-wide hotkey.
+  const [recordingInAppAction, setRecordingInAppAction] = createSignal<InAppShortcutAction | null>(null);
+
+  function handleInAppShortcutRecorderKeyDown(e: KeyboardEvent, action: InAppShortcutAction) {
+    e.preventDefault();
+    if (e.key === "Escape") {
+      setRecordingInAppAction(null);
+      return;
+    }
+    const combo = formatKeyCombo(e);
+    if (!combo) return;
+    props.onInAppShortcutChange(action, combo);
+    setRecordingInAppAction(null);
   }
 
   // Search state for the "From Fixed List" picker. Kept local to this
@@ -776,6 +801,40 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           <p class="settings-hint">
             Opens a new window every time, like Explorer's Win+E — works even when Flurer isn't focused. Click the
             field, then press the key combo you want.
+          </p>
+        </div>
+
+        <div class="in-app-shortcuts">
+          <span class="shortcut-label">File list shortcuts</span>
+          <For each={IN_APP_SHORTCUT_ACTIONS}>
+            {(action) => (
+              <div class="shortcut-control">
+                <span class="shortcut-label">{IN_APP_SHORTCUT_LABELS[action]}</span>
+                <div class="shortcut-recorder-row">
+                  <button
+                    type="button"
+                    class="shortcut-recorder"
+                    classList={{ recording: recordingInAppAction() === action }}
+                    onClick={() => setRecordingInAppAction(action)}
+                    onKeyDown={(e) => recordingInAppAction() === action && handleInAppShortcutRecorderKeyDown(e, action)}
+                    onBlur={() => setRecordingInAppAction((cur) => (cur === action ? null : cur))}
+                  >
+                    {recordingInAppAction() === action
+                      ? "Press a key combo… (Esc to cancel)"
+                      : props.inAppShortcuts[action] || DEFAULT_IN_APP_SHORTCUTS[action]}
+                  </button>
+                  <Show when={(props.inAppShortcuts[action] || DEFAULT_IN_APP_SHORTCUTS[action]) !== DEFAULT_IN_APP_SHORTCUTS[action]}>
+                    <button type="button" onClick={() => props.onResetInAppShortcut(action)}>
+                      Reset
+                    </button>
+                  </Show>
+                </div>
+              </div>
+            )}
+          </For>
+          <p class="settings-hint">
+            No conflict checking — if two actions share a combo, whichever FileList checks first wins. Rebinding one to
+            an empty value isn't supported; use Reset to restore the default.
           </p>
         </div>
 

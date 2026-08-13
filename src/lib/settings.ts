@@ -1,4 +1,5 @@
 import type { SortDirection, SortKey } from "./fs";
+import { DEFAULT_IN_APP_SHORTCUTS, type InAppShortcutAction } from "./shortcuts";
 import { DEFAULT_UNSPLASH_FREQUENCY_MS } from "./unsplash";
 
 export type Theme = "light" | "dark";
@@ -63,6 +64,13 @@ export type Settings = {
   launchAtStartup: boolean;
   windowWidth: number;
   windowHeight: number;
+  // In-app shortcuts (Delete/Rename/Copy/Cut/Paste/Select all in the file
+  // list) — distinct from globalShortcut above, which is the OS-wide
+  // show-Flurer hotkey. Partial<> because a settings file saved before this
+  // existed has no key here at all; FileList falls back to
+  // DEFAULT_IN_APP_SHORTCUTS per-action rather than requiring every action
+  // to have an explicit entry.
+  inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -106,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtStartup: false,
   windowWidth: DEFAULT_WINDOW_WIDTH,
   windowHeight: DEFAULT_WINDOW_HEIGHT,
+  inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

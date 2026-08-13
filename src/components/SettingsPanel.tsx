@@ -3,6 +3,7 @@ import { CustomizationSettings } from "./CustomizationSettings";
 import { UpdatesView } from "./UpdatesView";
 import { CloseIcon } from "./icons";
 import type { BackgroundSettings, Theme } from "../lib/settings";
+import type { InAppShortcutAction } from "../lib/shortcuts";
 import type { Wallpaper } from "../lib/unsplash";
 import { registeredPlugins } from "../lib/plugins";
 import { PluginMarketplace } from "./PluginMarketplace";
@@ -34,6 +35,9 @@ type SettingsPanelProps = {
   onMaxHistoryItemsChange: (limit: number) => void;
   globalShortcut: string;
   onGlobalShortcutChange: (shortcut: string) => void;
+  inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
+  onInAppShortcutChange: (action: InAppShortcutAction, combo: string) => void;
+  onResetInAppShortcut: (action: InAppShortcutAction) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -119,6 +123,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onMaxHistoryItemsChange={props.onMaxHistoryItemsChange}
               globalShortcut={props.globalShortcut}
               onGlobalShortcutChange={props.onGlobalShortcutChange}
+              inAppShortcuts={props.inAppShortcuts}
+              onInAppShortcutChange={props.onInAppShortcutChange}
+              onResetInAppShortcut={props.onResetInAppShortcut}
               launchAtStartup={props.launchAtStartup}
               onLaunchAtStartupChange={props.onLaunchAtStartupChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}

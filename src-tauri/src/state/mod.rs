@@ -118,6 +118,15 @@ pub struct Settings {
     // needs; absence of a key means "no tag", not "default color".
     #[serde(default)]
     pub folder_colors: HashMap<String, String>,
+    // Action id ("delete", "rename", "copy", "cut", "paste", "selectAll") ->
+    // key combo string ("Ctrl+C", "Delete", "F2", …), for FileList's
+    // configurable in-app shortcuts. Distinct from global_shortcut below,
+    // which is the OS-wide show-Flurer hotkey. An action missing from this
+    // map falls back to its hardcoded default in the frontend
+    // (DEFAULT_IN_APP_SHORTCUTS in lib/shortcuts.ts) rather than needing
+    // every action to have an explicit entry from day one.
+    #[serde(default)]
+    pub in_app_shortcuts: HashMap<String, String>,
     // Most-recently-visited first; the frontend caps and dedupes this list
     // (see recordRecent in App.tsx) rather than the backend, since it's just
     // opaque persisted state from Rust's point of view.
@@ -197,6 +206,7 @@ impl Default for Settings {
             graph_state: None,
             favourite_paths: Vec::new(),
             folder_colors: HashMap::new(),
+            in_app_shortcuts: HashMap::new(),
             recent_paths: Vec::new(),
             max_history_items: default_max_history_items(),
             sort_key: SortKey::default(),
