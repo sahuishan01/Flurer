@@ -231,4 +231,10 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub config: Config,
     pub size_cache: SizeCacheState,
+    // The folder `flurer .` / `flurer <path>` was launched with, if any —
+    // set once from argv in lib.rs's setup() and consumed (take()n, not just
+    // read) by the take_launch_path command the frontend calls on its first
+    // mount, so a later window spawned in the same process doesn't also
+    // pick up the same startup path.
+    pub launch_path: std::sync::Mutex<Option<String>>,
 }

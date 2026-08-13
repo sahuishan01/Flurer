@@ -219,6 +219,19 @@ function App() {
     }
   });
 
+  // `flurer .` / `flurer <path>` — take_launch_path returns the resolved
+  // folder once, then null on every subsequent call (see AppState.launch_path
+  // in the Rust side), so this only ever navigates on this window's very
+  // first mount, not on remounts or other windows sharing the same process.
+  onMount(async () => {
+    try {
+      const path = await invoke<string | null>("take_launch_path");
+      if (path) navigateTo(path);
+    } catch (err) {
+      console.error("Failed to read launch path", err);
+    }
+  });
+
   onMount(async () => {
     let unlisten: (() => void) | undefined;
     let disposed = false;
