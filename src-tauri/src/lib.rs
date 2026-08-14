@@ -23,7 +23,7 @@ use duplicates::find_duplicates;
 use fs::{
     cancel_operation, copy_items, create_file, create_folder, delete_items, get_file_preview, get_path_metadata,
     get_quick_access, list_directory, list_graph_children, move_items, open_file_with_default, open_terminal_here,
-    pick_folder, rename_item, search_directory,
+    pick_folder, rename_item, search_content, search_directory,
 };
 use helpers::settings::{get_settings, load_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
@@ -128,6 +128,7 @@ pub fn run() {
             get_quick_access,
             list_graph_children,
             search_directory,
+            search_content,
             get_disk_topology,
             get_folder_size,
             recompute_folder_size,
