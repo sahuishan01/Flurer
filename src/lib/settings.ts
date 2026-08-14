@@ -64,6 +64,10 @@ export type Settings = {
   launchAtStartup: boolean;
   windowWidth: number;
   windowHeight: number;
+  // Whether the window was maximized when last closed, so relaunch restores
+  // that state via `Window.maximize()` instead of just resizing to the
+  // maximized dimensions (see App.tsx's onResized/onMaximized handlers).
+  windowMaximized: boolean;
   // In-app shortcuts (Delete/Rename/Copy/Cut/Paste/Select all in the file
   // list) — distinct from globalShortcut above, which is the OS-wide
   // show-Flurer hotkey. Partial<> because a settings file saved before this
@@ -114,6 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtStartup: false,
   windowWidth: DEFAULT_WINDOW_WIDTH,
   windowHeight: DEFAULT_WINDOW_HEIGHT,
+  windowMaximized: false,
   inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
 };
 

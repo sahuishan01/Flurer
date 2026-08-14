@@ -171,6 +171,13 @@ pub struct Settings {
     pub window_width: u32,
     #[serde(default = "default_window_height")]
     pub window_height: u32,
+    // Whether the window was maximized when last closed, so relaunch can
+    // restore that state with `Window::maximize()` instead of merely
+    // resizing to the maximized dimensions (which leaves the window
+    // "un-maximized but full-screen-sized" — no restore semantics, no
+    // maximize icon toggled, and it ignores taskbar-reserved space).
+    #[serde(default)]
+    pub window_maximized: bool,
 }
 
 fn default_global_shortcut() -> String {
@@ -223,6 +230,7 @@ impl Default for Settings {
             launch_at_startup: false,
             window_width: default_window_width(),
             window_height: default_window_height(),
+            window_maximized: false,
         }
     }
 }
