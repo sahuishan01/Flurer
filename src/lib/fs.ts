@@ -21,6 +21,14 @@ export type DirListing = {
   unreadableEntries: UnreadableEntry[];
 };
 
+// One `search_content` hit — a file whose contents matched, with the first
+// matching line's number and text (first match only per file).
+export type ContentMatch = {
+  entry: DirEntry;
+  lineNumber: number;
+  snippet: string;
+};
+
 export type FolderSizeCacheStats = {
   visitedFolders: number;
   visitedFoldersCap: number;

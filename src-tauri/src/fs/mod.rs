@@ -226,6 +226,120 @@ fn search_recursive(dir: &Path, query_lower: &str, recursive: bool, results: &mu
     }
 }
 
+/// One content-search hit — a file whose contents matched, with the first
+/// matching line's number and text. Only one match per file is kept, same
+/// as a typical quick-search tool; a file with many matching lines still
+/// produces a single row.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentMatch {
+    pub entry: DirEntry,
+    pub line_number: u32,
+    pub snippet: String,
+}
+
+// Extensions that are essentially never useful to read as text — binaries,
+// archives, and common media. Skipping them by extension avoids opening
+// (and, for large binaries, reading megabytes of) files that can never
+// contain a text match, without needing a byte-sniffing "is this binary"
+// helper.
+const CONTENT_SEARCH_DENY_EXTENSIONS: &[&str] = &[
+    "exe", "dll", "so", "dylib", "bin", "obj", "o", "a", "lib", "class",
+    "zip", "7z", "rar", "tar", "gz", "bz2", "xz", "iso",
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "svg", "tiff",
+    "mp3", "mp4", "wav", "flac", "ogg", "avi", "mkv", "mov", "webm",
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "ttf", "otf", "woff", "woff2",
+    "db", "sqlite", "sqlite3",
+];
+
+// Files larger than this are skipped without being read — a quick content
+// search shouldn't stall on multi-gigabyte logs or datasets.
+const CONTENT_SEARCH_MAX_SIZE: u64 = 5 * 1024 * 1024;
+
+fn is_content_search_denied(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            CONTENT_SEARCH_DENY_EXTENSIONS
+                .iter()
+                .any(|denied| denied.eq_ignore_ascii_case(ext))
+        })
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn search_content(root: String, query: String, recursive: bool) -> Result<Vec<ContentMatch>, String> {
+    let root_path = std::path::PathBuf::from(&root);
+    if !root_path.is_dir() {
+        return Err(format!("{} is not a directory", root));
+    }
+
+    let query_lower = query.to_lowercase();
+    let mut results = Vec::new();
+    search_content_recursive(&root_path, &query_lower, recursive, &mut results);
+    Ok(results)
+}
+
+fn search_content_recursive(dir: &Path, query_lower: &str, recursive: bool, results: &mut Vec<ContentMatch>) {
+    let Ok(read_dir) = fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in read_dir.flatten() {
+        if results.len() >= SEARCH_RESULT_LIMIT {
+            return;
+        }
+
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+
+        if metadata.is_dir() {
+            if recursive {
+                search_content_recursive(&entry.path(), query_lower, recursive, results);
+            }
+            continue;
+        }
+
+        if metadata.len() > CONTENT_SEARCH_MAX_SIZE || is_content_search_denied(&entry.path()) {
+            continue;
+        }
+
+        let Ok(contents) = fs::read_to_string(entry.path()) else {
+            continue;
+        };
+
+        let found = contents
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.to_lowercase().contains(query_lower));
+
+        let Some((line_index, line)) = found else {
+            continue;
+        };
+
+        let name = entry.file_name().to_string_lossy().to_string();
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_secs());
+
+        results.push(ContentMatch {
+            entry: DirEntry {
+                name,
+                path: entry.path().to_string_lossy().to_string(),
+                is_dir: false,
+                size: metadata.len(),
+                modified,
+            },
+            line_number: line_index as u32 + 1,
+            snippet: line.to_string(),
+        });
+    }
+}
+
 #[tauri::command]
 pub fn list_graph_children(path: String) -> Result<Vec<DirEntry>, String> {
     let read_dir = fs::read_dir(&path).map_err(|e| e.to_string())?;
@@ -405,6 +519,71 @@ mod tests {
 
         let result = search_directory(file.to_string_lossy().to_string(), "a".to_string(), false);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn search_content_matches_case_insensitive_substring_non_recursive() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("notes.txt"), "line one\nline TODO here\nline three").unwrap();
+        fs::write(dir.path().join("other.txt"), "nothing relevant").unwrap();
+
+        let results =
+            search_content(dir.path().to_string_lossy().to_string(), "todo".to_string(), false).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry.name, "notes.txt");
+        assert_eq!(results[0].line_number, 2);
+        assert_eq!(results[0].snippet, "line TODO here");
+    }
+
+    #[test]
+    fn search_content_non_recursive_skips_nested_matches() {
+        let dir = tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("notes.txt"), "TODO here").unwrap();
+
+        let results =
+            search_content(dir.path().to_string_lossy().to_string(), "todo".to_string(), false).unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn search_content_recursive_finds_nested_matches() {
+        let dir = tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("notes.txt"), "TODO here").unwrap();
+
+        let results =
+            search_content(dir.path().to_string_lossy().to_string(), "todo".to_string(), true).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry.name, "notes.txt");
+    }
+
+    #[test]
+    fn search_content_skips_deny_listed_extensions() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("image.png"), "TODO here").unwrap();
+
+        let results =
+            search_content(dir.path().to_string_lossy().to_string(), "todo".to_string(), false).unwrap();
+
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn search_content_skips_files_over_size_cap() {
+        let dir = tempdir().unwrap();
+        let big = "a".repeat(CONTENT_SEARCH_MAX_SIZE as usize + 1) + "TODO";
+        fs::write(dir.path().join("big.txt"), big).unwrap();
+
+        let results =
+            search_content(dir.path().to_string_lossy().to_string(), "todo".to_string(), false).unwrap();
+
+        assert!(results.is_empty());
     }
 
     #[test]

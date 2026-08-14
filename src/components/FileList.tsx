@@ -34,6 +34,7 @@ import {
   parentDir,
   type BatchResult,
   type ClipboardState,
+  type ContentMatch,
   type DirEntry,
   type DirListing,
   type FolderSizeResponse,
@@ -229,6 +230,18 @@ export function FileList(props: FileListProps) {
     return props.searchQuery.trim().length > 0;
   }
 
+  // Typing `>` as the first character switches the search box to content
+  // search: everything after it is matched against file contents instead
+  // of file names.
+  function isContentSearch(): boolean {
+    return props.searchQuery.startsWith(">");
+  }
+
+  // Keyed by path, populated only in content-search mode — kept separate
+  // from `entries` so filename search doesn't have to carry these fields
+  // around unused.
+  const [contentMatches, setContentMatches] = createSignal<Map<string, ContentMatch>>(new Map());
+
   // Directories navigate the explorer itself; files hand off to whatever
   // the OS has registered as the default handler for their type (Notepad
   // for .txt, the browser for .html, …) — the same as double-clicking a
@@ -289,6 +302,7 @@ export function FileList(props: FileListProps) {
 
   async function refresh() {
     setEntries([]);
+    setContentMatches(new Map());
     setUnreadable(0);
     setUnreadableEntries([]);
     setUnreadableExpanded(false);
@@ -296,17 +310,37 @@ export function FileList(props: FileListProps) {
     const currentSearchQueryReq = props.searchQuery;
     const currentSearchRecursiveReq = props.searchRecursive;
     try {
-      const result = isSearching()
-        ? { entries: await invoke<DirEntry[]>("search_directory", {
+      let result: DirListing;
+      let matches: ContentMatch[] = [];
+      if (isContentSearch()) {
+        const contentQuery = props.searchQuery.slice(1).trim();
+        // An empty content query (just ">") shows no results, matching
+        // today's behavior for an empty filename query.
+        matches = contentQuery
+          ? await invoke<ContentMatch[]>("search_content", {
+              root: props.path,
+              query: contentQuery,
+              recursive: props.searchRecursive,
+            })
+          : [];
+        result = { entries: matches.map((m) => m.entry), unreadable: 0, unreadableEntries: [] };
+      } else if (isSearching()) {
+        result = {
+          entries: await invoke<DirEntry[]>("search_directory", {
             root: props.path,
             query: props.searchQuery.trim(),
             recursive: props.searchRecursive,
-          }), unreadable: 0, unreadableEntries: [] }
-        : await invoke<DirListing>("list_directory", {
-            path: props.path,
-            sortKey: props.sortKey,
-            sortDirection: props.sortDirection,
-          });
+          }),
+          unreadable: 0,
+          unreadableEntries: [],
+        };
+      } else {
+        result = await invoke<DirListing>("list_directory", {
+          path: props.path,
+          sortKey: props.sortKey,
+          sortDirection: props.sortDirection,
+        });
+      }
       if (
         currentPathReq !== props.path ||
         currentSearchQueryReq !== props.searchQuery ||
@@ -316,6 +350,7 @@ export function FileList(props: FileListProps) {
       }
       setError("");
       setEntries(result.entries);
+      setContentMatches(new Map(matches.map((m) => [m.entry.path, m])));
       setUnreadable(result.unreadable);
       setUnreadableEntries(result.unreadableEntries);
     } catch (err) {
@@ -1174,6 +1209,13 @@ export function FileList(props: FileListProps) {
                     ) : (
                       entry.name
                     )}
+                    <Show when={contentMatches().get(entry.path)}>
+                      {(match) => (
+                        <div class="file-location">
+                          Line {match().lineNumber}: {match().snippet.trim().slice(0, 120)}
+                        </div>
+                      )}
+                    </Show>
                   </td>
                   <td>{renderSizeCell(entry)}</td>
                   <td>{formatModified(entry.modified)}</td>
