@@ -240,9 +240,18 @@ function App() {
       unlisten = await getCurrentWindow().onResized(({ payload }) => {
         if (!settingsLoaded()) return;
         clearTimeout(resizeSaveTimeout);
-        resizeSaveTimeout = setTimeout(() => {
-          setSettings("windowWidth", payload.width);
-          setSettings("windowHeight", payload.height);
+        resizeSaveTimeout = setTimeout(async () => {
+          const maximized = await getCurrentWindow().isMaximized();
+          setSettings("windowMaximized", maximized);
+          // While maximized, `payload` is the maximized (screen-filling)
+          // size — saving it as windowWidth/Height would make relaunch's
+          // restore-size-then-maximize (see lib.rs setup) un-maximize back
+          // to a full-screen-sized window instead of the size the user
+          // actually chose, so only track size while not maximized.
+          if (!maximized) {
+            setSettings("windowWidth", payload.width);
+            setSettings("windowHeight", payload.height);
+          }
           persistSettings();
         }, SETTINGS_SAVE_DEBOUNCE_MS);
       });

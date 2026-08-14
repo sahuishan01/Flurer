@@ -67,6 +67,7 @@ pub fn run() {
             let config = Config::load();
             let window_width = settings.window_width.clamp(400, 3840);
             let window_height = settings.window_height.clamp(300, 2160);
+            let window_maximized = settings.window_maximized;
             // `flurer .` / `flurer <path>` — resolved once here from this
             // process's own argv/cwd (cold start; see cli.rs's doc comment
             // on why there's no cross-process forwarding for an
@@ -81,7 +82,14 @@ pub fn run() {
                 launch_path: std::sync::Mutex::new(launch_path),
             });
             if let Some(window) = app.get_webview_window("main") {
+                // Restore the saved size first so un-maximizing later lands
+                // back on it, then maximize on top if that's how the window
+                // was left — maximizing alone (without a saved restore size)
+                // would leave `set_size` as the un-maximize target instead.
                 window.set_size(PhysicalSize::new(window_width, window_height))?;
+                if window_maximized {
+                    window.maximize()?;
+                }
             }
             // The window starts hidden (see tauri.conf.json) so a
             // login-triggered autostart launch never flashes it open before
