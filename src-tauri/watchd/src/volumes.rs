@@ -22,13 +22,21 @@ use std::thread;
 use watch_protocol::VolumeStatus;
 use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_READ, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, DRIVE_FIXED, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    OPEN_EXISTING,
+    CreateFileW, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 
 /// The root directory of an NTFS volume is always MFT record 5 — a
 /// documented, stable constant, not something discovered per-volume.
 const NTFS_ROOT_FRN: u64 = 5;
+
+/// `GetDriveTypeW`'s "fixed drive" return value. Not exposed by this
+/// version of windows-sys under `Storage::FileSystem` (build error:
+/// "no `DRIVE_FIXED` in `Win32::Storage::FileSystem`") despite being where
+/// the Win32 docs place it, so defined locally — this is one of the
+/// documented, ABI-stable `GetDriveTypeW` return codes
+/// (UNKNOWN=0, NO_ROOT_DIR=1, REMOVABLE=2, FIXED=3, REMOTE=4, CDROM=5,
+/// RAMDISK=6), not something that varies by Windows version.
+const DRIVE_FIXED: u32 = 3;
 
 pub fn spawn_watchers(shared: SharedState) {
     thread::spawn(move || {
@@ -75,7 +83,7 @@ fn is_ntfs(drive_letter: char) -> bool {
 fn open_volume_handle(drive_letter: char) -> io::Result<HANDLE> {
     let path = to_wide(&format!(r"\\.\{drive_letter}:"));
     let handle = unsafe {
-        CreateFileW(path.as_ptr(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, std::ptr::null_mut(), OPEN_EXISTING, 0, 0)
+        CreateFileW(path.as_ptr(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, std::ptr::null_mut(), OPEN_EXISTING, 0, std::ptr::null_mut())
     };
     if handle == INVALID_HANDLE_VALUE {
         return Err(io::Error::last_os_error());

@@ -176,7 +176,6 @@ pub(super) fn root_volume(path: &std::path::Path) -> Option<String> {
 
 #[cfg(windows)]
 mod transport {
-    use std::ffi::c_void;
     use std::io;
     use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::Storage::FileSystem::{CreateFileW, ReadFile, WriteFile, OPEN_EXISTING};
@@ -197,7 +196,7 @@ mod transport {
     impl io::Read for PipeStream {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             let mut read = 0u32;
-            let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr() as *mut c_void, buf.len() as u32, &mut read, std::ptr::null_mut()) };
+            let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr(), buf.len() as u32, &mut read, std::ptr::null_mut()) };
             if ok == 0 {
                 return Err(io::Error::last_os_error());
             }
@@ -225,7 +224,7 @@ mod transport {
     impl io::Write for WriteHandle {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             let mut written = 0u32;
-            let ok = unsafe { WriteFile(self.0, buf.as_ptr() as *const c_void, buf.len() as u32, &mut written, std::ptr::null_mut()) };
+            let ok = unsafe { WriteFile(self.0, buf.as_ptr(), buf.len() as u32, &mut written, std::ptr::null_mut()) };
             if ok == 0 {
                 return Err(io::Error::last_os_error());
             }
@@ -238,7 +237,7 @@ mod transport {
 
     pub fn connect() -> io::Result<PipeStream> {
         let name: Vec<u16> = watch_protocol::PIPE_NAME.encode_utf16().chain(std::iter::once(0)).collect();
-        let handle = unsafe { CreateFileW(name.as_ptr(), GENERIC_READ | GENERIC_WRITE, 0, std::ptr::null_mut(), OPEN_EXISTING, 0, 0) };
+        let handle = unsafe { CreateFileW(name.as_ptr(), GENERIC_READ | GENERIC_WRITE, 0, std::ptr::null_mut(), OPEN_EXISTING, 0, std::ptr::null_mut()) };
         if handle == INVALID_HANDLE_VALUE {
             return Err(io::Error::last_os_error());
         }

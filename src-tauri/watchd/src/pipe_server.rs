@@ -18,10 +18,14 @@ use watch_protocol::{read_message, write_message, ClientMessage, ServerMessage, 
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, LocalFree, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
 use windows_sys::Win32::Security::{SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR};
-use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+// PIPE_ACCESS_DUPLEX is a dwOpenMode flag for CreateNamedPipeW, but shares
+// the CreateFile flag namespace, which is why windows-sys places it under
+// Storage::FileSystem rather than System::Pipes (build error: "no
+// `PIPE_ACCESS_DUPLEX` in `Win32::System::Pipes`" pointed here).
+use windows_sys::Win32::Storage::FileSystem::{PIPE_ACCESS_DUPLEX, ReadFile, WriteFile};
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_ACCESS_DUPLEX, PIPE_READMODE_BYTE,
-    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
+    PIPE_TYPE_MESSAGE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 
 /// Owns the pipe handle: closes and disconnects it on drop. Used for the
@@ -33,7 +37,7 @@ unsafe impl Send for PipeHandle {}
 impl io::Read for PipeHandle {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut read = 0u32;
-        let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr() as *mut c_void, buf.len() as u32, &mut read, std::ptr::null_mut()) };
+        let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr(), buf.len() as u32, &mut read, std::ptr::null_mut()) };
         if ok == 0 {
             return Err(io::Error::last_os_error());
         }
@@ -65,7 +69,7 @@ unsafe impl Send for WriteOnlyPipeHandle {}
 impl io::Write for WriteOnlyPipeHandle {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut written = 0u32;
-        let ok = unsafe { WriteFile(self.0, buf.as_ptr() as *const c_void, buf.len() as u32, &mut written, std::ptr::null_mut()) };
+        let ok = unsafe { WriteFile(self.0, buf.as_ptr(), buf.len() as u32, &mut written, std::ptr::null_mut()) };
         if ok == 0 {
             return Err(io::Error::last_os_error());
         }
