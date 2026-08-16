@@ -18,6 +18,8 @@ use crate::{
     state::AppState,
 };
 
+mod watchd_client;
+
 // Recursive folder walks are disk/CPU heavy; capping how many run at once
 // keeps expanding a folder with many large children from saturating disk I/O
 // and slowing the whole app down.
@@ -146,6 +148,20 @@ pub struct SizeCacheState {
     // Set whenever `roots` changes; the autosave thread clears it after
     // persisting, so an idle app doesn't rewrite the cache file every tick.
     dirty: Mutex<bool>,
+    // Drive letters (e.g. "C:") that flurer-watchd has reported
+    // VolumeStatus::JournalReady for — see watchd_client.rs. A root on one
+    // of these volumes skips the local recursive notify watch entirely in
+    // start_watching_exact, since watchd is already reporting its changes
+    // over the pipe; this is the whole point of the journal client (fewer
+    // broad recursive OS watches doing redundant work).
+    journal_ready_volumes: Mutex<std::collections::HashSet<String>>,
+    // Set once watchd_client's connection thread is up, used to push
+    // Hello/UpdateScope messages out to it as roots are added/evicted.
+    // None until (or whenever not) a connection is live, in which case
+    // callers just skip notifying it — the client resends its full scope
+    // as a Hello on every reconnect specifically so a missed UpdateScope
+    // during a gap can never leave it permanently out of sync.
+    watchd_tx: Mutex<Option<mpsc::Sender<watch_protocol::ClientMessage>>>,
 }
 
 pub fn invalidate_incremental_tracking(state: &AppState) {
@@ -385,6 +401,17 @@ fn touch<V: Copy>(cache: &mut IndexMap<PathBuf, V>, path: &Path) -> Option<V> {
 
 /// Inserts (or refreshes) an entry in the persisted root tier.
 fn record_root(state: &AppState, path: PathBuf, entry: CachedSize) {
+    // Tells watchd this folder is now something Flurer cares about
+    // changes for, if a connection is live (silently a no-op otherwise).
+    // Evictions from `roots` (see insert_mru's batch trim) are *not*
+    // proactively reported the same way — insert_mru is generic over both
+    // the root and subdir tiers and doesn't currently surface which keys
+    // it dropped. That's a known imprecision, not a correctness gap: a
+    // stale scope entry watchd still has after eviction just means its
+    // PathChanged for that folder arrives and gets filtered out locally
+    // (is_cached returns false for an evicted path), same cost as an
+    // ordinary ignored notify event today.
+    watchd_client::update_scope(state, vec![path.to_string_lossy().to_string()], Vec::new());
     let mut roots = state.size_cache.roots.lock().unwrap();
     insert_mru(&mut roots, path, entry, MAX_CACHED_ROOTS);
 }
@@ -784,6 +811,18 @@ fn start_watching(state: &AppState, path: &Path) {
 }
 
 fn start_watching_exact(state: &AppState, path: &Path) {
+    // flurer-watchd is already reporting changes on this volume over the
+    // named pipe (see watchd_client::apply_volume_status) — registering a
+    // second, redundant recursive notify watch here would defeat the
+    // whole point of the journal client (fewer broad OS-level watches
+    // doing the same job). This is the common case wherever watchd is
+    // installed and running; the notify watch below only ever runs for
+    // non-NTFS volumes or while watchd is unreachable/still scanning.
+    if let Some(volume) = watchd_client::root_volume(path) {
+        if state.size_cache.journal_ready_volumes.lock().unwrap().contains(&volume) {
+            return;
+        }
+    }
     let mut roots = state.size_cache.watched_roots.lock().unwrap();
     if roots.iter().any(|p| p == path) {
         return;
@@ -959,6 +998,10 @@ pub fn init(app: &AppHandle) {
 
     spawn_workers(app.clone(), receiver, WORKER_COUNT);
     spawn_autosave(app.clone());
+    // Independent of (and started before) the local notify watcher below,
+    // so a watchd connection comes up even on the rare path where
+    // notify::recommended_watcher itself fails to initialize.
+    watchd_client::spawn(app.clone());
 
     let app_handle = app.clone();
     let result = notify::recommended_watcher(move |result: notify::Result<Event>| match result {

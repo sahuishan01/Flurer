@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "flurer",
+        "title": "Flurer",
         "width": 800,
         "height": 600,
         "transparent": true,
@@ -35,11 +35,13 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "icons/32x32.png": "icons/drag-icon.png"
+      "icons/32x32.png": "icons/drag-icon.png",
+      "../target/release/flurer-watchd.exe": "flurer-watchd.exe"
     },
     "windows": {
       "nsis": {
-        "installMode": "both"
+        "installMode": "both",
+        "installerHooks": "installer/watchd-service-hooks.nsh"
       }
     }
   }
