@@ -32,4 +32,7 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Ioctl",
   "Win32_System_Pipes",
   "Win32_Security",
+  # ConvertStringSecurityDescriptorToSecurityDescriptorW — builds the DACL
+  # that restricts who can connect to the pipe (see pipe_server.rs).
+  "Win32_Security_Authorization",
 ] }

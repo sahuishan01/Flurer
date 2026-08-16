@@ -15,11 +15,13 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 use watch_protocol::{read_message, write_message, ClientMessage, ServerMessage, PIPE_NAME};
-use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_PIPE_CONNECTED, HANDLE, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, LocalFree, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
+use windows_sys::Win32::Security::{SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR};
 use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile};
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_ACCESS_DUPLEX, PIPE_READMODE_BYTE, PIPE_TYPE_MESSAGE,
-    PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_ACCESS_DUPLEX, PIPE_READMODE_BYTE,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 
 /// Owns the pipe handle: closes and disconnects it on drop. Used for the
@@ -101,28 +103,80 @@ fn accept_loop(shared: SharedState) {
     }
 }
 
+/// Owns the security descriptor buffer `ConvertStringSecurityDescriptorToSecurityDescriptorW`
+/// allocates, freeing it (via `LocalFree`) on drop so every
+/// `create_pipe_instance` call — one per pipe instance, i.e. per accepted
+/// connection — doesn't leak it. The `SECURITY_ATTRIBUTES` handed to
+/// `CreateNamedPipeW` only needs to stay valid for the duration of that
+/// call, so a fresh one per call (rather than caching one at startup) is
+/// simpler and not a hot path.
+struct PipeSecurityDescriptor(*mut c_void);
+
+impl PipeSecurityDescriptor {
+    /// SDDL `D:(A;;GRGW;;;IU)` — a DACL with exactly one ACE: generic
+    /// read+write granted to the INTERACTIVE well-known SID (any
+    /// interactively logged-on user), nothing else. No explicit deny ACE
+    /// needed — an ACL that only lists allow-ACEs for specific
+    /// principals implicitly denies everyone not listed, including the
+    /// pipe's default owner/creator grants that `lpSecurityAttributes:
+    /// NULL` would otherwise apply. Combined with
+    /// `PIPE_REJECT_REMOTE_CLIENTS` below (belt-and-braces: that flag
+    /// stops a remote SMB peer from reaching the pipe at all, independent
+    /// of whether the ACL were ever misconfigured).
+    const SDDL: &'static str = "D:(A;;GRGW;;;IU)";
+
+    fn build() -> io::Result<Self> {
+        let sddl: Vec<u16> = Self::SDDL.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut descriptor: *mut SECURITY_DESCRIPTOR = std::ptr::null_mut();
+        let ok = unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                sddl.as_ptr(),
+                1, // SDDL_REVISION_1
+                &mut descriptor as *mut _ as *mut *mut c_void,
+                std::ptr::null_mut(),
+            )
+        };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(Self(descriptor as *mut c_void))
+    }
+
+    fn as_ptr(&self) -> *mut c_void {
+        self.0
+    }
+}
+
+impl Drop for PipeSecurityDescriptor {
+    fn drop(&mut self) {
+        unsafe {
+            LocalFree(self.0 as HLOCAL);
+        }
+    }
+}
+
 fn create_pipe_instance() -> io::Result<PipeHandle> {
     let name: Vec<u16> = PIPE_NAME.encode_utf16().chain(std::iter::once(0)).collect();
+    let descriptor = PipeSecurityDescriptor::build()?;
+    let mut security_attributes =
+        SECURITY_ATTRIBUTES { nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32, lpSecurityDescriptor: descriptor.as_ptr(), bInheritHandle: 0 };
     let handle = unsafe {
         CreateNamedPipeW(
             name.as_ptr(),
             PIPE_ACCESS_DUPLEX,
-            PIPE_TYPE_MESSAGE | PIPE_READMODE_BYTE | PIPE_WAIT,
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
             PIPE_UNLIMITED_INSTANCES,
             4096,
             4096,
             0,
-            // TODO(security, before shipping): pass a security descriptor
-            // that restricts CreateFile-side connections to the
-            // interactive user's logon session / the Flurer install
-            // group, instead of the pipe's default DACL. An elevated
-            // service listening on a predictably-named, unrestricted
-            // duplex pipe is a local privilege-escalation surface — any
-            // local process could connect and send crafted
-            // ClientMessages. Called out again in the design doc.
-            std::ptr::null_mut(),
+            &mut security_attributes,
         )
     };
+    // `descriptor` must outlive the CreateNamedPipeW call above (it does —
+    // dropped here, after) but not the pipe handle itself: Windows copies
+    // what it needs out of the security descriptor during pipe creation,
+    // it doesn't hold a reference to this buffer for the pipe's lifetime.
+    drop(descriptor);
     if handle == INVALID_HANDLE_VALUE {
         return Err(io::Error::last_os_error());
     }
