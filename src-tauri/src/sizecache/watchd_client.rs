@@ -16,6 +16,7 @@
 //! updates at all."
 
 use crate::state::AppState;
+use notify_debouncer_mini::notify::Watcher; // brings unwatch() into scope below
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -96,7 +97,13 @@ pub fn update_scope(state: &AppState, add: Vec<String>, remove: Vec<String>) {
 
 fn current_watch_scope(app: &AppHandle) -> Vec<String> {
     let state = app.state::<AppState>();
-    state.size_cache.roots.lock().unwrap().keys().map(|p| p.to_string_lossy().to_string()).collect()
+    // Bound to a local first rather than returned directly: as a tail
+    // expression, `state.size_cache.roots.lock().unwrap()....collect()`
+    // ties the MutexGuard temporary's drop order to `state`'s own drop in
+    // a way rustc rejects (E0597, "state does not live long enough") even
+    // though `state` demonstrably outlives the whole function body.
+    let paths = state.size_cache.roots.lock().unwrap().keys().map(|p| p.to_string_lossy().to_string()).collect();
+    paths
 }
 
 fn apply_journal_change(app: &AppHandle, path: String, _kind: ChangeKind) {

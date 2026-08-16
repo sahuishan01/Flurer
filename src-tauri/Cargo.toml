@@ -60,4 +60,10 @@ watch-protocol = { path = "watch-protocol" }
 
 [target.'cfg(windows)'.dependencies]
 # Named-pipe client to flurer-watchd only — see sizecache/watchd_client.rs.
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+# Win32_System_IO is required alongside Win32_Storage_FileSystem for
+# CreateFileW/ReadFile/WriteFile to resolve at all (CI: E0432 "no
+# CreateFileW/ReadFile/WriteFile in Win32::Storage::FileSystem" without
+# it) — their signatures reference LPOVERLAPPED from that module, and
+# windows-sys ties an item's availability to every module its signature
+# touches, not just its own containing module.
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO"] }
