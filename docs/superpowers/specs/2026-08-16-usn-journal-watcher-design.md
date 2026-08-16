@@ -89,9 +89,12 @@ flurer.exe (unprivileged)                    flurer-watchd (SCM service)
 
 ## Known gaps (explicit, not silent)
 
-- No security descriptor on the named pipe yet — default DACL. TODO before
-  shipping: restrict to the interactive user/install group (flagged inline
-  in `pipe_server.rs`).
+- ~~No security descriptor on the named pipe~~ — fixed 2026-08-16 after a
+  background security review flagged it (HIGH: local privilege escalation
+  via an unrestricted duplex pipe on an elevated service). The pipe now
+  carries an SDDL DACL (`D:(A;;GRGW;;;IU)` — read/write limited to the
+  INTERACTIVE SID) plus `PIPE_REJECT_REMOTE_CLIENTS`, built per-instance in
+  `create_pipe_instance` (`pipe_server.rs`).
 - `poll_loop` returning (journal ID changed) does not yet trigger an
   automatic MFT rescan + resubscribe; the affected volume just stops
   reporting until watchd restarts (flagged inline in `volumes.rs`).
