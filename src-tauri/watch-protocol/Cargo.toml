@@ -1,0 +1,12 @@
+[package]
+name = "watch-protocol"
+version = "0.1.0"
+description = "Message types and named-pipe framing shared between flurer (pipe client) and flurer-watchd (pipe server)"
+edition = "2021"
+
+[lib]
+name = "watch_protocol"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

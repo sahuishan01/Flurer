@@ -49,6 +49,13 @@ jobs:
           bun install
           bun run build
 
+      # See build.yml's matching step: flurer-watchd is a separate
+      # workspace member the installer's resource-bundling step expects
+      # to already be built.
+      - name: Build flurer-watchd service
+        run: cargo build --release -p flurer-watchd
+        working-directory: src-tauri
+
       - name: Build Tauri app
         run: bun run tauri build
 
