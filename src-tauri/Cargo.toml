@@ -1,3 +1,14 @@
+[workspace]
+# `src-tauri` (this Cargo.toml) is both the workspace root and the main app
+# package (its `[package]` section below), alongside two satellite crates:
+#   - watch-protocol: message types + named-pipe framing shared by the main
+#     app (pipe client) and watchd (pipe server) — see its own doc comment.
+#   - watchd: the elevated Windows service that reads the NTFS USN Journal.
+#     Kept out of flurer_lib/flurer.exe entirely so the main app's privilege
+#     level never has to change; see docs/superpowers/specs/2026-08-16-usn-journal-watcher-design.md.
+members = ["watch-protocol", "watchd"]
+resolver = "2"
+
 [package]
 name = "flurer"
 version = "0.4.86"
@@ -45,3 +56,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 indexmap = "2"
 tauri-plugin-dialog = "2.7.2"
 sha2 = "0.10"
+watch-protocol = { path = "watch-protocol" }
+
+[target.'cfg(windows)'.dependencies]
+# Named-pipe client to flurer-watchd only — see sizecache/watchd_client.rs.
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }

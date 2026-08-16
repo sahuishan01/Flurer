@@ -1,0 +1,35 @@
+[package]
+name = "flurer-watchd"
+version = "0.1.0"
+description = "Elevated Windows service that reads the NTFS USN Journal for every fixed volume and reports folder changes to flurer.exe over a named pipe, so the main app never needs elevated privileges itself."
+edition = "2021"
+
+[[bin]]
+name = "flurer-watchd"
+path = "src/main.rs"
+
+[dependencies]
+watch-protocol = { path = "../watch-protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = { version = "0.4", features = ["std"] }
+
+[target.'cfg(windows)'.dependencies]
+# Service control manager scaffolding (install/start/stop hooks, the
+# service main() dispatch) — small, maintained, and what most Rust Windows
+# services use rather than hand-rolling the SCM callback dance.
+windows-service = "0.7"
+# Raw bindings for the Win32 calls with no safe wrapper available anywhere:
+# CreateFileW (volume handle), DeviceIoControl (FSCTL_QUERY_USN_JOURNAL /
+# FSCTL_READ_USN_JOURNAL / FSCTL_ENUM_USN_DATA), and the named pipe server
+# API. windows-sys (not the full `windows` crate) to keep this a thin,
+# fast-compiling FFI layer rather than pulling in generated bindings for
+# the whole Win32 surface, matching Flurer's efficiency goal.
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_Pipes",
+  "Win32_Security",
+] }

@@ -36,6 +36,16 @@ jobs:
       - name: Build frontend
         run: bun run build
 
+      # flurer-watchd (the elevated USN-Journal service) is a separate
+      # workspace member, not part of the flurer_lib/flurer.exe crate
+      # graph — build it explicitly so tauri.conf.json's resource bundling
+      # step (which copies target/release/flurer-watchd.exe into the
+      # installer) has something to find. See
+      # docs/superpowers/specs/2026-08-16-usn-journal-watcher-design.md.
+      - name: Build flurer-watchd service
+        run: cargo build --release -p flurer-watchd
+        working-directory: src-tauri
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

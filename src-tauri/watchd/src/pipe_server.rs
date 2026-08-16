@@ -1,0 +1,179 @@
+//! Named pipe server: accepts connections from `flurer.exe` (and any other
+//! future client), reads `ClientMessage`s to learn/update each client's
+//! watch scope, and owns the writer side that `state::SharedState` pushes
+//! `ServerMessage`s into as volume watchers resolve changes.
+//!
+//! One thread per connection for the reader, plus one dedicated writer
+//! thread per connection draining a channel — so a slow client can't block
+//! change-event delivery to other clients, and writes never interleave
+//! with the connection's own read loop on the same handle.
+
+use crate::state::SharedState;
+use std::ffi::c_void;
+use std::io;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+use watch_protocol::{read_message, write_message, ClientMessage, ServerMessage, PIPE_NAME};
+use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_PIPE_CONNECTED, HANDLE, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+use windows_sys::Win32::System::Pipes::{
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_ACCESS_DUPLEX, PIPE_READMODE_BYTE, PIPE_TYPE_MESSAGE,
+    PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+};
+
+/// Owns the pipe handle: closes and disconnects it on drop. Used for the
+/// reader side of a connection, which lives for the connection's whole
+/// lifetime.
+struct PipeHandle(HANDLE);
+unsafe impl Send for PipeHandle {}
+
+impl io::Read for PipeHandle {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut read = 0u32;
+        let ok = unsafe { ReadFile(self.0, buf.as_mut_ptr() as *mut c_void, buf.len() as u32, &mut read, std::ptr::null_mut()) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(read as usize)
+    }
+}
+
+impl Drop for PipeHandle {
+    fn drop(&mut self) {
+        unsafe {
+            DisconnectNamedPipe(self.0);
+            CloseHandle(self.0);
+        }
+    }
+}
+
+/// A non-owning view of the same HANDLE, used by the writer thread. Does
+/// NOT close the handle on drop — `PipeHandle` (the reader side) owns
+/// that, closing it once when the connection's reader loop ends, which
+/// also unblocks any write the writer thread had in flight. Two threads
+/// each driving one direction (read-only here, write-only there) of the
+/// same synchronous HANDLE is supported by Windows; two threads both
+/// reading or both writing the same handle concurrently is not, which is
+/// why the split is by direction rather than sharing one full-duplex
+/// wrapper.
+struct WriteOnlyPipeHandle(HANDLE);
+unsafe impl Send for WriteOnlyPipeHandle {}
+
+impl io::Write for WriteOnlyPipeHandle {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let mut written = 0u32;
+        let ok = unsafe { WriteFile(self.0, buf.as_ptr() as *const c_void, buf.len() as u32, &mut written, std::ptr::null_mut()) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(written as usize)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+pub fn spawn(shared: SharedState) {
+    thread::spawn(move || accept_loop(shared));
+}
+
+fn accept_loop(shared: SharedState) {
+    loop {
+        match create_pipe_instance() {
+            Ok(handle) => {
+                let connected = unsafe { ConnectNamedPipe(handle.0, std::ptr::null_mut()) };
+                if connected == 0 {
+                    let err = unsafe { GetLastError() };
+                    if err != ERROR_PIPE_CONNECTED {
+                        log::warn!("ConnectNamedPipe failed: {err}");
+                        continue;
+                    }
+                }
+                let shared = shared.clone();
+                thread::spawn(move || handle_client(handle, shared));
+            }
+            Err(e) => {
+                log::error!("failed to create named pipe instance: {e}");
+                thread::sleep(Duration::from_secs(1));
+            }
+        }
+    }
+}
+
+fn create_pipe_instance() -> io::Result<PipeHandle> {
+    let name: Vec<u16> = PIPE_NAME.encode_utf16().chain(std::iter::once(0)).collect();
+    let handle = unsafe {
+        CreateNamedPipeW(
+            name.as_ptr(),
+            PIPE_ACCESS_DUPLEX,
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_BYTE | PIPE_WAIT,
+            PIPE_UNLIMITED_INSTANCES,
+            4096,
+            4096,
+            0,
+            // TODO(security, before shipping): pass a security descriptor
+            // that restricts CreateFile-side connections to the
+            // interactive user's logon session / the Flurer install
+            // group, instead of the pipe's default DACL. An elevated
+            // service listening on a predictably-named, unrestricted
+            // duplex pipe is a local privilege-escalation surface — any
+            // local process could connect and send crafted
+            // ClientMessages. Called out again in the design doc.
+            std::ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(PipeHandle(handle))
+}
+
+fn handle_client(handle: PipeHandle, shared: SharedState) {
+    let (tx, rx) = mpsc::channel::<ServerMessage>();
+    let id = shared.register_client(tx);
+
+    let write_side = WriteOnlyPipeHandle(handle.0);
+    let writer = thread::spawn(move || {
+        let mut w = write_side;
+        for msg in rx {
+            if write_message(&mut w, &msg).is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut reader = handle;
+    loop {
+        match read_message::<_, ClientMessage>(&mut reader) {
+            Ok(Some(ClientMessage::Hello { watch_scope })) => {
+                shared.set_scope(id, watch_scope.into_iter().map(std::path::PathBuf::from).collect());
+            }
+            Ok(Some(ClientMessage::UpdateScope { add, remove })) => {
+                shared.update_scope(
+                    id,
+                    add.into_iter().map(std::path::PathBuf::from).collect(),
+                    remove.into_iter().map(std::path::PathBuf::from).collect(),
+                );
+            }
+            Ok(Some(ClientMessage::Ping)) => {
+                shared.send_to(id, ServerMessage::Pong);
+            }
+            Ok(None) => break, // client closed the pipe cleanly
+            Err(e) => {
+                log::warn!("pipe read error, dropping client {id}: {e}");
+                break;
+            }
+        }
+    }
+
+    shared.unregister_client(id);
+    // Dropping `reader` here closes/disconnects the pipe handle, which
+    // unblocks the writer thread's channel drain (further sends still
+    // succeed into the channel, but the next WriteFile will fail and the
+    // writer thread exits its loop) and ensures the handle is closed
+    // exactly once regardless of which side (client hang-up vs. a read
+    // error) ended the connection.
+    drop(reader);
+    let _ = writer.join();
+}
