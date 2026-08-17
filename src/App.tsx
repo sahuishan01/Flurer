@@ -18,7 +18,7 @@ import {
   type Settings,
   type Theme,
 } from "./lib/settings";
-import type { SortKey } from "./lib/fs";
+import type { GroupByKey, SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
@@ -444,6 +444,11 @@ function App() {
 
   function updateGroupFoldersFirst(value: boolean) {
     setSettings("groupFoldersFirst", value);
+    persistSettings();
+  }
+
+  function updateGroupBy(value: GroupByKey) {
+    setSettings("groupBy", value);
     persistSettings();
   }
 
@@ -995,6 +1000,8 @@ function App() {
                   onSortChange={updateSort}
                   groupFoldersFirst={settings.groupFoldersFirst}
                   onGroupFoldersFirstChange={updateGroupFoldersFirst}
+                  groupBy={settings.groupBy}
+                  onGroupByChange={updateGroupBy}
                 />
               </div>
             </Show>

@@ -1355,6 +1355,41 @@ button.sidebar-drive,
     border-color: var(--accent);
 }
 
+.progress-task-clear {
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.progress-task-clear:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.progress-panel-header {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.progress-clear-all {
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.progress-clear-all:hover {
+    color: var(--accent);
+}
+
 .opacity-control {
     display: flex;
     align-items: center;
@@ -1655,6 +1690,36 @@ button.sidebar-drive,
     border-color: var(--accent);
     background: var(--accent-bg-soft);
     color: var(--accent);
+}
+
+.group-by-select {
+    padding: 0.25em 0.5em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.group-by-select:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.group-header-row td {
+    padding: 0.4em 0.6em;
+    font-weight: 600;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    background: var(--surface-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.group-header-count {
+    margin-left: 0.5em;
+    font-weight: 400;
+    opacity: 0.65;
 }
 
 .file-list-skeleton {
@@ -2086,7 +2151,7 @@ a:hover {
 }
 
 input:not([type="range"]):not([type="color"]),
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
 select {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
@@ -2104,18 +2169,18 @@ select option {
     background-color: var(--option-bg);
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
 select {
     cursor: pointer;
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):hover,
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):hover,
 select:hover {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 6%, var(--input-bg));
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):active {
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):active {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 12%, var(--input-bg));
 }

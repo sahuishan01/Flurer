@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import { FileList } from "./FileList";
-import type { ClipboardState, SortDirection, SortKey } from "../lib/fs";
+import type { ClipboardState, GroupByKey, SortDirection, SortKey } from "../lib/fs";
 import type { InAppShortcutAction } from "../lib/shortcuts";
 
 type ExplorerViewProps = {
@@ -18,6 +18,8 @@ type ExplorerViewProps = {
   onSortChange: (key: SortKey) => void;
   groupFoldersFirst: boolean;
   onGroupFoldersFirstChange: (value: boolean) => void;
+  groupBy: GroupByKey;
+  onGroupByChange: (value: GroupByKey) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -35,6 +37,8 @@ export function ExplorerView(props: ExplorerViewProps) {
         onSortChange={props.onSortChange}
         groupFoldersFirst={props.groupFoldersFirst}
         onGroupFoldersFirstChange={props.onGroupFoldersFirstChange}
+        groupBy={props.groupBy}
+        onGroupByChange={props.onGroupByChange}
         clipboard={clipboard()}
         onClipboardChange={setClipboard}
         searchQuery={props.searchQuery}

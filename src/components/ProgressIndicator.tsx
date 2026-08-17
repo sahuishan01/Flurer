@@ -16,11 +16,21 @@ type OperationProgress = {
   // folder-size walk) — rendered as a running indicator instead of a
   // percent-complete bar.
   indeterminate: boolean;
+  // True for background work the user didn't explicitly trigger (a
+  // folder-size calculation kicked off just because its row was listed).
+  // These still auto-fade after finishing, same as before this was
+  // configurable — manual operations (copy/move/delete/rename/extract, an
+  // explicit Recalculate) do not, and stay until dismissed. Without this
+  // split, ordinary browsing would flood the panel with dozens of
+  // "Calculating size — X, Done" entries the user never asked to see.
+  automatic: boolean;
 };
 
-// How long a finished task (success or failure) stays visible in the list
-// before it's dropped, so completing an operation doesn't just vanish
-// instantly but also doesn't linger forever.
+// How long a finished *automatic* task stays visible before it's dropped,
+// so an automatic folder-size calculation completing doesn't vanish
+// instantly but also doesn't linger the way a manual operation does.
+// Manual (user-initiated) tasks ignore this entirely — they stay until
+// explicitly cleared, see clearTask/clearAllFinished below.
 const FADE_DELAY_MS = 4000;
 
 function percent(task: OperationProgress): number {
@@ -52,7 +62,10 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
     listen<OperationProgress>("operation-progress", (event) => {
       const task = event.payload;
       setTasks(task.taskId, task);
-      if (task.finished) {
+      // Only automatic tasks self-clear — a manual operation stays until
+      // the user dismisses it (clearTask) or clears everything finished
+      // (clearAllFinished) below.
+      if (task.finished && task.automatic) {
         const id = task.taskId;
         setTimeout(() => {
           setTasks(produce((all) => { if (all[id]?.finished) delete all[id]; }));
@@ -73,6 +86,19 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
 
   const list = () => Object.values(tasks).sort((a, b) => b.taskId - a.taskId);
   const activeCount = () => list().filter((t) => !t.finished).length;
+  const finishedCount = () => list().filter((t) => t.finished).length;
+
+  function clearTask(taskId: number) {
+    setTasks(produce((all) => { delete all[taskId]; }));
+  }
+
+  function clearAllFinished() {
+    setTasks(produce((all) => {
+      for (const task of Object.values(all)) {
+        if (task.finished) delete all[task.taskId];
+      }
+    }));
+  }
 
   return (
     <Show when={props.showWhenIdle || list().length > 0}>
@@ -93,6 +119,13 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
 
         <Show when={open()}>
           <div class="progress-panel" style={pos()} ref={panelRef}>
+            <Show when={finishedCount() > 0}>
+              <div class="progress-panel-header">
+                <button type="button" class="progress-clear-all" onClick={clearAllFinished}>
+                  Clear all
+                </button>
+              </div>
+            </Show>
             <For each={list()}>
               {(task) => (
                 <div class="progress-task">
@@ -126,6 +159,17 @@ export function ProgressIndicator(props: ProgressIndicatorProps) {
                         onClick={() => invoke("cancel_operation", { taskId: task.taskId })}
                       >
                         Cancel
+                      </button>
+                    </div>
+                  </Show>
+                  {/* Only manual tasks can even still be here once finished
+                      — automatic ones self-clear (see the listener above),
+                      so this is never shown for a "Calculating size" row
+                      the user didn't explicitly ask for. */}
+                  <Show when={task.finished && !task.automatic}>
+                    <div class="progress-task-actions">
+                      <button type="button" class="progress-task-clear" onClick={() => clearTask(task.taskId)}>
+                        Clear
                       </button>
                     </div>
                   </Show>

@@ -14,7 +14,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     helpers::settings::save_settings,
-    progress::{cleanup_task, emit_progress, next_task_id},
+    progress::{cleanup_task, emit_progress, emit_progress_automatic, next_task_id},
     state::AppState,
 };
 
@@ -83,6 +83,12 @@ pub enum FolderSizeResponse {
 struct TrackedJob {
     task_id: u64,
     label: String,
+    // Whether this walk was kicked off automatically (a folder row simply
+    // being listed) vs. a user-initiated Recalculate — see
+    // OperationProgress::automatic. Carried through to the completion
+    // emit in spawn_workers so a job started as automatic reports as
+    // automatic there too, not just at enqueue time.
+    automatic: bool,
 }
 
 struct SizeJob {
@@ -727,13 +733,22 @@ fn enqueue(state: &AppState, path: PathBuf) -> bool {
 /// operation-progress event — for computations the user is actually waiting
 /// on (a folder opened for the first time, or an explicit recalculate),
 /// as opposed to silent background revalidation.
-fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf) -> Result<(), String> {
+///
+/// `automatic` distinguishes the two callers: `get_folder_size` passes
+/// `true` for a folder that's merely being listed (the user didn't ask for
+/// this specifically), `recompute_folder_size` passes `false` for an
+/// explicit Recalculate click — see `OperationProgress::automatic`.
+fn enqueue_tracked(app: &AppHandle, state: &AppState, path: PathBuf, automatic: bool) -> Result<(), String> {
     let task_id = next_task_id();
     let label = format!("Calculating size — {}", folder_label(&path));
     let log_path = path.clone();
-    match enqueue_job(state, path, Some(TrackedJob { task_id, label: label.clone() })) {
+    match enqueue_job(state, path, Some(TrackedJob { task_id, label: label.clone(), automatic })) {
         EnqueueResult::Queued | EnqueueResult::Adopted => {
-            emit_progress(app, task_id, &label, 0, 0, false, None, true);
+            if automatic {
+                emit_progress_automatic(app, task_id, &label, 0, 0, false, None, true);
+            } else {
+                emit_progress(app, task_id, &label, 0, 0, false, None, true);
+            }
             Ok(())
         }
         EnqueueResult::AlreadyPending => Ok(()),
@@ -975,8 +990,12 @@ fn spawn_workers(app: AppHandle, receiver: Arc<Mutex<mpsc::Receiver<SizeJob>>>, 
                     }),
                 },
             );
-            if let Some(TrackedJob { task_id, label }) = tracking {
-                emit_progress(&app, task_id, &label, 0, 0, true, None, true);
+            if let Some(TrackedJob { task_id, label, automatic }) = tracking {
+                if automatic {
+                    emit_progress_automatic(&app, task_id, &label, 0, 0, true, None, true);
+                } else {
+                    emit_progress(&app, task_id, &label, 0, 0, true, None, true);
+                }
                 cleanup_task(task_id);
             }
         });
@@ -1183,8 +1202,10 @@ pub fn get_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, path: 
 
     // Genuinely uncached — the frontend is about to show a "Calculating…"
     // state for this, so it's worth surfacing in the unified progress panel
-    // too, unlike the silent revalidation above.
-    enqueue_tracked(&app, &state, path_buf)?;
+    // too, unlike the silent revalidation above. `automatic: true` — this
+    // fires for every folder row just from being listed, not because the
+    // user asked for this specific folder's size.
+    enqueue_tracked(&app, &state, path_buf, true)?;
     Ok(FolderSizeResponse::Pending)
 }
 
@@ -1211,7 +1232,8 @@ pub fn recompute_folder_size(app: AppHandle, state: tauri::State<'_, AppState>, 
     // get_folder_size report Pending during the recompute (see above) —
     // without removing it from the cache, which the watcher needs
     // to keep recognizing this folder as one to watch for live changes.
-    enqueue_tracked(&app, &state, path_buf)?;
+    // `automatic: false` — this is always an explicit user action.
+    enqueue_tracked(&app, &state, path_buf, false)?;
     Ok(FolderSizeResponse::Pending)
 }
 

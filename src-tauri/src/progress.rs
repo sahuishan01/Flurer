@@ -25,6 +25,14 @@ pub struct OperationProgress {
     // folder-size walk) — the frontend shows a running indicator instead of
     // a percent-complete bar for these.
     pub indeterminate: bool,
+    // True for background work the user didn't explicitly ask for — a
+    // folder-size calculation kicked off just because its row scrolled
+    // into view, not an explicit Recalculate click. The frontend never
+    // lets these linger in the "finished" list the way manual operations
+    // (copy/move/delete/recalculate, ...) do, since ordinary browsing
+    // would otherwise flood it with dozens of "Calculating size — X, Done"
+    // entries the user never asked to see.
+    pub automatic: bool,
 }
 
 static NEXT_TASK_ID: AtomicU64 = AtomicU64::new(1);
@@ -68,6 +76,9 @@ pub fn is_cancelled(_task_id: u64, flag: &AtomicBool) -> bool {
     flag.load(Ordering::Relaxed)
 }
 
+/// For manual, user-initiated operations (copy/move/delete/rename/extract,
+/// an explicit Recalculate click) — these are the ones the frontend keeps
+/// visible after completion until the user dismisses them.
 pub fn emit_progress(
     app: &AppHandle,
     task_id: u64,
@@ -77,6 +88,37 @@ pub fn emit_progress(
     finished: bool,
     error: Option<String>,
     indeterminate: bool,
+) {
+    emit_progress_inner(app, task_id, label, done, total, finished, error, indeterminate, false);
+}
+
+/// Same as `emit_progress`, for background work the user didn't explicitly
+/// trigger — currently just automatic folder-size calculations kicked off
+/// as folder rows are listed. See `OperationProgress::automatic`.
+pub fn emit_progress_automatic(
+    app: &AppHandle,
+    task_id: u64,
+    label: &str,
+    done: u64,
+    total: u64,
+    finished: bool,
+    error: Option<String>,
+    indeterminate: bool,
+) {
+    emit_progress_inner(app, task_id, label, done, total, finished, error, indeterminate, true);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_progress_inner(
+    app: &AppHandle,
+    task_id: u64,
+    label: &str,
+    done: u64,
+    total: u64,
+    finished: bool,
+    error: Option<String>,
+    indeterminate: bool,
+    automatic: bool,
 ) {
     let _ = app.emit(
         "operation-progress",
@@ -88,6 +130,7 @@ pub fn emit_progress(
             finished,
             error,
             indeterminate,
+            automatic,
         },
     );
 }

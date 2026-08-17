@@ -38,6 +38,7 @@ import {
   type DirEntry,
   type DirListing,
   type FolderSizeResponse,
+  type GroupByKey,
   type SortDirection,
   type SortKey,
   type UnreadableEntry,
@@ -53,6 +54,8 @@ type FileListProps = {
   onSortChange: (key: SortKey) => void;
   groupFoldersFirst: boolean;
   onGroupFoldersFirstChange: (value: boolean) => void;
+  groupBy: GroupByKey;
+  onGroupByChange: (value: GroupByKey) => void;
   clipboard: ClipboardState;
   onClipboardChange: (clipboard: ClipboardState) => void;
   searchQuery: string;
@@ -614,6 +617,114 @@ export function FileList(props: FileListProps) {
     return pinTagged([...dirs, ...files]);
   });
 
+  // Real (recursive) size for a folder, same NTFS-raw-size substitution
+  // sortBySize above uses — a plain file's own size otherwise.
+  function realSizeOf(entry: DirEntry): number | undefined {
+    if (!entry.isDir) return entry.size;
+    const state = folderSizes().get(entry.path);
+    return state && typeof state === "object" ? state.size : undefined;
+  }
+
+  function nameGroupOf(entry: DirEntry): { key: string; order: number } {
+    const ch = entry.name.trim().charAt(0).toUpperCase();
+    const key = ch >= "A" && ch <= "Z" ? ch : "#";
+    return { key, order: key === "#" ? -1 : key.charCodeAt(0) };
+  }
+
+  function typeGroupOf(entry: DirEntry): { key: string; order: number } {
+    if (entry.isDir) return { key: "File folder", order: -1 };
+    const dot = entry.name.lastIndexOf(".");
+    const ext = dot > 0 ? entry.name.slice(dot + 1).toUpperCase() : "";
+    const key = ext ? `${ext} File` : "File";
+    return { key, order: key.charCodeAt(0) };
+  }
+
+  const SIZE_BUCKETS = [
+    { max: 0, label: "Empty (0 KB)" },
+    { max: 16 * 1024, label: "Tiny (0–16 KB)" },
+    { max: 1024 * 1024, label: "Small (16 KB–1 MB)" },
+    { max: 128 * 1024 * 1024, label: "Medium (1–128 MB)" },
+    { max: 1024 * 1024 * 1024, label: "Large (128 MB–1 GB)" },
+    { max: Infinity, label: "Huge (over 1 GB)" },
+  ] as const;
+
+  function sizeGroupOf(entry: DirEntry): { key: string; order: number } {
+    // Real recursive size still might not have arrived yet — falls back to
+    // the meaningless raw NTFS size rather than stalling the whole group
+    // computation on it; the row re-groups once the real size arrives,
+    // same as the size-sort path above already accepts.
+    const size = entry.isDir ? (realSizeOf(entry) ?? entry.size) : entry.size;
+    const index = SIZE_BUCKETS.findIndex((b) => size <= b.max);
+    const bucket = SIZE_BUCKETS[index === -1 ? SIZE_BUCKETS.length - 1 : index];
+    // Folders sort into the size buckets like anything else here — unlike
+    // the size-*sort* path, there's no separate "Folders" bucket for size
+    // grouping, since the bucket boundaries already convey the size that
+    // matters once the real recursive value is in.
+    return { key: bucket.label, order: index === -1 ? SIZE_BUCKETS.length : index };
+  }
+
+  function modifiedGroupOf(entry: DirEntry, now: number): { key: string; order: number } {
+    if (entry.modified == null) return { key: "Unknown date", order: 99 };
+    const day = 86400000;
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((startOfToday.getTime() - entry.modified * 1000) / day);
+    if (diffDays <= 0) return { key: "Today", order: 0 };
+    if (diffDays === 1) return { key: "Yesterday", order: 1 };
+    if (diffDays < 7) return { key: "Earlier this week", order: 2 };
+    if (diffDays < 14) return { key: "Last week", order: 3 };
+    if (diffDays < 30) return { key: "Earlier this month", order: 4 };
+    if (diffDays < 60) return { key: "Last month", order: 5 };
+    if (diffDays < 365) return { key: "Earlier this year", order: 6 };
+    if (diffDays < 730) return { key: "Last year", order: 7 };
+    return { key: "A long time ago", order: 8 };
+  }
+
+  type GroupSection = { label: string; entries: DirEntry[] };
+
+  // null (not just an empty array) for the ungrouped case, so the render
+  // side can cheaply tell "no grouping" from "grouped but empty" and skip
+  // the whole header-row machinery for the common flat-list case.
+  const groupedSections = createMemo<GroupSection[] | null>(() => {
+    if (props.groupBy === "none") return null;
+    const now = Date.now();
+    const buckets = new Map<string, { order: number; entries: DirEntry[] }>();
+    for (const entry of sortedEntries()) {
+      // Folders get pulled into their own leading section for Name/Date
+      // grouping when "Group folders first" is on — Type and Size already
+      // isolate them intrinsically (a folder's own "type" is always
+      // "File folder"; its raw size is meaningless so it buckets on real
+      // recursive size like anything else), so this only applies to the
+      // two schemes where a folder would otherwise land in the same
+      // letter/date bucket as an ordinary file.
+      const group =
+        props.groupFoldersFirst && entry.isDir && (props.groupBy === "name" || props.groupBy === "modified")
+          ? { key: "Folders", order: -1 }
+          : props.groupBy === "name"
+            ? nameGroupOf(entry)
+            : props.groupBy === "type"
+              ? typeGroupOf(entry)
+              : props.groupBy === "size"
+                ? sizeGroupOf(entry)
+                : modifiedGroupOf(entry, now);
+      if (!buckets.has(group.key)) buckets.set(group.key, { order: group.order, entries: [] });
+      buckets.get(group.key)!.entries.push(entry);
+    }
+    return Array.from(buckets.entries())
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([label, { entries: sectionEntries }]) => ({ label, entries: sectionEntries }));
+  });
+
+  // sortedEntries()'s own position for a given entry — handleRowClick's
+  // shift-select range math is defined over that flat order regardless of
+  // whether rows are currently rendered flat or split into group sections,
+  // so a shift-click range can still span across a group header.
+  const indexByPath = createMemo(() => {
+    const map = new Map<string, number>();
+    sortedEntries().forEach((entry, i) => map.set(entry.path, i));
+    return map;
+  });
+
   function handleRowClick(e: MouseEvent, entry: DirEntry, index: number) {
     if (e.shiftKey && lastClickedIndex() !== null) {
       const start = Math.min(lastClickedIndex()!, index);
@@ -1083,6 +1194,79 @@ export function FileList(props: FileListProps) {
     onCleanup(() => unlisten?.());
   });
 
+  // Shared by the flat (groupBy: "none") and grouped renderers below so
+  // the row markup — selection, drag, rename-in-place, context menu, etc.
+  // — is defined exactly once. `index` stays an accessor (not a plain
+  // number) in both call sites specifically so shift-click range-select
+  // always reads the *current* position even for a row whose index moved
+  // without the row itself being torn down and recreated.
+  function renderRow(entry: DirEntry, index: () => number) {
+    return (
+      <tr
+        class="file-row"
+        classList={{
+          "file-row-dir": entry.isDir,
+          "file-row-selected": selected().has(entry.path),
+          "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
+        }}
+        tabIndex={0}
+        role="row"
+        data-row-path={entry.path}
+        data-drop-path={entry.isDir ? entry.path : undefined}
+        onMouseDown={(e) => handleRowMouseDown(e, entry)}
+        onClick={(e) => handleRowClick(e, entry, index())}
+        onDblClick={() => openEntry(entry)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            openEntry(entry);
+          } else if (e.key === " ") {
+            e.preventDefault();
+            handleRowClick(e as unknown as MouseEvent, entry, index());
+          }
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleRowContextMenu(e, entry);
+        }}
+      >
+        <td class="file-name-cell">
+          {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
+          {props.folderColors[entry.path] && (
+            <span class="folder-color-dot" style={{ background: props.folderColors[entry.path] }} title="Color tag" />
+          )}
+          {renamingPath() === entry.path ? (
+            <input
+              class="rename-input"
+              value={renameValue()}
+              autofocus
+              onInput={(e) => setRenameValue(e.currentTarget.value)}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") commitRename();
+                else if (e.key === "Escape") cancelRename();
+              }}
+              onBlur={() => commitRename()}
+            />
+          ) : (
+            entry.name
+          )}
+          <Show when={contentMatches().get(entry.path)}>
+            {(match) => (
+              <div class="file-location">
+                Line {match().lineNumber}: {match().snippet.trim().slice(0, 120)}
+              </div>
+            )}
+          </Show>
+        </td>
+        <td>{renderSizeCell(entry)}</td>
+        <td>{formatModified(entry.modified)}</td>
+        {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
+      </tr>
+    );
+  }
+
   return (
     <>
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
@@ -1117,6 +1301,19 @@ export function FileList(props: FileListProps) {
         {adminRelaunchError() && <p class="file-list-error">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
         {opError() && <p class="file-list-error">{opError()}</p>}
         <div class="file-list-toolbar-row">
+          <select
+            class="group-by-select"
+            title="Group by"
+            aria-label="Group by"
+            value={props.groupBy}
+            onChange={(e) => props.onGroupByChange(e.currentTarget.value as GroupByKey)}
+          >
+            <option value="none">Group by: None</option>
+            <option value="name">Group by: Name</option>
+            <option value="type">Group by: Type</option>
+            <option value="size">Group by: Size</option>
+            <option value="modified">Group by: Date modified</option>
+          </select>
           <button
             type="button"
             class="group-folders-toggle"
@@ -1170,76 +1367,28 @@ export function FileList(props: FileListProps) {
                 </td>
               </tr>
             </Show>
-            <For each={sortedEntries()}>
-              {(entry, index) => (
-                <tr
-                  class="file-row"
-                  classList={{
-                    "file-row-dir": entry.isDir,
-                    "file-row-selected": selected().has(entry.path),
-                    "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
-                  }}
-                  tabIndex={0}
-                  role="row"
-                  data-row-path={entry.path}
-                  data-drop-path={entry.isDir ? entry.path : undefined}
-                  onMouseDown={(e) => handleRowMouseDown(e, entry)}
-                  onClick={(e) => handleRowClick(e, entry, index())}
-                  onDblClick={() => openEntry(entry)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      openEntry(entry);
-                    } else if (e.key === " ") {
-                      e.preventDefault();
-                      handleRowClick(e as unknown as MouseEvent, entry, index());
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleRowContextMenu(e, entry);
-                  }}
-                >
-                  <td class="file-name-cell">
-                    {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
-                    {props.folderColors[entry.path] && (
-                      <span
-                        class="folder-color-dot"
-                        style={{ background: props.folderColors[entry.path] }}
-                        title="Color tag"
-                      />
-                    )}
-                    {renamingPath() === entry.path ? (
-                      <input
-                        class="rename-input"
-                        value={renameValue()}
-                        autofocus
-                        onInput={(e) => setRenameValue(e.currentTarget.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                          if (e.key === "Enter") commitRename();
-                          else if (e.key === "Escape") cancelRename();
-                        }}
-                        onBlur={() => commitRename()}
-                      />
-                    ) : (
-                      entry.name
-                    )}
-                    <Show when={contentMatches().get(entry.path)}>
-                      {(match) => (
-                        <div class="file-location">
-                          Line {match().lineNumber}: {match().snippet.trim().slice(0, 120)}
-                        </div>
-                      )}
-                    </Show>
-                  </td>
-                  <td>{renderSizeCell(entry)}</td>
-                  <td>{formatModified(entry.modified)}</td>
-                  {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
-                </tr>
+            <Show
+              when={groupedSections()}
+              fallback={<For each={sortedEntries()}>{(entry, index) => renderRow(entry, index)}</For>}
+            >
+              {(sections) => (
+                <For each={sections()}>
+                  {(section) => (
+                    <>
+                      <tr class="group-header-row">
+                        <td colspan={isSearching() ? 4 : 3}>
+                          <span class="group-header-label">{section.label}</span>
+                          <span class="group-header-count">{section.entries.length}</span>
+                        </td>
+                      </tr>
+                      <For each={section.entries}>
+                        {(entry) => renderRow(entry, () => indexByPath().get(entry.path) ?? 0)}
+                      </For>
+                    </>
+                  )}
+                </For>
               )}
-            </For>
+            </Show>
           </tbody>
         </table>
         </div>

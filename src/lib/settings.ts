@@ -1,4 +1,4 @@
-import type { SortDirection, SortKey } from "./fs";
+import type { GroupByKey, SortDirection, SortKey } from "./fs";
 import { DEFAULT_IN_APP_SHORTCUTS, type InAppShortcutAction } from "./shortcuts";
 import { DEFAULT_UNSPLASH_FREQUENCY_MS } from "./unsplash";
 
@@ -55,6 +55,11 @@ export type Settings = {
   // order interleaves folders and files instead of listing all folders
   // first.
   groupFoldersFirst: boolean;
+  // Windows-Explorer-style "Group by" — splits the list into labeled
+  // sections (see FileList.tsx's groupedSections). "none" is today's flat
+  // list; default, so nothing changes for existing users until they pick
+  // one from the new dropdown.
+  groupBy: GroupByKey;
   fontFamily: string;
   fontSizePx: number;
   sidebarTooltipDelayMs: number;
@@ -114,6 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sortKey: "name",
   sortDirection: "ascending",
   groupFoldersFirst: true,
+  groupBy: "none",
   fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
   fontSizePx: 16,
   sidebarTooltipDelayMs: 500,
