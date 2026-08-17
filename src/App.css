@@ -1627,9 +1627,11 @@ button.sidebar-drive,
 .file-list-toolbar-row {
     padding: 0.2em 0.6em;
     display: flex;
+    gap: 0.5em;
 }
 
-.pin-tagged-toggle {
+.pin-tagged-toggle,
+.group-folders-toggle {
     display: inline-flex;
     align-items: center;
     gap: 0.35em;
@@ -1642,12 +1644,14 @@ button.sidebar-drive,
     cursor: pointer;
 }
 
-.pin-tagged-toggle:hover {
+.pin-tagged-toggle:hover,
+.group-folders-toggle:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
 
-.pin-tagged-toggle.active {
+.pin-tagged-toggle.active,
+.group-folders-toggle.active {
     border-color: var(--accent);
     background: var(--accent-bg-soft);
     color: var(--accent);

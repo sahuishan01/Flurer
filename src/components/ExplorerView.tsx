@@ -16,6 +16,8 @@ type ExplorerViewProps = {
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSortChange: (key: SortKey) => void;
+  groupFoldersFirst: boolean;
+  onGroupFoldersFirstChange: (value: boolean) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -31,6 +33,8 @@ export function ExplorerView(props: ExplorerViewProps) {
         sortKey={props.sortKey}
         sortDirection={props.sortDirection}
         onSortChange={props.onSortChange}
+        groupFoldersFirst={props.groupFoldersFirst}
+        onGroupFoldersFirstChange={props.onGroupFoldersFirstChange}
         clipboard={clipboard()}
         onClipboardChange={setClipboard}
         searchQuery={props.searchQuery}

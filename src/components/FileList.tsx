@@ -51,6 +51,8 @@ type FileListProps = {
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSortChange: (key: SortKey) => void;
+  groupFoldersFirst: boolean;
+  onGroupFoldersFirstChange: (value: boolean) => void;
   clipboard: ClipboardState;
   onClipboardChange: (clipboard: ClipboardState) => void;
   searchQuery: string;
@@ -339,6 +341,7 @@ export function FileList(props: FileListProps) {
           path: props.path,
           sortKey: props.sortKey,
           sortDirection: props.sortDirection,
+          groupFoldersFirst: props.groupFoldersFirst,
         });
       }
       if (
@@ -368,6 +371,7 @@ export function FileList(props: FileListProps) {
     props.path;
     props.sortKey;
     props.sortDirection;
+    props.groupFoldersFirst;
     props.searchQuery;
     props.searchRecursive;
     refresh();
@@ -591,16 +595,18 @@ export function FileList(props: FileListProps) {
     if (props.sortKey !== "size") return pinTagged(list);
 
     const sizes = folderSizes();
-    const dirs = sortBySize(
-      list.filter((e) => e.isDir),
-      (entry) => {
-        const state = sizes.get(entry.path);
-        if (state && typeof state === "object") {
-          return state.size;
-        }
-        return undefined;
-      }
-    );
+    const sizeOfDir = (entry: DirEntry) => {
+      const state = sizes.get(entry.path);
+      return state && typeof state === "object" ? state.size : undefined;
+    };
+    if (!props.groupFoldersFirst) {
+      // Same real-recursive-size substitution as the grouped path below,
+      // just sorted as one list instead of two — sortBySize is stable for
+      // still-unresolved sizes either way, so mixing dirs/files here is
+      // safe even while folder sizes are still being computed.
+      return pinTagged(sortBySize(list, (entry) => (entry.isDir ? sizeOfDir(entry) : entry.size)));
+    }
+    const dirs = sortBySize(list.filter((e) => e.isDir), sizeOfDir);
     const files = sortBySize(
       list.filter((e) => !e.isDir),
       (entry) => entry.size,
@@ -1110,8 +1116,19 @@ export function FileList(props: FileListProps) {
         </Show>
         {adminRelaunchError() && <p class="file-list-error">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
         {opError() && <p class="file-list-error">{opError()}</p>}
-        <Show when={entries().some((e) => props.folderColors[e.path])}>
-          <div class="file-list-toolbar-row">
+        <div class="file-list-toolbar-row">
+          <button
+            type="button"
+            class="group-folders-toggle"
+            classList={{ active: props.groupFoldersFirst }}
+            aria-pressed={props.groupFoldersFirst}
+            title="Keep folders grouped before files, even when sorting"
+            onClick={() => props.onGroupFoldersFirstChange(!props.groupFoldersFirst)}
+          >
+            <FolderIcon size={13} />
+            Group folders
+          </button>
+          <Show when={entries().some((e) => props.folderColors[e.path])}>
             <button
               type="button"
               class="pin-tagged-toggle"
@@ -1123,8 +1140,8 @@ export function FileList(props: FileListProps) {
               <TagIcon size={13} />
               Tagged first
             </button>
-          </div>
-        </Show>
+          </Show>
+        </div>
         <div class="file-list-split">
         <div class="file-list-table-wrap">
         <table class="file-table">

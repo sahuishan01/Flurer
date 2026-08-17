@@ -49,6 +49,12 @@ export type Settings = {
   maxHistoryItems: number;
   sortKey: SortKey;
   sortDirection: SortDirection;
+  // Whether folders are kept grouped before files regardless of the
+  // active sort — on by default (matches the behavior before this was
+  // configurable). Off sorts everything together by sortKey, e.g. name
+  // order interleaves folders and files instead of listing all folders
+  // first.
+  groupFoldersFirst: boolean;
   fontFamily: string;
   fontSizePx: number;
   sidebarTooltipDelayMs: number;
@@ -107,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxHistoryItems: 15,
   sortKey: "name",
   sortDirection: "ascending",
+  groupFoldersFirst: true,
   fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
   fontSizePx: 16,
   sidebarTooltipDelayMs: 500,

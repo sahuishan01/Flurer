@@ -95,6 +95,7 @@ pub fn list_directory(
     path: String,
     sort_key: SortKey,
     sort_direction: SortDirection,
+    group_folders_first: bool,
 ) -> Result<DirListing, String> {
     let read_dir = fs::read_dir(&path).map_err(|e| describe_dir_error(&path, &e))?;
 
@@ -164,6 +165,9 @@ pub fn list_directory(
             SortDirection::Ascending => ordering,
             SortDirection::Descending => ordering.reverse(),
         };
+        if !group_folders_first {
+            return ordering;
+        }
         match (a.is_dir, b.is_dir) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
@@ -406,7 +410,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn list(dir: &Path) -> Result<DirListing, String> {
-        list_directory(dir.to_string_lossy().to_string(), SortKey::Name, SortDirection::Ascending)
+        list_directory(dir.to_string_lossy().to_string(), SortKey::Name, SortDirection::Ascending, true)
     }
 
     #[test]
@@ -584,6 +588,26 @@ mod tests {
             search_content(dir.path().to_string_lossy().to_string(), "todo".to_string(), false).unwrap();
 
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn list_directory_interleaves_dirs_and_files_when_grouping_is_off() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join("z_folder")).unwrap();
+        fs::write(dir.path().join("m_file.txt"), "content").unwrap();
+        fs::create_dir(dir.path().join("a_folder")).unwrap();
+
+        let grouped =
+            list_directory(dir.path().to_string_lossy().to_string(), SortKey::Name, SortDirection::Ascending, true)
+                .unwrap();
+        let names: Vec<&str> = grouped.entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, vec!["a_folder", "z_folder", "m_file.txt"], "folders sort before files when grouped");
+
+        let ungrouped =
+            list_directory(dir.path().to_string_lossy().to_string(), SortKey::Name, SortDirection::Ascending, false)
+                .unwrap();
+        let names: Vec<&str> = ungrouped.entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, vec!["a_folder", "m_file.txt", "z_folder"], "plain name order when grouping is off");
     }
 
     #[test]

@@ -442,6 +442,11 @@ function App() {
     persistSettings();
   }
 
+  function updateGroupFoldersFirst(value: boolean) {
+    setSettings("groupFoldersFirst", value);
+    persistSettings();
+  }
+
   async function saveUnsplashApiKey(key: string) {
     setApiKeyError("");
     try {
@@ -988,6 +993,8 @@ function App() {
                   sortKey={settings.sortKey}
                   sortDirection={settings.sortDirection}
                   onSortChange={updateSort}
+                  groupFoldersFirst={settings.groupFoldersFirst}
+                  onGroupFoldersFirstChange={updateGroupFoldersFirst}
                 />
               </div>
             </Show>
