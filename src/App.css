@@ -1787,6 +1787,10 @@ button.sidebar-drive,
     border-bottom: 1px solid var(--border-color);
 }
 
+.file-row {
+    cursor: default;
+}
+
 .file-row-dir {
     cursor: pointer;
 }
