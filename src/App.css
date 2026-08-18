@@ -1509,6 +1509,14 @@ button.sidebar-drive,
     overflow: auto;
 }
 
+.marquee-select {
+    position: fixed;
+    border: 1px dashed var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+    pointer-events: none;
+    z-index: 5;
+}
+
 .preview-panel {
     display: flex;
     flex-direction: column;

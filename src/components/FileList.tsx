@@ -196,6 +196,7 @@ export function FileList(props: FileListProps) {
 
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = createSignal<number | null>(null);
+  const [marqueeRect, setMarqueeRect] = createSignal<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Preview panel: shows automatically whenever exactly one file (not a
   // folder — nothing to preview there) is selected, rather than needing a
@@ -895,6 +896,7 @@ export function FileList(props: FileListProps) {
   // ctrl-click from being swallowed as a zero-distance drag.
   function handleRowMouseDown(e: MouseEvent, entry: DirEntry) {
     if (e.button !== 0 || renamingPath() === entry.path) return;
+    e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
     const dragPaths = selected().has(entry.path) && selected().size > 1 ? [...selected()] : [entry.path];
@@ -910,6 +912,59 @@ export function FileList(props: FileListProps) {
     function cleanup() {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", cleanup);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", cleanup);
+  }
+
+  // Starts an Explorer-style rubber-band selection when the press begins on
+  // empty list background rather than on a row (handleRowMouseDown above
+  // owns the row-press case and takes priority since it's bound directly to
+  // each <tr>, which stops the event before it bubbles here). Uses the same
+  // 4px move threshold and document-level mousemove/mouseup pattern as the
+  // row-drag handler above for consistency.
+  function handleListMouseDown(e: MouseEvent) {
+    if (e.button !== 0 || renamingPath() !== null) return;
+    const wrap = e.currentTarget as HTMLElement;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const additive = e.ctrlKey || e.metaKey;
+    const baseSelection = additive ? new Set(selected()) : new Set<string>();
+    let started = false;
+
+    function rectFrom(ev: MouseEvent) {
+      const x = Math.min(startX, ev.clientX);
+      const y = Math.min(startY, ev.clientY);
+      const width = Math.abs(ev.clientX - startX);
+      const height = Math.abs(ev.clientY - startY);
+      return { x, y, width, height };
+    }
+
+    function applySelection(rect: { x: number; y: number; width: number; height: number }) {
+      const next = new Set(baseSelection);
+      const rows = wrap.querySelectorAll<HTMLElement>("tr[data-row-path]");
+      rows.forEach((row) => {
+        const box = row.getBoundingClientRect();
+        const intersects = box.left < rect.x + rect.width && box.right > rect.x && box.top < rect.y + rect.height && box.bottom > rect.y;
+        if (intersects) {
+          const path = row.dataset.rowPath;
+          if (path) next.add(path);
+        }
+      });
+      setSelected(next);
+    }
+
+    function onMove(ev: MouseEvent) {
+      if (!started && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+      started = true;
+      const rect = rectFrom(ev);
+      setMarqueeRect(rect);
+      applySelection(rect);
+    }
+    function cleanup() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", cleanup);
+      setMarqueeRect(null);
     }
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", cleanup);
@@ -1340,7 +1395,20 @@ export function FileList(props: FileListProps) {
           </Show>
         </div>
         <div class="file-list-split">
-        <div class="file-list-table-wrap">
+        <div class="file-list-table-wrap" onMouseDown={handleListMouseDown}>
+        <Show when={marqueeRect()}>
+          {(rect) => (
+            <div
+              class="marquee-select"
+              style={{
+                left: `${rect().x}px`,
+                top: `${rect().y}px`,
+                width: `${rect().width}px`,
+                height: `${rect().height}px`,
+              }}
+            />
+          )}
+        </Show>
         <table class="file-table">
           <thead>
             <tr>
