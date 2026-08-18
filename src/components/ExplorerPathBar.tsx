@@ -114,7 +114,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
   }
 
   return (
-    <div class="explorer-path-bar" ref={containerRef}>
+    <div class="explorer-path-bar selectable-text" ref={containerRef}>
       <button
         type="button"
         class="icon-btn"

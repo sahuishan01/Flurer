@@ -1270,7 +1270,7 @@ export function FileList(props: FileListProps) {
   return (
     <>
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
-        {error() && <p class="file-list-error">{error()}</p>}
+        {error() && <p class="file-list-error selectable-text">{error()}</p>}
         <Show when={unreadable() > 0}>
           <div class="file-list-notice">
             <button type="button" class="file-list-notice-toggle" onClick={() => setUnreadableExpanded((v) => !v)}>
@@ -1278,7 +1278,7 @@ export function FileList(props: FileListProps) {
               {unreadableEntries().length > 0 && (unreadableExpanded() ? " (hide details)" : " (show details)")}
             </button>
             <Show when={unreadableExpanded() && unreadableEntries().length > 0}>
-              <ul class="file-list-notice-details">
+              <ul class="file-list-notice-details selectable-text">
                 <For each={unreadableEntries()}>
                   {(entry) => (
                     <li>
@@ -1298,8 +1298,8 @@ export function FileList(props: FileListProps) {
             </Show>
           </div>
         </Show>
-        {adminRelaunchError() && <p class="file-list-error">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
-        {opError() && <p class="file-list-error">{opError()}</p>}
+        {adminRelaunchError() && <p class="file-list-error selectable-text">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
+        {opError() && <p class="file-list-error selectable-text">{opError()}</p>}
         <div class="file-list-toolbar-row">
           <select
             class="group-by-select"

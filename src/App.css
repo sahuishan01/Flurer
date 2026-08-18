@@ -85,6 +85,17 @@ body,
 body {
     background-color: transparent;
     color: var(--text-color);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Explicit opt-in for the few surfaces where copying text out is useful —
+   everything else stays non-selectable so double-click/drag reads as row
+   selection, not browser text highlighting (see docs/superpowers/specs/
+   2026-08-18-native-feel-input-polish-design.md). */
+.selectable-text {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 * {

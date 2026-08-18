@@ -50,20 +50,20 @@ export function PropertiesDialog(props: PropertiesDialogProps) {
     <Modal title="Properties" onClose={props.onClose}>
       <div class="properties-grid">
         <span class="properties-label">Name</span>
-        <span class="properties-value" title={baseName(props.path)}>
+        <span class="properties-value selectable-text" title={baseName(props.path)}>
           {baseName(props.path)}
         </span>
 
         <span class="properties-label">Type</span>
-        <span class="properties-value">{props.fileSize !== null ? "File" : "Folder"}</span>
+        <span class="properties-value selectable-text">{props.fileSize !== null ? "File" : "Folder"}</span>
 
         <span class="properties-label">Location</span>
-        <span class="properties-value" title={parentDir(props.path)}>
+        <span class="properties-value selectable-text" title={parentDir(props.path)}>
           {parentDir(props.path)}
         </span>
 
         <span class="properties-label">Size</span>
-        <span class="properties-value properties-size-row">
+        <span class="properties-value properties-size-row selectable-text">
           {sizeLabel()}
           <Show when={props.fileSize === null}>
             <button type="button" class="icon-btn" title="Recalculate" aria-label="Recalculate" onClick={props.onRecalculate}>
@@ -74,27 +74,27 @@ export function PropertiesDialog(props: PropertiesDialogProps) {
 
         <Show when={metadata()?.itemCount !== null && metadata()?.itemCount !== undefined}>
           <span class="properties-label">Contains</span>
-          <span class="properties-value">
+          <span class="properties-value selectable-text">
             {metadata()!.itemCount} item{metadata()!.itemCount === 1 ? "" : "s"}
           </span>
         </Show>
 
         <span class="properties-label">Modified</span>
-        <span class="properties-value">
+        <span class="properties-value selectable-text">
           <Show when={!metadata.loading} fallback="Loading…">
             {formatDate(metadata()?.modified ?? null)}
           </Show>
         </span>
 
         <span class="properties-label">Created</span>
-        <span class="properties-value">
+        <span class="properties-value selectable-text">
           <Show when={!metadata.loading} fallback="Loading…">
             {formatDate(metadata()?.created ?? null)}
           </Show>
         </span>
 
         <span class="properties-label">Attributes</span>
-        <span class="properties-value">
+        <span class="properties-value selectable-text">
           <Show when={!metadata.loading} fallback="Loading…">
             {metadata()?.readonly ? "Read-only" : "Read/Write"}
           </Show>
