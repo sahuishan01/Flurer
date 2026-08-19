@@ -43,12 +43,6 @@ jobs:
       - name: Install npm dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build plugins
-        run: |
-          cd plugins/git
-          bun install
-          bun run build
-
       # See build.yml's matching step: flurer-watchd is a separate
       # workspace member the installer's resource-bundling step expects
       # to already be built.
