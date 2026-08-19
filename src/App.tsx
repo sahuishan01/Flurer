@@ -1028,7 +1028,7 @@ function App() {
                     const effBlur = () => settings.pluginSettings?.[plugin.id]?.surfaceBlur ?? settings.uiBlurPx;
                     return (
                       <div
-                        class="view-pane"
+                        class="view-pane plugin-view-pane"
                         style={{
                           display: mainView() === plugin.id ? "flex" : "none",
                           "--plugin-surface-opacity": effOpacity(),
