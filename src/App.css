@@ -3182,6 +3182,17 @@ button.danger:not(.context-menu-item):hover {
 
 .trash-view {
     padding: 1em 1.2em;
+    /* Never had its own tinted backing — it was silently relying on
+       .view-pane's background, which only ever had one because of the
+       per-plugin-translucency fallback that briefly lived there (see
+       .plugin-view-pane's history in App.css) and was correctly removed
+       from the shared .view-pane rule since it doesn't belong to
+       Explorer/Settings either. Matches the same
+       rgba(var(--panel-rgb), var(--surface-opacity)) recipe used by
+       .settings-panel-header/.view-rail rather than inventing a new one. */
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
 }
 
 .trash-toolbar {
