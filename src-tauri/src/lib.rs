@@ -2,6 +2,7 @@ mod archive;
 mod cli;
 mod configs;
 mod disks;
+mod drag_out;
 mod duplicates;
 mod fs;
 mod helpers;
@@ -19,6 +20,7 @@ mod updater;
 use archive::{compress_to_zip, extract_archive};
 use cli::take_launch_path;
 use disks::get_disk_topology;
+use drag_out::set_external_drop_allowed;
 use duplicates::find_duplicates;
 use fs::{
     cancel_operation, copy_items, create_file, create_folder, delete_items, get_file_preview, get_path_metadata,
@@ -184,6 +186,8 @@ pub fn run() {
             find_duplicates,
             // CLI "open this folder" support
             take_launch_path,
+            // Native row drag-out (see dnd.ts)
+            set_external_drop_allowed,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

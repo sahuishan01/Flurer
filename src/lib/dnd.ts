@@ -64,11 +64,23 @@ export type RowDragResult = { result: DragResult; cursorPos: CursorPosition };
 // window is detected by the caller checking `cursorPos` against
 // document.elementFromPoint after this resolves, not by any DOM dragover/
 // drop event — those never fire during a native OS drag.
+// Windows only (no-op elsewhere, see set_external_drop_allowed): WebView2
+// keeps its own OS-level drop target registered on this window the whole
+// time, for Explorer→Flurer drag-in (FileList.tsx's onDragDropEvent). Left
+// registered while startDrag's own DoDragDrop session is in flight, it
+// stops *other* top-level windows (a browser tab, Teams) from ever seeing a
+// drag-enter for that session — so it's switched off for the duration of
+// the drag and back on once it settles, drop or cancel either way.
 export async function startRowDrag(paths: string[], mode: "copy" | "move"): Promise<RowDragResult> {
   const icon = await getDragIconPath();
-  return new Promise((resolve) => {
-    startDrag({ item: paths, icon, mode }, (payload) => resolve(payload));
-  });
+  await invoke("set_external_drop_allowed", { allowed: false });
+  try {
+    return await new Promise((resolve) => {
+      startDrag({ item: paths, icon, mode }, (payload) => resolve(payload));
+    });
+  } finally {
+    await invoke("set_external_drop_allowed", { allowed: true });
+  }
 }
 
 // The plugin only hands back a screen-space cursor position (there's no

@@ -11,7 +11,7 @@ resolver = "2"
 
 [package]
 name = "flurer"
-version = "0.4.92"
+version = "0.4.93"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -75,3 +75,10 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_IO",
   "Win32_Security",
 ] }
+# Pinned to the same version Tauri's own Windows runtime vendors (see
+# webview2-com in Cargo.lock) so ICoreWebView2Controller4 (cast target in
+# drag_out.rs) is ABI-compatible with the controller handle Tauri's
+# with_webview hands back — a mismatched windows-rs/webview2-com version
+# would make that cast silently fail at runtime instead of compiling wrong.
+webview2-com = "=0.38.2"
+windows = "=0.61.3"
