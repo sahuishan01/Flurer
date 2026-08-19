@@ -1012,30 +1012,53 @@ function App() {
             <For each={registeredPlugins()}>
               {(plugin) => (
                 <Show when={plugin.mainPanel || plugin.fullPanel}>
-                  <div
-                    class="view-pane"
-                    style={{ display: mainView() === plugin.id ? "flex" : "none" }}
-                  >
-                    {(() => {
-                      const props = {
-                        currentPath: currentPath(),
-                        navigateTo: navigateTo,
-                        searchQuery: searchQuery(),
-                        focusPath: graphFocusRequest(),
-                        active: mainView() === plugin.id,
-                        dataBgLightness: fileListLightness(),
-                        settingsLoaded: settingsLoaded(),
-                        pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
-                        onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
-                      };
-                      if (plugin.fullPanel) {
-                        return plugin.fullPanel(props);
-                      } else if (plugin.mainPanel) {
-                        return plugin.mainPanel(props);
-                      }
-                      return null;
-                    })()}
-                  </div>
+                  {(() => {
+                    // Per-plugin opacity/blur override, if the user (or the
+                    // plugin's own settingsPanel) set one via pluginSettings
+                    // — falls back to Flurer's own shell values otherwise.
+                    // Set as inline custom properties on THIS plugin's own
+                    // wrapper div (not document.documentElement) so each
+                    // plugin gets an independently-scoped value under the
+                    // same --plugin-surface-* variable names: inline custom
+                    // properties cascade down a div's own subtree, not
+                    // sideways to sibling .view-panes, so two plugins never
+                    // clobber each other's opacity. See
+                    // docs/superpowers/specs/2026-08-19-per-plugin-translucency-design.md.
+                    const effOpacity = () => settings.pluginSettings?.[plugin.id]?.surfaceOpacity ?? settings.uiTintOpacity;
+                    const effBlur = () => settings.pluginSettings?.[plugin.id]?.surfaceBlur ?? settings.uiBlurPx;
+                    return (
+                      <div
+                        class="view-pane"
+                        style={{
+                          display: mainView() === plugin.id ? "flex" : "none",
+                          "--plugin-surface-opacity": effOpacity(),
+                          "--plugin-surface-blur": `${effBlur()}px`,
+                        }}
+                      >
+                        {(() => {
+                          const props = {
+                            currentPath: currentPath(),
+                            navigateTo: navigateTo,
+                            searchQuery: searchQuery(),
+                            focusPath: graphFocusRequest(),
+                            active: mainView() === plugin.id,
+                            dataBgLightness: fileListLightness(),
+                            settingsLoaded: settingsLoaded(),
+                            baseSurfaceOpacity: settings.uiTintOpacity,
+                            baseSurfaceBlur: settings.uiBlurPx,
+                            pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
+                            onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
+                          };
+                          if (plugin.fullPanel) {
+                            return plugin.fullPanel(props);
+                          } else if (plugin.mainPanel) {
+                            return plugin.mainPanel(props);
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    );
+                  })()}
                 </Show>
               )}
             </For>

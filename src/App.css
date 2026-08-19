@@ -471,6 +471,20 @@ body {
     min-height: 0;
     flex-direction: column;
     overflow: auto;
+    /* Fallback surface for a plugin panel that paints no background of its
+       own, so it reads as part of the shell instead of a transparent hole.
+       --plugin-surface-opacity/--plugin-surface-blur are set inline by
+       App.tsx per plugin instance (see the registeredPlugins() loop) —
+       scoped to that one .view-pane element, not shared globally, so each
+       plugin can have its own value without colliding with another
+       plugin's. Explorer/Trash's plain .view-pane usages never set those
+       vars and fall straight through to the existing shell tokens. A
+       plugin that paints its own opaque-enough root simply occludes this;
+       it's a fallback, not a conflict. See
+       docs/superpowers/specs/2026-08-19-per-plugin-translucency-design.md. */
+    background-color: rgba(var(--panel-rgb), var(--plugin-surface-opacity, var(--surface-opacity)));
+    backdrop-filter: blur(var(--plugin-surface-blur, var(--surface-blur, 0)));
+    -webkit-backdrop-filter: blur(var(--plugin-surface-blur, var(--surface-blur, 0)));
 }
 
 /* Icon-only strip for switching top-level views (Explorer / Storage graph /
@@ -1076,6 +1090,49 @@ button.sidebar-drive,
     display: flex;
     flex-direction: column;
     gap: 0.5em;
+}
+
+/* Generic per-plugin opacity/blur override (PluginAppearanceSettings) —
+   deliberately styled close to .plugin-card/.plugin-installed-section
+   rather than introducing a new visual language for what's still "a card
+   per plugin". */
+.plugin-appearance-section {
+    margin-top: 1.5em;
+}
+
+.settings-section-hint {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    margin: 0.25em 0 1em;
+}
+
+.plugin-appearance-card {
+    padding: 0.75em;
+    border-radius: var(--radius-sm);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    margin-bottom: 0.5em;
+}
+
+.plugin-appearance-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    font-weight: 500;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 0;
+}
+
+.link-btn:hover {
+    text-decoration: underline;
 }
 
 .plugin-card {

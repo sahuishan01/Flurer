@@ -7,6 +7,7 @@ import type { InAppShortcutAction } from "../lib/shortcuts";
 import type { Wallpaper } from "../lib/unsplash";
 import { registeredPlugins } from "../lib/plugins";
 import { PluginMarketplace } from "./PluginMarketplace";
+import { PluginAppearanceSettings } from "./PluginAppearanceSettings";
 
 type SettingsCategory = "customization" | "plugins" | string;
 
@@ -144,6 +145,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
               disabledPlugins={props.disabledPlugins}
               onDisabledPluginsChange={props.onDisabledPluginsChange}
               searchQuery={props.searchQuery}
+            />
+            <PluginAppearanceSettings
+              pluginSettings={props.pluginSettings}
+              onPluginSettingsChange={props.onPluginSettingsChange}
+              defaultOpacity={props.uiTintOpacity}
+              defaultBlurPx={props.uiBlurPx}
             />
           </Show>
           <Show when={category().startsWith("plugin-") ? category() : undefined}>

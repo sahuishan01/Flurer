@@ -11,6 +11,14 @@ export interface PluginInfo {
   description: string;
   version: string;
   author: string;
+  // When true, this plugin's own settingsPanel already exposes a
+  // surfaceOpacity/surfaceBlur control (see pluginSettings below) — Core's
+  // generic per-plugin appearance slider in the Settings > Plugins tab is
+  // skipped for it, so there's only ever one UI writing that plugin's
+  // opacity/blur, never two fighting over the same value. Absent/false
+  // means Core renders the generic slider so every plugin gets a working
+  // control even if its author never builds one. See plugin-spec.md.
+  hasCustomAppearanceSettings?: boolean;
   // UI contributions
   viewRailButton?: (props: { active: boolean; onClick: () => void }) => Solid.JSX.Element;
   sidebar?: (props: { currentPath: string; onSelectPath: (path: string) => void }) => Solid.JSX.Element;
@@ -22,6 +30,15 @@ export interface PluginInfo {
     active: boolean;
     dataBgLightness: string;
     settingsLoaded: boolean;
+    // Flurer's current shell opacity/blur (settings.uiTintOpacity/uiBlurPx)
+    // — plugins that want to derive their own value (e.g. "never go below
+    // 0.4") do the math off these rather than hardcoding a base. The
+    // actual per-plugin override, if any, lives in pluginSettings below
+    // and is also what Core applies to this panel's own wrapper element
+    // as --plugin-surface-opacity/--plugin-surface-blur — see
+    // plugin-spec.md for the full contract.
+    baseSurfaceOpacity: number;
+    baseSurfaceBlur: number;
     pluginSettings: any;
     onPluginSettingsChange: (patch: any) => void;
   }) => Solid.JSX.Element;
@@ -33,6 +50,8 @@ export interface PluginInfo {
     active: boolean;
     dataBgLightness: string;
     settingsLoaded: boolean;
+    baseSurfaceOpacity: number;
+    baseSurfaceBlur: number;
     pluginSettings: any;
     onPluginSettingsChange: (patch: any) => void;
   }) => Solid.JSX.Element;
