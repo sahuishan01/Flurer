@@ -967,6 +967,7 @@ function App() {
               data-bg-lightness={sidebarLightness()}
               currentPath={currentPath()}
               onSelectPath={selectSidebarPath}
+              onSelectView={selectView}
               activeView={mainView()}
               favouritePaths={settings.favouritePaths}
               onToggleFavourite={toggleFavourite}

@@ -11,6 +11,7 @@ import {
   MonitorIcon,
   MusicIcon,
   StarIcon,
+  TrashIcon,
   VolumeIcon,
 } from "./icons";
 import type { MainView } from "../lib/view";
@@ -47,6 +48,11 @@ type SidebarProps = {
   // Explorer" — while already in graph mode it focuses that path there
   // instead of switching away; see App.tsx's selectSidebarPath.
   onSelectPath: (path: string) => void;
+  // Recycle Bin lives in the Quick Access list (see the synthetic entry
+  // above the get_quick_access() loop below) rather than a real
+  // filesystem path, so it switches mainView directly instead of going
+  // through onSelectPath — same call ViewRail's own view buttons make.
+  onSelectView: (view: MainView) => void;
   activeView: MainView;
   favouritePaths: string[];
   onToggleFavourite: (path: string) => void;
@@ -249,6 +255,24 @@ export function Sidebar(props: SidebarProps) {
           )}
         </For>
       <div class="sidebar-divider" />
+
+      {/* Fixed first, above the OS-provided Desktop/Documents/Downloads/etc.
+          — not one of those (no real filesystem path, not from
+          get_quick_access), so it's kept visually distinct by position
+          rather than by its own section header. */}
+      <button
+        type="button"
+        class="sidebar-item"
+        classList={{ active: props.activeView === "trash" }}
+        aria-label="Recycle Bin"
+        data-tip="Recycle Bin"
+        onClick={() => props.onSelectView("trash")}
+      >
+        <span class="sidebar-icon">
+          <TrashIcon size={15} />
+        </span>
+        Recycle Bin
+      </button>
 
       <For each={entries()}>
         {(entry) => (

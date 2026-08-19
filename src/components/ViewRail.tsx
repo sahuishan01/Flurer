@@ -1,4 +1,4 @@
-import { FolderIcon, GearIcon, TrashIcon } from "./icons";
+import { FolderIcon, GearIcon } from "./icons";
 import { registeredPlugins } from "../lib/plugins";
 import { For, Show } from "solid-js";
 
@@ -19,17 +19,6 @@ export function ViewRail(props: ViewRailProps) {
         onClick={() => props.onSelectView("explorer")}
       >
         <FolderIcon size={19} />
-      </button>
-
-      <button
-        type="button"
-        class="view-rail-item"
-        classList={{ active: props.activeView === "trash" }}
-        title="Recycle Bin"
-        aria-label="Recycle Bin"
-        onClick={() => props.onSelectView("trash")}
-      >
-        <TrashIcon size={19} />
       </button>
 
       {/* Dynamically render plugin buttons */}
