@@ -1,6 +1,7 @@
 mod archive;
 mod cli;
 mod configs;
+mod dirwatch;
 mod disks;
 mod drag_out;
 mod duplicates;
@@ -10,6 +11,7 @@ mod logging;
 mod network;
 mod plugins;
 mod progress;
+mod searchindex;
 mod shortcuts;
 mod sizecache;
 mod state;
@@ -19,16 +21,19 @@ mod updater;
 
 use archive::{compress_to_zip, extract_archive};
 use cli::take_launch_path;
+use dirwatch::{unwatch_directory, watch_directory};
 use disks::get_disk_topology;
 use drag_out::set_external_drop_allowed;
 use duplicates::find_duplicates;
 use fs::{
     cancel_operation, copy_items, create_file, create_folder, delete_items, get_file_preview, get_path_metadata,
-    get_quick_access, list_directory, list_graph_children, move_items, open_file_with_default, open_terminal_here,
+    get_quick_access, list_directory, list_directory_streamed, list_graph_children, move_items,
+    open_file_with_default, open_terminal_here,
     pick_folder, rename_item, search_content, search_directory,
 };
 use helpers::settings::{get_settings, load_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
+use searchindex::{clear_search_index, rebuild_search_index, search_index_query, search_index_status};
 use sizecache::{clear_folder_size_cache, get_folder_size, get_folder_size_cache_stats, recompute_folder_size};
 use tauri::{Manager, PhysicalSize};
 use tokio::sync::Mutex;
@@ -101,6 +106,7 @@ pub fn run() {
                 shortcuts::show_and_focus_main_window(&app.handle());
             }
             sizecache::init(&app.handle());
+            searchindex::init(&app.handle());
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -127,6 +133,9 @@ pub fn run() {
             get_wallpaper_updated_at,
             search_wallpapers,
             list_directory,
+            list_directory_streamed,
+            watch_directory,
+            unwatch_directory,
             copy_items,
             move_items,
             delete_items,
@@ -138,6 +147,10 @@ pub fn run() {
             get_quick_access,
             list_graph_children,
             search_directory,
+            search_index_status,
+            search_index_query,
+            rebuild_search_index,
+            clear_search_index,
             search_content,
             get_disk_topology,
             get_folder_size,

@@ -1003,6 +1003,11 @@ function App() {
                   onGroupFoldersFirstChange={updateGroupFoldersFirst}
                   groupBy={settings.groupBy}
                   onGroupByChange={updateGroupBy}
+                  splitPath={settings.splitViewPath}
+                  onSplitPathChange={(path) => {
+                    setSettings("splitViewPath", path);
+                    persistSettings();
+                  }}
                 />
               </div>
             </Show>
@@ -1075,6 +1080,16 @@ function App() {
                 <SettingsPanel
                   data-bg-lightness={fileListLightness()}
                   onClose={closeSettings}
+                  lastCategory={settings.lastSettingsCategory}
+                  searchIndexRoots={settings.searchIndexRoots ?? []}
+                  onSearchIndexRootsChange={(roots) => {
+                    setSettings("searchIndexRoots", roots);
+                    persistSettings();
+                  }}
+                  onCategoryChange={(category) => {
+                    setSettings("lastSettingsCategory", category);
+                    persistSettings();
+                  }}
                   searchQuery={searchQuery()}
                   background={settings.background}
                   onBackgroundChange={updateBackground}

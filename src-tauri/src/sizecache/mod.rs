@@ -503,7 +503,7 @@ fn is_windows_volatile_path(path: &Path) -> bool {
     false
 }
 
-fn is_ignored_watcher_path(path: &Path) -> bool {
+pub(crate) fn is_ignored_watcher_path(path: &Path) -> bool {
     is_internal_app_path(path) || is_windows_volatile_path(path)
 }
 

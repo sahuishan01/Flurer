@@ -108,6 +108,18 @@ pub struct Settings {
     pub ui_tint_opacity: f32,
     pub ui_blur_px: f32,
     pub last_main_view: LastMainView,
+    // Which settings category was open when the settings page was last
+    // left. Opaque to the backend — the frontend owns the category ids.
+    #[serde(default)]
+    pub last_settings_category: String,
+    // Roots the name-search index covers; empty means no index. Persisted
+    // here so the roots survive a restart even though the index itself
+    // lives in its own file (search_index_v1.json).
+    #[serde(default)]
+    pub search_index_roots: Vec<String>,
+    // Second explorer pane's folder; None when the view isn't split.
+    #[serde(default)]
+    pub split_view_path: Option<String>,
     pub persist_graph_state: bool,
     pub graph_state: Option<GraphState>,
     pub favourite_paths: Vec<String>,
@@ -209,6 +221,9 @@ impl Default for Settings {
             ui_tint_opacity: 0.35,
             ui_blur_px: 12.0,
             last_main_view: LastMainView::default(),
+            last_settings_category: String::new(),
+            search_index_roots: Vec::new(),
+            split_view_path: None,
             persist_graph_state: true,
             graph_state: None,
             favourite_paths: Vec::new(),

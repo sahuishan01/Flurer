@@ -1,6 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { CustomizationSettings } from "./CustomizationSettings";
 import { UpdatesView } from "./UpdatesView";
+import { SearchIndexSettings } from "./SearchIndexSettings";
 import { CloseIcon } from "./icons";
 import type { BackgroundSettings, Theme } from "../lib/settings";
 import type { InAppShortcutAction } from "../lib/shortcuts";
@@ -54,16 +55,30 @@ type SettingsPanelProps = {
   onDisabledPluginsChange: (disabled: string[]) => void;
   pluginSettings: Record<string, any>;
   onPluginSettingsChange: (pluginId: string, patch: any) => void;
+  lastCategory: string;
+  onCategoryChange: (category: string) => void;
+  searchIndexRoots: string[];
+  onSearchIndexRootsChange: (roots: string[]) => void;
   "data-bg-lightness"?: string;
 };
 
 export function SettingsPanel(props: SettingsPanelProps) {
-  const [category, setCategory] = createSignal<SettingsCategory>("customization");
+  // Seeded from the persisted category so reopening settings returns to the
+  // section the user was last in (see lastSettingsCategory in settings.ts).
+  const [category, setCategory] = createSignal<SettingsCategory>(
+    props.lastCategory || "customization",
+  );
+
+  const selectCategory = (id: SettingsCategory) => {
+    setCategory(id);
+    props.onCategoryChange(id);
+  };
 
   const categories = () => {
       const list = [
         { id: "customization", label: "Customization" },
         { id: "plugins", label: "Plugins" },
+        { id: "search-index", label: "Search index" },
         { id: "updates", label: "Updates" },
       ];
     for (const p of registeredPlugins()) {
@@ -90,7 +105,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
               <button
                 type="button"
                 classList={{ active: category() === entry.id }}
-                onClick={() => setCategory(entry.id)}
+                onClick={() => selectCategory(entry.id)}
               >
                 {entry.label}
               </button>
@@ -164,6 +179,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
                 onPluginSettingsChange: (patch: any) => props.onPluginSettingsChange(id, patch)
               });
             }}
+          </Show>
+          <Show when={category() === "search-index"}>
+            <SearchIndexSettings
+              roots={props.searchIndexRoots}
+              onRootsChange={props.onSearchIndexRootsChange}
+            />
           </Show>
           <Show when={category() === "updates"}>
             <UpdatesView />

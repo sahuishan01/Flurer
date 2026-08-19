@@ -37,6 +37,17 @@ export type Settings = {
   uiTintOpacity: number;
   uiBlurPx: number;
   lastMainView: LastMainView;
+  // Which settings category was open when the settings page was last left,
+  // so reopening settings lands back where the user was instead of resetting
+  // to Customization. Plugin-provided categories are stored as `plugin-<id>`;
+  // SettingsPanel falls back to "customization" if that plugin is gone.
+  lastSettingsCategory: string;
+  // Roots the name-search index covers. Empty means no index, and search
+  // falls back to walking the tree per query (see searchindex/mod.rs).
+  searchIndexRoots: string[];
+  // Second explorer pane's folder, or null when the view isn't split.
+  // Persisted so a split workspace survives a restart.
+  splitViewPath: string | null;
   persistGraphState: boolean;
   graphState: GraphState | null;
   favouritePaths: string[];
@@ -110,6 +121,9 @@ export const DEFAULT_SETTINGS: Settings = {
   uiTintOpacity: 0.35,
   uiBlurPx: 12,
   lastMainView: "explorer",
+  lastSettingsCategory: "customization",
+  searchIndexRoots: [],
+  splitViewPath: null,
   persistGraphState: true,
   graphState: null,
   favouritePaths: [],
