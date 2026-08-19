@@ -466,6 +466,20 @@ body {
 }
 
 .view-pane {
+    /* display:flex was missing here — every other link in this chain
+       (.view-stack, .explorer-view, .explorer-content) already uses this
+       same display:flex + flex:1 + min-width:0 + min-height:0 recipe.
+       Without it, a child like .settings-page (flex:1, overflow:hidden)
+       never gets a bounded height from this parent, so it just grows to
+       fit all its content and that oversized box overflows into
+       .view-pane's own overflow:auto instead — meaning .view-pane becomes
+       the ONE scroll container for everything inside it, dragging
+       .settings-nav and .settings-content along together as a single
+       blob instead of each scrolling within its own bounded box. Same
+       latent issue exists for Explorer/Trash but is invisible there since
+       they only have one scrollable region, not two independent
+       side-by-side ones. */
+    display: flex;
     flex: 1;
     min-width: 0;
     min-height: 0;
