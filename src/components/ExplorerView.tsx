@@ -39,7 +39,11 @@ export function ExplorerView(props: ExplorerViewProps) {
   // someone who has moved the mouse away before pressing Delete.
   const [activePane, setActivePane] = createSignal<Pane>("primary");
 
-  const isSplit = () => props.splitPath !== null;
+  // Loose null check on purpose: a settings file written before splitViewPath
+  // existed deserializes the field as undefined rather than null, and a
+  // strict `!== null` would read that as "split open" and lay out the
+  // explorer for a second pane that never renders.
+  const isSplit = () => props.splitPath != null;
 
   /**
    * Parent of `path`, or null if it is already a root. parentDir() alone

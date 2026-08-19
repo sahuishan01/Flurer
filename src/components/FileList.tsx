@@ -415,10 +415,15 @@ export function FileList(props: FileListProps) {
 
   const streamKeyFor = (id: number) => `${watchKey}#${id}`;
 
-  function startStreamedListing(silent: boolean) {
+  async function startStreamedListing(silent: boolean) {
     const id = ++listingRequestId;
     activeListing = { id, path: props.path, silent, nextSeq: 0, buffer: [] };
     setListingInFlight(true);
+    // Must not race the listener — see chunkListenerReady above. Usually
+    // already resolved; only the first listing after mount actually waits.
+    await chunkListenerReady;
+    // A newer request started while waiting, so this one is already dead.
+    if (activeListing?.id !== id) return;
     invoke("list_directory_streamed", {
       // The request id is part of the key so chunks from a superseded
       // request for the *same* folder (a rapid re-list) can't be mistaken
@@ -477,20 +482,35 @@ export function FileList(props: FileListProps) {
     setUnreadableEntries(chunk.unreadableEntries);
   }
 
-  onMount(() => {
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    listen<DirectoryChunk>("directory-chunk", (event) => handleDirectoryChunk(event.payload)).then((fn) => {
-      if (disposed) {
-        fn();
-        return;
-      }
-      unlisten = fn;
+  // Registration is started here in the component body, not in onMount, and
+  // every listing waits on it before asking the backend for anything.
+  //
+  // listen() completes asynchronously, but the backend reads a small folder
+  // and emits all of its chunks within microseconds of the invoke arriving.
+  // Firing the request before this promise settles drops the entire listing
+  // on the floor — and because only the `done` chunk clears listingInFlight,
+  // the list then stays blank forever with its empty-state message
+  // suppressed. (The folder-size listener below documents the same race.)
+  let chunkUnlisten: (() => void) | undefined;
+  let chunkListenerDisposed = false;
+  const chunkListenerReady = listen<DirectoryChunk>("directory-chunk", (event) =>
+    handleDirectoryChunk(event.payload),
+  )
+    .then((fn) => {
+      if (chunkListenerDisposed) fn();
+      else chunkUnlisten = fn;
+    })
+    .catch((err) => {
+      // Without a listener no chunk can ever arrive, so fail the pending
+      // request loudly rather than leaving a blank list spinning.
+      activeListing = null;
+      setListingInFlight(false);
+      setError(`Couldn't listen for directory updates: ${err}`);
     });
-    onCleanup(() => {
-      disposed = true;
-      unlisten?.();
-    });
+
+  onCleanup(() => {
+    chunkListenerDisposed = true;
+    chunkUnlisten?.();
   });
 
   // `silent` keeps the current rows on screen while the new listing is
