@@ -1,130 +1,312 @@
-# Flurer — Handoff
+# Flurer — Handoff: reintroducing the 5 reverted features
 
-Current version: **0.4.63** (tagged, pushed, CI green).
+Current version: **0.4.102** (tagged, pushed). Feature 1 of 5 shipped;
+waiting on user confirmation before feature 2.
 
-## What Flurer is
+If you're picking this up cold: read this whole file before touching code.
+It exists so you don't have to re-read the conversation that produced it.
 
-Windows file manager. Tauri v2 (Rust) backend + SolidJS frontend. Goal is small
-binary / low memory / fast on large directories — see
-`.claude/skills/flurer-conventions/SKILL.md` for the architecture rules
-(Rust does the work, Solid only renders; commands go through
-`#[tauri::command]`; state lives in `AppState`/`Settings`).
+## The story, honestly
 
-## Dev-box constraint (read this before "fixing" a build failure)
+v0.4.97 shipped five features in one commit (live directory watching,
+virtualized file list, streamed directory listings, a name-search index,
+split view) and the app got stuck on the launch spinner forever — every
+launch, on the user's machine. Three attempts to fix it live
+(v0.4.98 wrong-diagnosis fix, v0.4.99 plain re-push, v0.4.100 diagnostic
+logging + DevTools) all shipped without ever actually being tested by the
+user, because each one was reasoned about from the code rather than from
+real evidence. **The root cause of that hang was never found.**
 
-This Linux ARM box **cannot** `cargo check`/`cargo build` the real crate —
-system glib is 2.68.4, Tauri needs >= 2.70. This is environmental, not a bug.
+At v0.4.101 the whole thing was reverted (via `git revert`, not
+force-push — every one of those commits is still in history, nothing was
+destroyed) back to a byte-for-byte match of v0.4.96, which is confirmed
+working. Verify this claim yourself before trusting anything else here:
 
-Workaround used throughout: isolated scratch crates under
-`/tmp/claude-*/.../scratchpad/` with matching deps (no tauri) — extract the
-real function body verbatim (Python string slicing out of the actual source
-file, not retyped) into the scratch crate and run `cargo test`/`cargo run`
-against it. Also run `rustfmt --edition 2021 --emit stdout <file> > /dev/null`
-on the real file as a fast syntax check (doesn't catch type errors, catches
-typos/braces). GitHub Actions' Windows build is the real compile gate —
-`cargo test` does NOT run in CI, so scratch-crate tests only prove the logic
-locally, not that it compiles for real.
+```
+git diff v0.4.96..v0.4.101 -- . ':(exclude).github/workflows'
+```
 
-## Release ritual (follow exactly, every time)
+That must return empty. The only kept difference is a CI fix
+(`b7f88e3`) that stops a release commit from triggering two duplicate
+builds — it only touches `.github/workflows/*.yml`, never ran on the
+machine that hung, and must **not** be reverted or touched while
+reintroducing features.
 
-1. Implement the fix.
-2. `npx tsc --noEmit -p .` clean.
-3. `npm run build` (or `bun run build`) clean.
-4. Scratch-crate verification for any touched Rust logic + `rustfmt` parse check.
-5. `git add` the specific changed files (not `-A`).
-6. Commit with a real description of the fix.
+v0.4.102 reintroduced feature 1 (virtualization) alone, confirmed by the
+user to still be pending verification as of this writing.
+
+## The rule for the rest of this work
+
+**One feature per version. Bump, commit, push, and tag immediately after
+implementing each one — do not wait to be asked, and do not batch two
+features into one push.** The user is on a machine that can't run this
+GUI (dev box has no Windows/GUI), so a pushed, tagged, CI-built installer
+is the only way they can ever verify anything. Not pushing after
+implementing is not being cautious, it's just leaving them blocked.
+
+After each push: tell the user what shipped and that you're waiting for
+their confirmation before starting the next feature. Do not start the next
+feature's implementation until they've confirmed the current one works —
+if a hang or crash happens, you want it isolated to one small diff, not
+buried in five.
+
+**If something breaks:** do not guess-and-patch again — that's exactly
+what produced three wasted releases the first time. Use
+`superpowers:systematic-debugging`. Get real evidence (the log file at
+`%LOCALAPPDATA%\.flurer\logs`, DevTools console — see the "if it breaks
+again" section below) before writing a fix. If 2+ live fix attempts fail,
+revert that one feature's commit (same `git revert` pattern used for
+v0.4.101) rather than attempting a third.
+
+## Where the original code lives
+
+All five features were originally written in one squashed commit:
+**`38c8f08`** — `feat: live watching, virtualized list, streamed
+listings, search index, split view`. It's still in history (reverted, not
+deleted). Two related commits:
+
+- **`f6310d6`** — fixes a real race in the streamed-listing chunk
+  listener (chunks arriving before `listen()` resolves, dropping the
+  entire listing forever). Genuinely correct, must be folded into feature
+  2 *from the start* this time, not discovered after the fact.
+- **`1093683`** — diagnostic-only startup log markers + enabling the
+  `devtools` Cargo feature. Not a feature to reintroduce as-is, but its
+  *technique* (stage-marker logging around anything new that runs during
+  `.setup()`) is exactly what feature 5 needs, deferred-not-removed.
+
+**Do not blind-cherry-pick `38c8f08`.** It touches `FileList.tsx`,
+`App.tsx`, `App.css`, `lib/settings.ts`, `state/mod.rs`, and `lib.rs` with
+all five features interleaved in the same hunks. Cherry-picking will pull
+in code for features you haven't reached yet, un-isolating the very thing
+this whole exercise exists to avoid. Instead, for each feature:
+
+```
+git show 38c8f08:<path>   # read the old file's full content for reference
+```
+
+then hand-apply just that feature's pieces to the *current* file with
+Edit, the same way feature 1 was done. Compiling/type-checking after each
+feature is what catches you if you missed a piece.
+
+## Feature 1 — virtualized file list (DONE, v0.4.102)
+
+Frontend-only (`FileList.tsx`, `App.css`). No Rust. Cannot affect startup
+since `FileList` only mounts after `appReady()` is already true.
+
+Two deliberate deviations from the original `38c8f08` version, both
+improvements — keep them if re-deriving from `38c8f08` again for any
+reason:
+
+1. The `foldersNeedingSize` memo + its effect were moved to *after* the
+   virtualization block (right after `scrollRowIntoView`), not left in
+   their original position before `groupedSections`/`indexByPath`. The
+   original order forward-referenced `visibleItems()` from a memo defined
+   ~300 lines earlier in the file — it happened to work because Solid
+   defers a memo's first computation past the synchronous render phase,
+   but that's relying on scheduling semantics no one should have to
+   reason about. Moving it removes the ambiguity entirely.
+2. Zebra striping uses an explicit `.file-row-alt` class derived from each
+   row's real index, not `:nth-child(even)` — spacer rows standing in for
+   off-screen items would otherwise shift `:nth-child` parity every
+   scroll and make the stripes visibly crawl.
+
+## Feature 2 — streamed directory listings (NEXT)
+
+Files: `src-tauri/src/fs/mod.rs` (adds `list_directory_streamed` command,
+splits `list_directory` into `read_dir_listing` + `sort_entries` so both
+the sync and streamed paths share one read/sort implementation),
+`src/components/FileList.tsx` (chunk accumulator, replaces the single
+`invoke("list_directory", ...)` call for the plain-listing branch of
+`refresh()`), `src-tauri/src/lib.rs` (register the new command).
+
+**Critical: fold in the `f6310d6` fix from the start.** The chunk
+listener (`listen("directory-chunk", ...)`) must have its registration
+awaited before the first `invoke("list_directory_streamed", ...)` is
+ever sent — the backend can emit all of a small folder's chunks within
+microseconds of the invoke landing, faster than `listen()`'s promise
+resolves. Structure it as: start `listen()` in the component body (not
+inside `onMount`), store the promise, `await` that promise at the top of
+`startStreamedListing()` before calling `invoke()`. See `1093683`'s
+commit message and `f6310d6`'s diff for the exact original shape of this
+fix — but write it in from day one this time, don't ship the race and
+fix it in a follow-up version like last time.
+
+No `.setup()`-time Rust code — the streamed command only runs when a
+`FileList` actually requests a listing, well after the app is already
+up. Low risk to startup, same reasoning as feature 1.
+
+Sort chunks **after** sorting the full listing, never in read order —
+streaming raw read order would let rows land wrong and then jump once
+sorted, which is worse than the synchronous version.
+
+## Feature 3 — live directory watching
+
+New file: `src-tauri/src/dirwatch.rs` (non-recursive, ~250ms-debounced
+watch per open folder, keyed by an opaque per-`FileList`-instance id so
+split-view panes and multiple windows don't clobber each other's watch).
+Commands `watch_directory`/`unwatch_directory`, registered in `lib.rs`.
+Frontend: `FileList.tsx` gets a `createUniqueId()`-based watch key, an
+effect that calls `watch_directory` on navigation, and a
+`listen("directory-changed", ...)` handler that does a *silent* refresh
+(keeps current rows on screen, no blank-then-fill) so a watcher-triggered
+re-list doesn't visibly flash.
+
+No `.setup()`-time init — watches are only registered per-request from
+the frontend, never during app startup. Low risk to the launch hang.
+
+## Feature 4 — split view
+
+Files: `src/components/ExplorerView.tsx` (rewritten to host two panes,
+shared clipboard, an explicit `activePane` signal so document-level
+keyboard shortcuts and OS file-drops apply to only one pane — both
+`FileList`s bind those to `document`, so without an active-pane concept
+one Delete keypress would fire in both), `src/components/FileList.tsx`
+(new `active?: boolean` prop, defaults to true, gates the keydown handler
+and the OS-drop handler), `src/App.tsx` + `src/lib/settings.ts` +
+`src-tauri/src/state/mod.rs` (persist `splitViewPath: string | null` /
+`split_view_path: Option<String>`).
+
+**Known gotcha already found once:** the split-open check must be a loose
+`props.splitPath != null`, not `!== null`. A settings file written before
+this field existed deserializes it as `undefined`, and a strict
+`!== null` reads `undefined` as "split is open," laying out the explorer
+for a second pane that never renders. This was caught and fixed in
+`f6310d6` — make sure it's in the code from the start this time, it's a
+one-line difference (`!=` vs `!==`) that's easy to lose when re-deriving
+by hand.
+
+Frontend-only for the pane mechanics; the only Rust touch is the new
+settings field, which is inert data with no `.setup()`-time behavior.
+Low risk.
+
+## Feature 5 — search index (LAST, highest risk, needs a real change)
+
+New module: `src-tauri/src/searchindex/mod.rs` (flat in-memory `Vec` of
+indexed entries — deliberately not a database, see the module's own doc
+comment on `38c8f08` for the memory/simplicity tradeoff reasoning — with
+a recursive watcher per indexed root, persisted to
+`search_index_v1.json`). New commands `search_index_status`,
+`search_index_query`, `rebuild_search_index`, `clear_search_index`. New
+settings field `searchIndexRoots: string[]` /
+`search_index_roots: Vec<String>`. New component
+`src/components/SearchIndexSettings.tsx`, wired into `SettingsPanel.tsx`
+as a new "Search index" category. `FileList.tsx`'s search path uses the
+index for recursive name search when the current folder is covered by an
+indexed root.
+
+**This is the one piece that ran new code synchronously inside
+`.setup()`** — the original had `searchindex::init(&app.handle())` called
+directly in `lib.rs`'s setup closure, right after `sizecache::init(...)`.
+We never got real evidence about whether this specifically caused the
+hang (the diagnostic build that would have told us was never actually
+run before the user asked for a revert), but it's the only one of the
+five reverted pieces that touches startup at all, which makes it the
+prime remaining suspect by elimination.
+
+**Do this differently from the original:** don't call `searchindex::init`
+synchronously in `.setup()`. Spawn it off the setup thread instead — e.g.
+`std::thread::spawn(move || searchindex::init(&app_handle))`, or via
+`tauri::async_runtime::spawn` if it needs to stay on Tokio — so it is
+*categorically impossible* for this feature to block app startup,
+regardless of what it does internally. `searchindex::init` only reads a
+persisted index file and starts a filesystem watcher; nothing it does
+needs to complete before the window is usable, so deferring it costs
+nothing.
+
+Also worth doing for this one specifically, given it's the only genuine
+suspect: keep lightweight log markers around it (`log::info!` before and
+after the spawn, and inside `init` at its major steps), in the same style
+as `1093683`, so if a hang ever does recur, the very next log file
+pinpoints it instantly instead of requiring another round of "can you
+send me the log" back-and-forth.
+
+## If it breaks again (read before writing a live fix)
+
+1. Don't reason about it from the code alone — that's what produced three
+   dead-end pushes the first time.
+2. Ask the user for `%LOCALAPPDATA%\.flurer\logs\<latest>.log` and, if the
+   `devtools` Cargo feature is enabled for that build, the DevTools
+   console (`Ctrl+Shift+I` or right-click → Inspect).
+3. If the version in question doesn't have log markers around the new
+   code, add them, ship *that alone* as a diagnostic version, and wait for
+   the log before writing a fix.
+4. Only write a fix once you can point at the specific line/await that
+   didn't return. If you can't, say so plainly rather than shipping a
+   guess.
+5. Two failed live fix attempts on the same feature → revert that
+   feature's commit (not the whole stack) and reconsider the approach,
+   per `superpowers:systematic-debugging`'s "3+ fixes failed" rule — don't
+   wait for a third attempt to burn another version on a machine the user
+   can't debug interactively.
+
+## Rust-not-buildable-locally
+
+Same constraint as the rest of this project: this dev box's `cargo
+check`/`cargo build` fails on `glib-sys` (system glib 2.68.4, Tauri needs
+>= 2.70) and the app targets Windows anyway. `bunx tsc --noEmit` and
+`bun run build` are the only things you can verify locally. **Every Rust
+change is unverified until GitHub Actions compiles it** — say so plainly,
+don't imply Rust changes were "checked" on the strength of a passing
+frontend build.
+
+## Release ritual (every single version bump, no exceptions)
+
+1. Implement one feature.
+2. `bunx tsc --noEmit` clean.
+3. `bun run build` clean.
+4. `git status --short` — confirm only the files you meant to touch
+   changed. This caught nothing surprising so far, but it's cheap
+   insurance against an accidental leftover edit.
+5. `git add -A && git commit` with a real description (see feature 1's
+   commit message on `main` for the level of detail expected — what
+   shipped, what's deliberately different from the original attempt, and
+   an explicit statement that it's low/no risk to the startup hang or why
+   it's the one piece that might not be).
+6. `git push origin main`.
 7. Bump version in **four** files, kept in sync:
    - `package.json`
-   - `src-tauri/Cargo.toml`
-   - `src-tauri/Cargo.lock` (the `flurer` package block — regex, don't hand-edit lockfile hashes)
    - `src-tauri/tauri.conf.json`
-8. Commit "bump version to X.Y.Z".
-9. `git push origin main`.
-10. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-11. `ScheduleWakeup(~600s)` to check CI (Windows build takes ~10 min).
-12. On success, ntfy POST to `agent-releases` per `~/.claude/CLAUDE.md` (Bearer
-    token + title `Flurer vX.Y.Z Released (<hostname>)`, bulleted body). Only
-    ever notify `agent-releases` on a *verified* successful build — never on
-    start, never on failure (report failures in chat instead, via check-run
-    annotations, since job logs 403 without admin rights):
-    ```
-    curl .../repos/sahuishan01/Flurer/commits/<sha>/check-runs
-    curl .../repos/sahuishan01/Flurer/check-runs/<id>/annotations
-    ```
+   - `src-tauri/Cargo.toml`
+   - `src-tauri/Cargo.lock` (only the `flurer` package's own `version =`
+     line — sed by exact line number, never hand-edit dependency hashes)
+8. `git commit -m "bump version to X.Y.Z"`, `git push origin main`.
+9. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+10. Monitor the `Build` (main) and `Release` (tag) Actions runs — GitHub's
+    unauthenticated API is rate-limited to 60 req/hour, so poll no more
+    often than every ~3 minutes (a `Monitor` with `sleep 180` between
+    checks has worked fine throughout this session). `git ls-remote
+    origin refs/heads/main refs/tags/vX.Y.Z` is a free way to confirm a
+    push/tag landed without touching the rate-limited API at all.
+11. Tell the user what shipped, that it's on the release page
+    (`https://github.com/sahuishan01/Flurer/releases/tag/vX.Y.Z`), and
+    that you're waiting for their confirmation before the next feature.
+12. **Only send the `agent-releases` ntfy notification once the user has
+    confirmed the app actually works**, not on a green CI run alone — CI
+    green only proves it compiles, and this whole saga started with a
+    release that compiled fine and was unusable. `agent-tasks` (not
+    `agent-releases`) is fine for routine "pushed, waiting on you"
+    updates if the user's global CLAUDE.md conventions call for it.
 
-## Recent work (v0.4.61 → v0.4.63)
+## Settings compatibility (verified safe, don't re-litigate)
 
-- **v0.4.61 — folder-size cache stopped surviving drive switches.** Split the
-  size cache into `roots` (persisted, user-visited, cap 10k) and `subdirs`
-  (memory-only walk byproducts, cap 50k) in `src-tauri/src/sizecache/mod.rs`,
-  moved persistence to its own `size_cache_v2.json`, added `flush()` on app
-  exit (wired in `src-tauri/src/lib.rs`), fixed folder-watch to watch the
-  *parent* dir instead of one watch per row. Frontend (`FileList.tsx`) no
-  longer prunes `folderSizes` down to just the currently-listed folder.
-  - Self-caught bug: raising the cache caps + evicting one-at-a-time at the
-    limit made a 55k-entry test take 31s — fixed by batching eviction down to
-    a `max * 9/10` low-water mark (0.20s after).
+Settings are stored per-version:
+`~/.config/flurer/<version>/settings.json` (see
+`src-tauri/src/helpers/settings.rs`). On a version bump, `load_settings`
+carries forward the highest *older* version's settings.json it can find.
+New fields added by a feature (e.g. `splitViewPath`, `searchIndexRoots`)
+are plain optional/defaulted fields on both sides
+(`#[serde(default)]` in Rust, matching defaults in
+`DEFAULT_SETTINGS` in `lib/settings.ts`) — a settings file from a version
+that doesn't know about a field just omits it, and Rust's serde defaults
+fill it in. This was already verified working across the v0.4.96 →
+v0.4.101 revert and back; no special handling needed when adding fields
+for the remaining features.
 
-- **v0.4.62 — one unreadable entry (e.g. under `C:\Program Files`) failed the
-  whole directory listing.** `list_directory` now returns `DirListing { entries,
-  unreadable }` and skips per-entry failures instead of bailing the whole
-  `read_dir` loop (`src-tauri/src/fs/mod.rs`). Added `describe_dir_error()` for
-  human-readable io error messages. Frontend shows an inline notice when
-  `unreadable > 0` (`FileList.tsx`, `.file-list-notice` in `App.css`, using the
-  existing `--text-secondary` token — don't reach for `--text-muted`, it
-  doesn't exist in this codebase).
-  - I initially misdiagnosed the root cause as `entry.metadata()` failing on a
-    broken symlink; wrote a test, it disproved that. What shipped is
-    defensive hardening (tolerate any per-entry read failure), not a confirmed
-    root-cause fix. If Access Denied reports resurface, ask whether it happened
-    viewing the folder directly or after clicking into a child (e.g.
-    WindowsApps) — that's the open diagnostic thread.
+## Current git state
 
-- **v0.4.63 — Recalculate only worked on the first folder clicked, and most
-  didn't show a progress row.** Root cause was two compounding bugs in
-  `src-tauri/src/sizecache/mod.rs`:
-  1. `pending` was a `HashSet<PathBuf>` — any path already pending (silently
-     being walked) made `enqueue_job` a no-op, so an explicit Recalculate on it
-     did *nothing visible*. Changed `pending` to
-     `HashMap<PathBuf, Option<TrackedJob>>` so a later Recalculate can *adopt*
-     an in-flight silent walk (populate the tracking slot) instead of being
-     dropped.
-  2. The revalidation check treated an unreadable mtime (`0`) as "changed",
-     so any folder whose mtime read failed got silently re-walked on *every*
-     `get_folder_size` call, forever — filling `pending` and starving real
-     clicks. Extracted as `needs_revalidation(current, cached)`, now requires
-     `current_mtime > 0` before treating it as stale.
-  - Verified via scratch crate replaying: N distinct Recalculates all get
-    progress rows and complete; Recalculate on an already-walking folder gets
-    adopted (visible, no duplicate walk); duplicate clicks don't strand
-    tracking; channel-full backs `pending` out cleanly.
-
-## Answered but not yet asked-about again
-
-- **Does a whole-drive Recalculate cause subfolder re-walks on navigation?**
-  No — the recursive walk populates `subdirs` for every nested dir via
-  `record_subdir`, so navigating in afterward is a cache hit
-  (`lookup_cached()`) that promotes the entry into `roots`. Caveat: the
-  `subdirs` tier caps at 50,000 entries with LRU eviction, so on a very large
-  drive, folders scanned early in the walk can age out and get recomputed
-  once. Also: directory mtime doesn't move when something nested *deeper*
-  changes — the file watcher catches that live, but a change made while
-  Flurer was closed needs a manual Recalculate to be noticed.
-
-## Known follow-ups (not yet done, not yet asked for)
-
-- `MAX_PENDING_JOBS` is 20 in `sizecache/mod.rs`. Selecting/recalculating more
-  than ~20 folders at once silently drops the overflow (backs out cleanly, no
-  crash, but no user feedback either). Worth raising the cap or surfacing a
-  "N more queued" indicator if bulk recalculation becomes a real workflow.
-- `--text-secondary` is defined twice: as a font-size in `App.css:23`
-  (`--text-secondary: 0.875em;`) and as a color in `theme.css` (multiple
-  `!important` overrides). Currently harmless because the color definition
-  wins, but it's a latent naming collision worth renaming one of them out of.
-
-## Working tree at handoff time
-
-`git status` shows uncommitted changes to `src/App.css`,
-`src/components/ContextMenu.tsx`, `src/components/PluginMarketplace.tsx` —
-these predate this session's work and were not touched or reviewed here.
-Check what they are before committing/discarding.
+`main` is at `cfd7954` ("feat: reintroduce virtualized file list (1/5,
+frontend-only)"), tag `v0.4.102` points at the same commit. Working tree
+is clean. Tasks 8–11 (streamed listings, live watching, split view,
+search index) are tracked as pending in the task list if your harness
+carried that over — if not, this file is the source of truth for what's
+left and in what order.
