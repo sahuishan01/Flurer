@@ -1,7 +1,9 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-Current version: **0.4.102** (tagged, pushed). Feature 1 of 5 shipped;
-waiting on user confirmation before feature 2.
+Current version: **0.4.104** (tagged, pushed; v0.4.104 itself was an
+unrelated updater fix, not one of the 5 features — see git log). Features
+1 and 2 of 5 shipped and confirmed working by the user. Feature 3 (live
+directory watching) implemented and about to ship as v0.4.105.
 
 If you're picking this up cold: read this whole file before touching code.
 It exists so you don't have to re-read the conversation that produced it.
@@ -32,8 +34,9 @@ builds — it only touches `.github/workflows/*.yml`, never ran on the
 machine that hung, and must **not** be reverted or touched while
 reintroducing features.
 
-v0.4.102 reintroduced feature 1 (virtualization) alone, confirmed by the
-user to still be pending verification as of this writing.
+v0.4.102 reintroduced feature 1 (virtualization) alone — confirmed working.
+v0.4.103 reintroduced feature 2 (streamed listings) alone — also confirmed
+working.
 
 ## The rule for the rest of this work
 
@@ -139,17 +142,26 @@ Sort chunks **after** sorting the full listing, never in read order —
 streaming raw read order would let rows land wrong and then jump once
 sorted, which is worse than the synchronous version.
 
-## Feature 3 — live directory watching
+## Feature 3 — live directory watching (DONE, shipping as v0.4.105)
 
-New file: `src-tauri/src/dirwatch.rs` (non-recursive, ~250ms-debounced
+New file: `src-tauri/src/dirwatch.rs` (non-recursive, 250ms-debounced
 watch per open folder, keyed by an opaque per-`FileList`-instance id so
-split-view panes and multiple windows don't clobber each other's watch).
-Commands `watch_directory`/`unwatch_directory`, registered in `lib.rs`.
-Frontend: `FileList.tsx` gets a `createUniqueId()`-based watch key, an
-effect that calls `watch_directory` on navigation, and a
-`listen("directory-changed", ...)` handler that does a *silent* refresh
-(keeps current rows on screen, no blank-then-fill) so a watcher-triggered
-re-list doesn't visibly flash.
+split-view panes and multiple windows don't clobber each other's watch —
+this file already existed as an uncommitted draft when this session
+picked the work back up; it matched the plan below as-is and was wired
+in rather than rewritten). Commands `watch_directory`/`unwatch_directory`,
+registered in `lib.rs`. Frontend: `FileList.tsx` reuses the existing
+`streamId` (`createUniqueId()`, already present for the chunk listener)
+as its watch key, a `createEffect` that calls `watch_directory` on every
+`props.path` change, and a `listen("directory-changed", ...)` handler
+that calls `startStreamedListing(true)` — the silent-refresh path that
+was stubbed out (buffer field, `silent` flag) back in feature 2 for
+exactly this. Both the watch effect and the change listener are skipped
+while `isSearching()`/`isContentSearch()` are true — the watch tracks the
+current folder's plain listing, not the current search query, and a
+watcher firing mid-search would otherwise stomp search results.
+`unwatch_directory` is called from `onCleanup` so a closed pane's watch
+doesn't leak.
 
 No `.setup()`-time init — watches are only registered per-request from
 the frontend, never during app startup. Low risk to the launch hang.
@@ -304,9 +316,7 @@ for the remaining features.
 
 ## Current git state
 
-`main` is at `cfd7954` ("feat: reintroduce virtualized file list (1/5,
-frontend-only)"), tag `v0.4.102` points at the same commit. Working tree
-is clean. Tasks 8–11 (streamed listings, live watching, split view,
-search index) are tracked as pending in the task list if your harness
-carried that over — if not, this file is the source of truth for what's
-left and in what order.
+`main` is at v0.4.104 (`9f9e656`, an unrelated updater fix). Feature 3
+(live watching) is committed on top of that and about to ship as
+v0.4.105. Remaining: feature 4 (split view), feature 5 (search index).
+This file is the source of truth for what's left and in what order.

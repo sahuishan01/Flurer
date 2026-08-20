@@ -454,6 +454,55 @@ export function FileList(props: FileListProps) {
     chunkUnlisten?.();
   });
 
+  // Live watching: the backend re-emits "directory-changed" (debounced,
+  // no per-file detail — see dirwatch.rs) whenever something on disk
+  // changes under the folder this instance is watching. A matching event
+  // triggers a *silent* re-list (startStreamedListing(true)) so the rows
+  // swap in one go instead of blanking-then-refilling like a normal
+  // navigation. Ignored while a search/content-search is active — the
+  // watch tracks the current folder, not the current query, and a watcher
+  // firing mid-search would otherwise stomp search results with a plain
+  // listing.
+  let directoryChangedUnlisten: (() => void) | undefined;
+  let directoryChangedListenerDisposed = false;
+  listen<{ key: string; path: string }>("directory-changed", (event) => {
+    if (event.payload.key !== streamId || event.payload.path !== props.path) return;
+    if (isSearching() || isContentSearch()) return;
+    startStreamedListing(true);
+  })
+    .then((fn) => {
+      if (directoryChangedListenerDisposed) fn();
+      else directoryChangedUnlisten = fn;
+    })
+    .catch(() => {
+      // Non-fatal: without this listener the folder just never
+      // self-refreshes, same as if watch_directory itself had failed.
+    });
+
+  onCleanup(() => {
+    directoryChangedListenerDisposed = true;
+    directoryChangedUnlisten?.();
+  });
+
+  // Re-arms the watch on every navigation — watch_directory replaces
+  // whatever streamId was watching before in one step, so this never
+  // leaks a watch on the folder just left. Skipped while searching: the
+  // watch exists to keep the plain listing fresh, and search results
+  // don't come from list_directory_streamed at all.
+  createEffect(() => {
+    const path = props.path;
+    if (isSearching() || isContentSearch()) return;
+    invoke("watch_directory", { key: streamId, path }).catch(() => {
+      // Non-fatal — see watch_directory's own doc comment on why a failed
+      // watch (unplugged drive, vanished path) just means no live
+      // updates, not a broken listing.
+    });
+  });
+
+  onCleanup(() => {
+    invoke("unwatch_directory", { key: streamId }).catch(() => {});
+  });
+
   async function refresh() {
     setEntries([]);
     setContentMatches(new Map());

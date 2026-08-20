@@ -1,6 +1,7 @@
 mod archive;
 mod cli;
 mod configs;
+mod dirwatch;
 mod disks;
 mod drag_out;
 mod duplicates;
@@ -19,6 +20,7 @@ mod updater;
 
 use archive::{compress_to_zip, extract_archive};
 use cli::take_launch_path;
+use dirwatch::{unwatch_directory, watch_directory};
 use disks::get_disk_topology;
 use drag_out::set_external_drop_allowed;
 use duplicates::find_duplicates;
@@ -128,6 +130,8 @@ pub fn run() {
             search_wallpapers,
             list_directory,
             list_directory_streamed,
+            watch_directory,
+            unwatch_directory,
             copy_items,
             move_items,
             delete_items,
