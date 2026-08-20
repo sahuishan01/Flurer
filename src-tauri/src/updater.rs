@@ -105,6 +105,17 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
     })
 }
 
+/// Whether the currently-running Flurer executable lives under a
+/// per-machine install root (e.g. `Program Files`) rather than a per-user
+/// one (e.g. `%LOCALAPPDATA%\Programs`). Used to keep a silent update
+/// install in the same scope as the install it's replacing — see the call
+/// site in `download_and_install_update`.
+fn is_per_machine_install() -> bool {
+    std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_lowercase().contains("program files"))
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> Result<(), String> {
     log::info!("download_and_install_update: starting download from {url}");
@@ -162,7 +173,18 @@ pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> 
     let child = if is_msi {
         launch_elevated_and_relaunch("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
     } else {
-        launch_elevated_and_relaunch(&installer_path, &["/S"])
+        // `installMode: "both"` (tauri.conf.json) bundles NsisMultiUser,
+        // which picks per-user vs per-machine itself when no scope is
+        // given on the command line — and since we always elevate to run
+        // the installer (see launch_elevated_and_relaunch below), a silent
+        // run with no scope flag defaults to a *new* per-machine install
+        // rather than overwriting a pre-existing per-user one. That leaves
+        // two copies on disk: the stale per-user exe (still what
+        // current_exe() below points at, so it's what gets relaunched) and
+        // an unused per-machine one. Force the scope to match wherever the
+        // running copy actually lives so this is an in-place upgrade.
+        let scope_flag = if is_per_machine_install() { "/AllUsers" } else { "/CurrentUser" };
+        launch_elevated_and_relaunch(&installer_path, &[scope_flag, "/S"])
     };
 
     match child {
