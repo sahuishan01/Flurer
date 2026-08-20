@@ -6,8 +6,31 @@ on:
   pull_request:
     branches: [main]
 
+# A release pushes main and then the tag seconds later, so without this the
+# same commit gets built twice: once here as CI, once by release.yml for the
+# actual installers. The job-level `if` below covers the usual case; this
+# covers the rest. Both are needed — see the comment on each.
+concurrency:
+  # Deliberately the same group name as release.yml, keyed on the commit, so
+  # the two workflows contend for one slot instead of running side by side.
+  group: flurer-build-${{ github.sha }}
+  # Never cancel a run that is already going. If release.yml somehow started
+  # first, cancelling it would throw away the installers that release depends
+  # on; queueing behind it is the safe direction to fail.
+  cancel-in-progress: false
+
 jobs:
   build:
+    # Skip the version-bump commit of a release. The tag push that follows it
+    # triggers release.yml, which builds the identical tree, so running this
+    # as well is pure duplication.
+    #
+    # "bump version" as a magic commit subject is already load-bearing here —
+    # release.yml's changelog step filters those commits out by the same
+    # prefix — so this relies on an existing convention rather than inventing
+    # one. head_commit is null on pull_request events, which coerces to an
+    # empty string and leaves PR runs unaffected.
+    if: ${{ !startsWith(github.event.head_commit.message, 'bump version') }}
     runs-on: windows-latest
 
     steps:

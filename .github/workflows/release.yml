@@ -8,6 +8,18 @@ on:
 permissions:
   contents: write
 
+# Matches build.yml's group name, keyed on the commit — see the comment
+# there for why. build.yml's job-level `if` skips the common case (a
+# version-bump commit) entirely; this group is the fallback for a tag
+# pushed at some other commit, where both workflows would otherwise target
+# the same tree at once.
+concurrency:
+  group: flurer-build-${{ github.sha }}
+  # This is the workflow that actually produces the installers a release
+  # depends on — never cancel it once running, and definitely don't let a
+  # same-sha CI run pushed after it clobber it.
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: windows-latest
