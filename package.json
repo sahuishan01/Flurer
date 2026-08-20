@@ -1,6 +1,6 @@
 {
   "name": "flurer",
-  "version": "0.4.105",
+  "version": "0.4.106",
   "description": "A lightweight, fast Windows file manager built with Tauri and SolidJS.",
   "type": "module",
   "scripts": {
