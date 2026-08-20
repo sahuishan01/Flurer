@@ -59,18 +59,29 @@ pub fn run() {
     // is captured to %LOCALAPPDATA%/.flurer/{logs,crashes} instead of being
     // lost to a terminal the packaged app doesn't have.
     logging::init();
+    // Diagnostic only — not a fix. The app has been reported stuck on the
+    // launch spinner with no other evidence available (no console access in
+    // a release build, and startup previously logged nothing). These
+    // markers let the next %LOCALAPPDATA%/.flurer/logs file show exactly
+    // how far a hung launch got, instead of guessing again. Remove once the
+    // actual cause is found and fixed.
+    log::info!("startup: run() entered");
 
     tauri::Builder::default()
         .setup(|app| {
+            log::info!("startup: setup() begin");
             let settings = load_settings(&app.handle());
+            log::info!("startup: settings loaded from disk");
             // Settings::default() (and its serde field default) already
             // resolve a missing/never-saved value to shortcuts::DEFAULT_SHORTCUT
             // — an empty string here can only mean the user explicitly
             // cleared it to turn the shortcut off, which register() treats
             // as a no-op rather than silently falling back to the default.
             shortcuts::register(&app.handle(), &settings.global_shortcut);
+            log::info!("startup: global shortcut registered");
             tray::sync_autostart(&app.handle(), settings.launch_at_startup);
             tray::setup(&app.handle())?;
+            log::info!("startup: tray ready");
             let config = Config::load();
             let window_width = settings.window_width.clamp(400, 3840);
             let window_height = settings.window_height.clamp(300, 2160);
@@ -88,6 +99,7 @@ pub fn run() {
                 size_cache: Default::default(),
                 launch_path: std::sync::Mutex::new(launch_path),
             });
+            log::info!("startup: state managed");
             if let Some(window) = app.get_webview_window("main") {
                 // Restore the saved size first so un-maximizing later lands
                 // back on it, then maximize on top if that's how the window
@@ -98,6 +110,7 @@ pub fn run() {
                     window.maximize()?;
                 }
             }
+            log::info!("startup: window sized");
             // The window starts hidden (see tauri.conf.json) so a
             // login-triggered autostart launch never flashes it open before
             // we get a chance to restore its saved size and check for
@@ -105,8 +118,12 @@ pub fn run() {
             if !tray::launched_minimized() {
                 shortcuts::show_and_focus_main_window(&app.handle());
             }
+            log::info!("startup: window shown (or launched minimized)");
             sizecache::init(&app.handle());
+            log::info!("startup: sizecache::init returned");
             searchindex::init(&app.handle());
+            log::info!("startup: searchindex::init returned");
+            log::info!("startup: setup() complete");
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
