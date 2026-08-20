@@ -447,71 +447,6 @@ body {
     overflow: hidden;
 }
 
-/* Split view lays the two panes out on the row axis; each pane keeps the
-   column layout the single-pane case has always used. */
-.explorer-content-split {
-    flex-direction: row;
-    gap: 0.5em;
-}
-
-.explorer-pane {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    /* Without this the panes refuse to shrink below their content width and
-       the wider one pushes the other off screen. */
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-    position: relative;
-}
-
-.explorer-content-split .explorer-pane {
-    border: 1px solid transparent;
-    border-radius: 8px;
-}
-
-/* Which pane keyboard shortcuts and OS drops will act on. Only shown while
-   split — with one pane there is nothing to disambiguate, and a permanent
-   highlight would just be noise. */
-.explorer-content-split .explorer-pane-active {
-    border-color: var(--accent);
-}
-
-.explorer-pane-header {
-    display: flex;
-    align-items: center;
-    gap: 0.4em;
-    padding: 0.25em 0.4em;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.explorer-pane-path {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: rtl;
-    text-align: left;
-    font-size: var(--text-label);
-    opacity: 0.8;
-}
-
-/* Floats over the list rather than taking a row of its own, so adding the
-   split affordance costs no vertical space in the common single-pane case. */
-.explorer-pane-actions {
-    position: absolute;
-    top: 0.3em;
-    right: 0.6em;
-    z-index: 4;
-    opacity: 0.5;
-}
-
-.explorer-pane-actions:hover {
-    opacity: 1;
-}
-
 /* .view-stack/.view-pane are flex items on the row axis (view-rail |
    sidebar | view-stack) as well as the column axis further in — each level
    here previously only set min-height: 0, which stops row content from
@@ -1592,52 +1527,6 @@ button.sidebar-drive,
     margin-top: 0.75em;
 }
 
-.search-index-status {
-    margin-top: 0.75em;
-    font-size: var(--text-label);
-    opacity: 0.8;
-}
-
-.search-index-roots {
-    list-style: none;
-    margin: 0.6em 0 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3em;
-}
-
-.search-index-roots li {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
-    padding: 0.3em 0.5em;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background-color: color-mix(in srgb, var(--control-bg) 40%, transparent);
-}
-
-/* Paths can be long and must not stretch the settings pane; the ellipsis
-   goes on the left so the leaf folder — the part that identifies the root —
-   stays readable. */
-.search-index-root-path {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: rtl;
-    text-align: left;
-    font-size: var(--text-label);
-}
-
-.search-index-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5em;
-    margin-top: 0.75em;
-}
-
 .shortcut-label {
     font-size: var(--text-label);
 }
@@ -2004,26 +1893,12 @@ button.sidebar-drive,
     background-color: var(--hover-bg);
 }
 
-/* Zebra striping is driven by an explicit class rather than :nth-child
-   because the list is virtualized: only a window of rows exists in the DOM
-   at a time, and the spacer rows that stand in for the rest would shift
-   :nth-child parity on every scroll, making the stripes crawl. The class is
-   set from each row's index in the full list, so a row keeps its stripe
-   regardless of where the render window happens to start. */
-.file-table tbody tr.file-row-alt:not(.file-row-selected) {
+.file-table tbody tr:nth-child(even):not(.file-row-selected) {
     background-color: color-mix(in srgb, var(--control-bg) 38%, transparent);
 }
 
-.file-table tbody tr.file-row-alt:not(.file-row-selected):hover {
+.file-table tbody tr:nth-child(even):not(.file-row-selected):hover {
     background-color: var(--hover-bg);
-}
-
-/* Stand-ins for the rows outside the render window. They must not pick up
-   row padding or borders — their entire job is to be exactly as tall as the
-   rows they replace, so the scrollbar and scroll position stay honest. */
-.file-table tbody tr.file-row-spacer > td {
-    padding: 0;
-    border: 0;
 }
 
 .file-row-selected,

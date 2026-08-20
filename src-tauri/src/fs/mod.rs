@@ -8,7 +8,6 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
 
 pub use ops::*;
 
@@ -98,18 +97,7 @@ pub fn list_directory(
     sort_direction: SortDirection,
     group_folders_first: bool,
 ) -> Result<DirListing, String> {
-    let mut listing = read_dir_listing(&path)?;
-    sort_entries(&mut listing.entries, sort_key, sort_direction, group_folders_first);
-    Ok(listing)
-}
-
-/// The read half of a listing: walks the directory and collects entries plus
-/// whatever couldn't be read, with no ordering applied. Split out from
-/// list_directory so the streaming variant can reuse the exact same
-/// per-entry handling — divergence here would mean a folder listed
-/// differently depending on how big it happened to be.
-fn read_dir_listing(path: &str) -> Result<DirListing, String> {
-    let read_dir = fs::read_dir(path).map_err(|e| describe_dir_error(path, &e))?;
+    let read_dir = fs::read_dir(&path).map_err(|e| describe_dir_error(&path, &e))?;
 
     let mut entries = Vec::new();
     let mut unreadable = 0usize;
@@ -167,15 +155,6 @@ fn read_dir_listing(path: &str) -> Result<DirListing, String> {
         });
     }
 
-    Ok(DirListing { entries, unreadable, unreadable_entries })
-}
-
-fn sort_entries(
-    entries: &mut [DirEntry],
-    sort_key: SortKey,
-    sort_direction: SortDirection,
-    group_folders_first: bool,
-) {
     entries.sort_by(|a, b| {
         let ordering = match sort_key {
             SortKey::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
@@ -195,103 +174,8 @@ fn sort_entries(
             _ => ordering,
         }
     });
-}
 
-/// How many entries go out per `directory-chunk` event. Small enough that
-/// the first chunk lands almost immediately, large enough that a 100k-entry
-/// folder doesn't turn into thousands of IPC round trips.
-const STREAM_CHUNK_SIZE: usize = 500;
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DirectoryChunk {
-    key: String,
-    path: String,
-    /// Monotonic per request, so the frontend can drop an out-of-order or
-    /// duplicated chunk rather than rendering the folder twice.
-    seq: usize,
-    entries: Vec<DirEntry>,
-    /// True on the last chunk only. The unreadable counts ride along with
-    /// it, since they aren't known until the whole directory has been read.
-    done: bool,
-    unreadable: usize,
-    unreadable_entries: Vec<UnreadableEntry>,
-    /// Set instead of entries when the directory couldn't be opened at all.
-    error: Option<String>,
-}
-
-/// Lists a directory by emitting `directory-chunk` events instead of
-/// returning one payload.
-///
-/// Chunks are emitted **after** sorting, not in read order. Streaming raw
-/// read order would let rows land in the wrong place and then jump when the
-/// sort finally ran — worse than waiting. What this actually buys is
-/// twofold: the read runs on its own thread instead of blocking the main
-/// thread the way a synchronous command does, and the result crosses the IPC
-/// boundary in slices rather than as one enormous JSON string that has to be
-/// serialized, copied and parsed before anything at all can be painted.
-#[tauri::command]
-pub fn list_directory_streamed(
-    app: AppHandle,
-    key: String,
-    path: String,
-    sort_key: SortKey,
-    sort_direction: SortDirection,
-    group_folders_first: bool,
-) -> Result<(), String> {
-    std::thread::spawn(move || {
-        let emit = |chunk: DirectoryChunk| {
-            let _ = app.emit("directory-chunk", chunk);
-        };
-        let empty_chunk = |seq: usize, done: bool| DirectoryChunk {
-            key: key.clone(),
-            path: path.clone(),
-            seq,
-            entries: Vec::new(),
-            done,
-            unreadable: 0,
-            unreadable_entries: Vec::new(),
-            error: None,
-        };
-
-        let mut listing = match read_dir_listing(&path) {
-            Ok(listing) => listing,
-            Err(error) => {
-                // A failure is still a completed request: the frontend is
-                // waiting on `done` to stop showing the previous folder.
-                emit(DirectoryChunk { error: Some(error), ..empty_chunk(0, true) });
-                return;
-            }
-        };
-        sort_entries(&mut listing.entries, sort_key, sort_direction, group_folders_first);
-
-        let unreadable = listing.unreadable;
-        let unreadable_entries = listing.unreadable_entries;
-        let total_chunks = listing.entries.len().div_ceil(STREAM_CHUNK_SIZE).max(1);
-        let mut seq = 0;
-        let mut remaining = listing.entries;
-        // Drained from the front in place so the entries are moved into each
-        // chunk rather than cloned — the whole point is not copying a huge
-        // listing more times than necessary.
-        while seq < total_chunks {
-            let take = remaining.len().min(STREAM_CHUNK_SIZE);
-            let rest = remaining.split_off(take);
-            let is_last = seq + 1 == total_chunks;
-            emit(DirectoryChunk {
-                key: key.clone(),
-                path: path.clone(),
-                seq,
-                entries: remaining,
-                done: is_last,
-                unreadable: if is_last { unreadable } else { 0 },
-                unreadable_entries: if is_last { unreadable_entries.clone() } else { Vec::new() },
-                error: None,
-            });
-            remaining = rest;
-            seq += 1;
-        }
-    });
-    Ok(())
+    Ok(DirListing { entries, unreadable, unreadable_entries })
 }
 
 const SEARCH_RESULT_LIMIT: usize = 500;

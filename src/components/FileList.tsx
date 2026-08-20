@@ -1,14 +1,4 @@
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  createUniqueId,
-  For,
-  onCleanup,
-  onMount,
-  Show,
-  untrack,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -75,15 +65,6 @@ type FileListProps = {
   folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
   inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
-  /**
-   * Whether this list owns the window-level interactions — keyboard
-   * shortcuts and OS file drops. Both are bound to the document rather than
-   * to the list's own DOM, so with two panes on screen every one of them
-   * would otherwise fire in both at once: one Delete press would try to
-   * delete both panes' selections. Defaults to true for the single-pane
-   * case, which has no notion of an inactive list.
-   */
-  active?: boolean;
   "data-bg-lightness"?: string;
 };
 
@@ -325,187 +306,12 @@ export function FileList(props: FileListProps) {
     }
   }
 
-  // ---- Search index ----------------------------------------------------
-  //
-  // Which roots the backend currently has indexed. Kept here rather than
-  // asked per query so a search doesn't pay a round trip just to find out
-  // whether it can use the fast path.
-  const [indexedRoots, setIndexedRoots] = createSignal<string[]>([]);
-
-  async function loadIndexedRoots() {
-    try {
-      const status = await invoke<{ roots: string[]; entryCount: number }>("search_index_status");
-      // An index with roots but no entries (cleared, or a rebuild that found
-      // nothing) can't answer anything, so treat it as absent.
-      setIndexedRoots(status.entryCount > 0 ? status.roots : []);
-    } catch {
-      setIndexedRoots([]);
-    }
-  }
-
-  onMount(() => {
-    loadIndexedRoots();
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    listen<{ done: boolean }>("search-index-progress", (event) => {
-      if (event.payload.done) loadIndexedRoots();
-    }).then((fn) => {
-      if (disposed) {
-        fn();
-        return;
-      }
-      unlisten = fn;
-    });
-    onCleanup(() => {
-      disposed = true;
-      unlisten?.();
-    });
-  });
-
-  /** Whether `path` is inside (or is) one of the indexed roots. */
-  function isPathIndexed(path: string) {
-    const normalize = (value: string) => value.toLowerCase().replace(/\//g, "\\");
-    const target = normalize(path);
-    return indexedRoots().some((root) => {
-      const normalizedRoot = normalize(root);
-      // The separator check is what stops "C:\Users\Ish" from being treated
-      // as covering "C:\Users\Ishan".
-      return (
-        target === normalizedRoot ||
-        target.startsWith(normalizedRoot.endsWith("\\") ? normalizedRoot : `${normalizedRoot}\\`)
-      );
-    });
-  }
-
-  // ---- Streamed directory listings -------------------------------------
-  //
-  // A plain listing arrives as a sequence of `directory-chunk` events rather
-  // than one return value, so a huge folder starts painting after the first
-  // few hundred entries instead of after the whole thing has been read,
-  // serialized, shipped across IPC and parsed. See list_directory_streamed
-  // in fs/mod.rs for why chunks are sorted before they're sent.
-  type DirectoryChunk = {
-    key: string;
-    path: string;
-    seq: number;
-    entries: DirEntry[];
-    done: boolean;
-    unreadable: number;
-    unreadableEntries: UnreadableEntry[];
-    error: string | null;
-  };
-
-  // Identifies the listing currently being awaited. Bumped on every request
-  // so chunks from a folder the user has already navigated away from are
-  // dropped instead of being merged into the new folder's rows.
-  // Gates the "This folder is empty" message: with a streamed listing the
-  // rows start out genuinely empty for a moment, and flashing "empty" at the
-  // user before the first chunk lands would be a lie.
-  const [listingInFlight, setListingInFlight] = createSignal(false);
-  let listingRequestId = 0;
-  let activeListing: {
-    id: number;
-    path: string;
-    silent: boolean;
-    nextSeq: number;
-    // Only used by silent refreshes, which hold everything back and swap in
-    // one go — a live re-list must not blank the rows it's replacing.
-    buffer: DirEntry[];
-  } | null = null;
-
-  const streamKeyFor = (id: number) => `${watchKey}#${id}`;
-
-  function startStreamedListing(silent: boolean) {
-    const id = ++listingRequestId;
-    activeListing = { id, path: props.path, silent, nextSeq: 0, buffer: [] };
-    setListingInFlight(true);
-    invoke("list_directory_streamed", {
-      // The request id is part of the key so chunks from a superseded
-      // request for the *same* folder (a rapid re-list) can't be mistaken
-      // for chunks of the current one — comparing paths alone wouldn't
-      // separate them.
-      key: streamKeyFor(id),
-      path: props.path,
-      sortKey: props.sortKey,
-      sortDirection: props.sortDirection,
-      groupFoldersFirst: props.groupFoldersFirst,
-    }).catch((err) => {
-      if (activeListing?.id !== id) return;
-      activeListing = null;
-      setListingInFlight(false);
-      setError(String(err));
-    });
-  }
-
-  function handleDirectoryChunk(chunk: DirectoryChunk) {
-    const listing = activeListing;
-    // Stale: a newer request has started, or this chunk belongs to a folder
-    // that is no longer the one on screen.
-    if (!listing || chunk.key !== streamKeyFor(listing.id) || chunk.path !== props.path) return;
-    // Out of order or replayed. Tauri delivers events in order today, but
-    // silently double-appending a chunk would be near-impossible to spot.
-    if (chunk.seq !== listing.nextSeq) return;
-    listing.nextSeq += 1;
-
-    if (chunk.error) {
-      activeListing = null;
-      setListingInFlight(false);
-      setError(chunk.error);
-      return;
-    }
-
-    if (listing.silent) {
-      listing.buffer.push(...chunk.entries);
-    } else {
-      setError("");
-      // Append rather than replace: refresh() has already cleared the list
-      // for a non-silent request, so each chunk extends what's on screen.
-      setEntries((previous) => (chunk.seq === 0 ? chunk.entries : [...previous, ...chunk.entries]));
-    }
-
-    if (!chunk.done) return;
-
-    activeListing = null;
-    setListingInFlight(false);
-    if (listing.silent) {
-      setError("");
-      setEntries(listing.buffer);
-      setContentMatches(new Map());
-      setUnreadableExpanded(false);
-    }
-    setUnreadable(chunk.unreadable);
-    setUnreadableEntries(chunk.unreadableEntries);
-  }
-
-  onMount(() => {
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    listen<DirectoryChunk>("directory-chunk", (event) => handleDirectoryChunk(event.payload)).then((fn) => {
-      if (disposed) {
-        fn();
-        return;
-      }
-      unlisten = fn;
-    });
-    onCleanup(() => {
-      disposed = true;
-      unlisten?.();
-    });
-  });
-
-  // `silent` keeps the current rows on screen while the new listing is
-  // fetched. Navigation wants the blank-then-fill behavior (the old folder's
-  // contents lingering under a new path bar reads as a bug), but a
-  // watcher-triggered re-list of the *same* folder must not flash the list
-  // empty — an unpacking archive would otherwise strobe once per debounce.
-  async function refresh(options?: { silent?: boolean }) {
-    if (!options?.silent) {
-      setEntries([]);
-      setContentMatches(new Map());
-      setUnreadable(0);
-      setUnreadableEntries([]);
-      setUnreadableExpanded(false);
-    }
+  async function refresh() {
+    setEntries([]);
+    setContentMatches(new Map());
+    setUnreadable(0);
+    setUnreadableEntries([]);
+    setUnreadableExpanded(false);
     const currentPathReq = props.path;
     const currentSearchQueryReq = props.searchQuery;
     const currentSearchRecursiveReq = props.searchRecursive;
@@ -525,25 +331,22 @@ export function FileList(props: FileListProps) {
           : [];
         result = { entries: matches.map((m) => m.entry), unreadable: 0, unreadableEntries: [] };
       } else if (isSearching()) {
-        const query = props.searchQuery.trim();
-        // Only recursive search can use the index. A non-recursive search is
-        // a filter over the folder already on screen, and answering it from
-        // the index would wrongly surface hits from subfolders.
-        const entries =
-          props.searchRecursive && isPathIndexed(props.path)
-            ? await invoke<DirEntry[]>("search_index_query", { query, root: props.path })
-            : await invoke<DirEntry[]>("search_directory", {
-                root: props.path,
-                query,
-                recursive: props.searchRecursive,
-              });
-        result = { entries, unreadable: 0, unreadableEntries: [] };
+        result = {
+          entries: await invoke<DirEntry[]>("search_directory", {
+            root: props.path,
+            query: props.searchQuery.trim(),
+            recursive: props.searchRecursive,
+          }),
+          unreadable: 0,
+          unreadableEntries: [],
+        };
       } else {
-        // Plain listings stream in over `directory-chunk` events; the
-        // handler owns setting state from here, so there's nothing to
-        // apply below.
-        startStreamedListing(options?.silent === true);
-        return;
+        result = await invoke<DirListing>("list_directory", {
+          path: props.path,
+          sortKey: props.sortKey,
+          sortDirection: props.sortDirection,
+          groupFoldersFirst: props.groupFoldersFirst,
+        });
       }
       if (
         currentPathReq !== props.path ||
@@ -584,55 +387,8 @@ export function FileList(props: FileListProps) {
     setLastClickedIndex(null);
   });
 
-  // Live directory watching. The backend keys watches by this id so two
-  // panes in one window (and separate windows) don't clobber each other's
-  // watch; see dirwatch.rs.
-  const watchKey = createUniqueId();
-
-  createEffect(() => {
-    const path = props.path;
-    // Search results span more than one directory, so a single watch on the
-    // root would be both wrong and misleading. Leave searches unwatched —
-    // the user re-runs the query to see new hits.
-    if (isSearching() || isContentSearch()) {
-      invoke("unwatch_directory", { key: watchKey }).catch(() => {});
-      return;
-    }
-    // A failure here just means no live updates for this folder (unplugged
-    // drive, permissions); the listing itself is unaffected, so there's
-    // nothing worth putting in front of the user.
-    invoke("watch_directory", { key: watchKey, path }).catch(() => {});
-  });
-
-  onCleanup(() => {
-    invoke("unwatch_directory", { key: watchKey }).catch(() => {});
-  });
-
-  onMount(() => {
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    listen<{ key: string; path: string }>("directory-changed", (event) => {
-      if (event.payload.key !== watchKey) return;
-      // The watch is swapped asynchronously on navigation, so an event
-      // emitted just before the swap can land just after it. Drop anything
-      // that isn't about the folder currently on screen.
-      if (event.payload.path !== props.path) return;
-      refresh({ silent: true });
-    }).then((fn) => {
-      if (disposed) {
-        fn();
-        return;
-      }
-      unlisten = fn;
-    });
-    onCleanup(() => {
-      disposed = true;
-      unlisten?.();
-    });
-  });
-
-  // Kick off (or resume) background size computation for folder rows as soon
-  // as they're on screen, rather than waiting for the user to hover/select.
+  // Kick off (or resume) background size computation for every folder row as
+  // soon as it's listed, rather than waiting for the user to hover/select it.
   //
   // Entries for folders outside the current listing are deliberately kept.
   // This used to prune down to exactly the visible rows and mirror that onto
@@ -640,20 +396,8 @@ export function FileList(props: FileListProps) {
   // size known for C: — so coming back re-invoked the backend for each row
   // and, whenever the backend's own cache had also churned, re-walked them.
   // Retention is bounded by MAX_FOLDER_SIZES below instead.
-  // In a virtualized list this narrows to the rows actually on screen: a
-  // folder with tens of thousands of subfolders would otherwise fire that
-  // many invokes the instant it opens, which swamps the backend's worker
-  // pool with walks for rows the user will never scroll to. Sorting or
-  // grouping *by size* is the exception — those need every size to place
-  // any row, so they still request the whole listing up front.
-  const foldersNeedingSize = createMemo<DirEntry[]>(() => {
-    const needsEverySize = props.sortKey === "size" || props.groupBy === "size";
-    if (!virtualized() || needsEverySize) return entries();
-    return visibleItems().flatMap((item) => (item.kind === "row" ? [item.entry] : []));
-  });
-
   createEffect(() => {
-    const list = foldersNeedingSize();
+    const list = entries();
     const known = untrack(folderSizes);
     for (const entry of list) {
       const state = known.get(entry.path);
@@ -981,192 +725,6 @@ export function FileList(props: FileListProps) {
     sortedEntries().forEach((entry, i) => map.set(entry.path, i));
     return map;
   });
-
-  // ---- Virtualized rendering ------------------------------------------
-  //
-  // Grouped and ungrouped rendering are flattened into one item list so the
-  // windowing math has a single sequence to index into. Group headers stay
-  // in the sequence (rather than being hoisted out) so a header scrolls with
-  // its section exactly as it did when everything was rendered at once.
-  type FlatItem = { kind: "header"; label: string; count: number } | { kind: "row"; entry: DirEntry };
-
-  const flatItems = createMemo<FlatItem[]>(() => {
-    const sections = groupedSections();
-    if (!sections) return sortedEntries().map((entry) => ({ kind: "row", entry }) as FlatItem);
-    const out: FlatItem[] = [];
-    for (const section of sections) {
-      out.push({ kind: "header", label: section.label, count: section.entries.length });
-      for (const entry of section.entries) out.push({ kind: "row", entry });
-    }
-    return out;
-  });
-
-  // Below this, rendering everything is cheaper than the bookkeeping — and
-  // it keeps the common case (an ordinary folder) on the exact code path it
-  // has always used, including native browser find-in-page over all rows.
-  const VIRTUAL_THRESHOLD = 200;
-  // Enough rows above and below the viewport that a fast scroll or a
-  // keyboard-repeat arrow never outruns the render.
-  const OVERSCAN = 12;
-
-  // Content-search rows carry an extra snippet line, so their heights vary
-  // per row and the uniform-height model below would misplace them. Those
-  // result sets are small by nature (they're already capped by the search),
-  // so they simply render in full.
-  const virtualized = createMemo(() => !isContentSearch() && flatItems().length > VIRTUAL_THRESHOLD);
-
-  const [scrollTop, setScrollTop] = createSignal(0);
-  const [viewportHeight, setViewportHeight] = createSignal(0);
-  // Seeded with plausible values so the very first frame renders a sane
-  // window; both are replaced by real measurements immediately after.
-  const [rowHeight, setRowHeight] = createSignal(28);
-  const [headerRowHeight, setHeaderRowHeight] = createSignal(30);
-  // The <thead> is inside the same scroller as the rows and is not sticky,
-  // so scrollTop includes it. Item offsets are measured from the top of
-  // <tbody>, and this reconciles the two.
-  const [theadHeight, setTheadHeight] = createSignal(0);
-  let wrapEl: HTMLDivElement | undefined;
-
-  // Running offset of every item, plus a final entry for the total height —
-  // so `offsets[i + 1] - offsets[i]` is item i's height and `offsets.at(-1)`
-  // is the full scroll extent, with no special case for the last item.
-  const itemOffsets = createMemo(() => {
-    const items = flatItems();
-    const rh = rowHeight();
-    const hh = headerRowHeight();
-    const offsets = new Array<number>(items.length + 1);
-    let y = 0;
-    for (let i = 0; i < items.length; i++) {
-      offsets[i] = y;
-      y += items[i].kind === "header" ? hh : rh;
-    }
-    offsets[items.length] = y;
-    return offsets;
-  });
-
-  /** Index of the last item starting at or before `value`. */
-  function itemIndexAt(offsets: number[], value: number) {
-    let low = 0;
-    let high = offsets.length - 1;
-    while (low < high) {
-      const mid = (low + high + 1) >> 1;
-      if (offsets[mid] <= value) low = mid;
-      else high = mid - 1;
-    }
-    return low;
-  }
-
-  const visibleRange = createMemo(() => {
-    const total = flatItems().length;
-    if (!virtualized()) return { start: 0, end: total };
-    const offsets = itemOffsets();
-    const top = Math.max(0, scrollTop() - theadHeight());
-    // Before the first measurement lands, assume a generous viewport rather
-    // than a zero-height one — rendering a few rows too many for one frame
-    // is invisible; rendering none is a blank list.
-    const height = viewportHeight() || 800;
-    const first = itemIndexAt(offsets, top);
-    const last = itemIndexAt(offsets, top + height);
-    return {
-      start: Math.max(0, first - OVERSCAN),
-      end: Math.min(total, last + 1 + OVERSCAN),
-    };
-  });
-
-  const visibleItems = createMemo(() => {
-    const { start, end } = visibleRange();
-    // slice() preserves the item object identities from flatItems(), which
-    // is what lets <For> reuse row DOM across scrolls instead of tearing
-    // every row down and rebuilding it each frame.
-    return flatItems().slice(start, end);
-  });
-
-  const topSpacerHeight = createMemo(() => (virtualized() ? itemOffsets()[visibleRange().start] : 0));
-  const bottomSpacerHeight = createMemo(() => {
-    if (!virtualized()) return 0;
-    const offsets = itemOffsets();
-    return offsets[offsets.length - 1] - offsets[visibleRange().end];
-  });
-
-  // Real measurements of one rendered row, one group header and the thead.
-  // Taken from the DOM rather than computed from the font-size setting
-  // because padding, borders and line-height all feed into row height, and
-  // duplicating that arithmetic here would drift from the stylesheet.
-  // The row/header observer is re-pointed at whichever row is currently
-  // first in the window. Font size and family are global CSS variables set
-  // on the document root (see App.tsx), not props, so there is nothing
-  // reactive to depend on — watching a live row for resize catches those
-  // changes, and anything else that alters row height, without having to
-  // enumerate the causes.
-  let metricsObserver: ResizeObserver | undefined;
-  let observedRow: HTMLElement | undefined;
-  let observedHeader: HTMLElement | undefined;
-
-  function measureRowMetrics() {
-    if (!wrapEl) return;
-    setViewportHeight(wrapEl.clientHeight);
-    const thead = wrapEl.querySelector<HTMLElement>("thead");
-    setTheadHeight(thead?.offsetHeight ?? 0);
-
-    const row = wrapEl.querySelector<HTMLElement>("tr.file-row");
-    if (row?.offsetHeight) setRowHeight(row.offsetHeight);
-    const header = wrapEl.querySelector<HTMLElement>("tr.group-header-row");
-    if (header?.offsetHeight) setHeaderRowHeight(header.offsetHeight);
-
-    if (row && row !== observedRow) {
-      if (observedRow) metricsObserver?.unobserve(observedRow);
-      observedRow = row;
-      metricsObserver?.observe(row);
-    }
-    if (header && header !== observedHeader) {
-      if (observedHeader) metricsObserver?.unobserve(observedHeader);
-      observedHeader = header;
-      metricsObserver?.observe(header);
-    }
-  }
-
-  // Re-measure when the listing changes or search toggles (search adds a
-  // Location column, which can rewrap names and change row height).
-  // Deferred a frame so measurement reads post-layout values.
-  createEffect(() => {
-    isSearching();
-    flatItems().length;
-    requestAnimationFrame(measureRowMetrics);
-  });
-
-  onMount(() => {
-    if (!wrapEl) return;
-    metricsObserver = new ResizeObserver(() => measureRowMetrics());
-    metricsObserver.observe(wrapEl);
-    onCleanup(() => {
-      metricsObserver?.disconnect();
-      metricsObserver = undefined;
-      observedRow = undefined;
-      observedHeader = undefined;
-    });
-  });
-
-  /**
-   * Brings a row into view by path. Falls back to scrollIntoView for the
-   * unvirtualized case; when virtualized the row usually isn't in the DOM
-   * yet, so its position has to come from the offsets table instead.
-   */
-  function scrollRowIntoView(path: string) {
-    if (virtualized() && wrapEl) {
-      const index = flatItems().findIndex((item) => item.kind === "row" && item.entry.path === path);
-      if (index >= 0) {
-        const offsets = itemOffsets();
-        const top = offsets[index] + theadHeight();
-        const bottom = offsets[index + 1] + theadHeight();
-        const viewTop = wrapEl.scrollTop;
-        const viewBottom = viewTop + wrapEl.clientHeight;
-        if (top < viewTop) wrapEl.scrollTop = top;
-        else if (bottom > viewBottom) wrapEl.scrollTop = bottom - wrapEl.clientHeight;
-        return;
-      }
-    }
-    document.querySelector(`[data-row-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "nearest" });
-  }
 
   function handleRowClick(e: MouseEvent, entry: DirEntry, index: number) {
     if (e.shiftKey && lastClickedIndex() !== null) {
@@ -1596,7 +1154,6 @@ export function FileList(props: FileListProps) {
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (props.active === false) return;
     if (isTypingTarget(document.activeElement) || isPreviewTextTarget(e.target) || isPreviewTextTarget(document.activeElement)) return;
     const selectionAnchor = window.getSelection()?.anchorNode;
     const selectionElement = selectionAnchor instanceof Element ? selectionAnchor : selectionAnchor?.parentElement;
@@ -1658,7 +1215,9 @@ export function FileList(props: FileListProps) {
 
     setSelected(new Set([match.path]));
     setLastClickedIndex(list.indexOf(match));
-    scrollRowIntoView(match.path);
+    document
+      .querySelector(`[data-row-path="${CSS.escape(match.path)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   }
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));
@@ -1674,10 +1233,6 @@ export function FileList(props: FileListProps) {
     getCurrentWebview()
       .onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
-        // The OS reports the drop for the whole window with no coordinates
-        // we can attribute to a pane, so the active pane takes it — same
-        // rule the keyboard shortcuts use.
-        if (props.active === false) return;
         setOpError("");
         transferItems(event.payload.paths, props.path, "copy")
           .then((res) => {
@@ -1706,9 +1261,6 @@ export function FileList(props: FileListProps) {
         class="file-row"
         classList={{
           "file-row-dir": entry.isDir,
-          // Stripe parity comes from the row's index in the full list, not
-          // from its DOM position — see the .file-row-alt rule in App.css.
-          "file-row-alt": index() % 2 === 1,
           "file-row-selected": selected().has(entry.path),
           "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
         }}
@@ -1843,14 +1395,7 @@ export function FileList(props: FileListProps) {
           </Show>
         </div>
         <div class="file-list-split">
-        <div
-          class="file-list-table-wrap"
-          ref={wrapEl}
-          onMouseDown={handleListMouseDown}
-          onScroll={(e) => {
-            if (virtualized()) setScrollTop(e.currentTarget.scrollTop);
-          }}
-        >
+        <div class="file-list-table-wrap" onMouseDown={handleListMouseDown}>
         <Show when={marqueeRect()}>
           {(rect) => (
             <div
@@ -1880,7 +1425,7 @@ export function FileList(props: FileListProps) {
             </tr>
           </thead>
           <tbody>
-            <Show when={sortedEntries().length === 0 && !listingInFlight()}>
+            <Show when={sortedEntries().length === 0}>
               <tr>
                 <td colspan={isSearching() ? 4 : 3} style="text-align:center;padding:3em 1em;opacity:0.5;">
                   <div style="display:flex;flex-direction:column;align-items:center;gap:0.6em;">
@@ -1890,29 +1435,27 @@ export function FileList(props: FileListProps) {
                 </td>
               </tr>
             </Show>
-            <Show when={topSpacerHeight() > 0}>
-              <tr class="file-row-spacer" aria-hidden="true">
-                <td colspan={isSearching() ? 4 : 3} style={{ height: `${topSpacerHeight()}px` }} />
-              </tr>
-            </Show>
-            <For each={visibleItems()}>
-              {(item) =>
-                item.kind === "header" ? (
-                  <tr class="group-header-row">
-                    <td colspan={isSearching() ? 4 : 3}>
-                      <span class="group-header-label">{item.label}</span>
-                      <span class="group-header-count">{item.count}</span>
-                    </td>
-                  </tr>
-                ) : (
-                  renderRow(item.entry, () => indexByPath().get(item.entry.path) ?? 0)
-                )
-              }
-            </For>
-            <Show when={bottomSpacerHeight() > 0}>
-              <tr class="file-row-spacer" aria-hidden="true">
-                <td colspan={isSearching() ? 4 : 3} style={{ height: `${bottomSpacerHeight()}px` }} />
-              </tr>
+            <Show
+              when={groupedSections()}
+              fallback={<For each={sortedEntries()}>{(entry, index) => renderRow(entry, index)}</For>}
+            >
+              {(sections) => (
+                <For each={sections()}>
+                  {(section) => (
+                    <>
+                      <tr class="group-header-row">
+                        <td colspan={isSearching() ? 4 : 3}>
+                          <span class="group-header-label">{section.label}</span>
+                          <span class="group-header-count">{section.entries.length}</span>
+                        </td>
+                      </tr>
+                      <For each={section.entries}>
+                        {(entry) => renderRow(entry, () => indexByPath().get(entry.path) ?? 0)}
+                      </For>
+                    </>
+                  )}
+                </For>
+              )}
             </Show>
           </tbody>
         </table>
