@@ -75,6 +75,15 @@ type FileListProps = {
   folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
   inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
+  /**
+   * Whether this list owns the window-level interactions — keyboard
+   * shortcuts and OS file drops. Both are bound to the document rather than
+   * to the list's own DOM, so with two panes on screen every one of them
+   * would otherwise fire in both at once: one Delete press would try to
+   * delete both panes' selections. Defaults to true for the single-pane
+   * case, which has no notion of an inactive list.
+   */
+  active?: boolean;
   "data-bg-lightness"?: string;
 };
 
@@ -1549,6 +1558,7 @@ export function FileList(props: FileListProps) {
   }
 
   function handleKeyDown(e: KeyboardEvent) {
+    if (props.active === false) return;
     if (isTypingTarget(document.activeElement) || isPreviewTextTarget(e.target) || isPreviewTextTarget(document.activeElement)) return;
     const selectionAnchor = window.getSelection()?.anchorNode;
     const selectionElement = selectionAnchor instanceof Element ? selectionAnchor : selectionAnchor?.parentElement;
@@ -1626,6 +1636,10 @@ export function FileList(props: FileListProps) {
     getCurrentWebview()
       .onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
+        // The OS reports the drop for the whole window with no coordinates
+        // we can attribute to a pane, so the active pane takes it — same
+        // rule the keyboard shortcuts use.
+        if (props.active === false) return;
         setOpError("");
         transferItems(event.payload.paths, props.path, "copy")
           .then((res) => {

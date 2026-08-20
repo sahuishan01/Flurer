@@ -37,6 +37,9 @@ export type Settings = {
   uiTintOpacity: number;
   uiBlurPx: number;
   lastMainView: LastMainView;
+  // Second explorer pane's folder, or null when the view isn't split.
+  // Persisted so a split workspace survives a restart.
+  splitViewPath: string | null;
   persistGraphState: boolean;
   graphState: GraphState | null;
   favouritePaths: string[];
@@ -110,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiTintOpacity: 0.35,
   uiBlurPx: 12,
   lastMainView: "explorer",
+  splitViewPath: null,
   persistGraphState: true,
   graphState: null,
   favouritePaths: [],

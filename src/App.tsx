@@ -1003,6 +1003,8 @@ function App() {
                   onGroupFoldersFirstChange={updateGroupFoldersFirst}
                   groupBy={settings.groupBy}
                   onGroupByChange={updateGroupBy}
+                  splitPath={settings.splitViewPath}
+                  onSplitPathChange={(path) => setSettings("splitViewPath", path)}
                 />
               </div>
             </Show>

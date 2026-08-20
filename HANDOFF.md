@@ -1,9 +1,9 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-Current version: **0.4.104** (tagged, pushed; v0.4.104 itself was an
-unrelated updater fix, not one of the 5 features — see git log). Features
-1 and 2 of 5 shipped and confirmed working by the user. Feature 3 (live
-directory watching) implemented and about to ship as v0.4.105.
+Current version: **0.4.105** (tagged, pushed). Features 1, 2, and 3 of 5
+shipped and confirmed working by the user. Feature 4 (split view)
+implemented and about to ship as v0.4.106. (v0.4.104 was an unrelated
+updater fix, not one of the 5 features — see git log.)
 
 If you're picking this up cold: read this whole file before touching code.
 It exists so you don't have to re-read the conversation that produced it.
@@ -166,7 +166,7 @@ doesn't leak.
 No `.setup()`-time init — watches are only registered per-request from
 the frontend, never during app startup. Low risk to the launch hang.
 
-## Feature 4 — split view
+## Feature 4 — split view (DONE, shipping as v0.4.106)
 
 Files: `src/components/ExplorerView.tsx` (rewritten to host two panes,
 shared clipboard, an explicit `activePane` signal so document-level
@@ -316,7 +316,7 @@ for the remaining features.
 
 ## Current git state
 
-`main` is at v0.4.104 (`9f9e656`, an unrelated updater fix). Feature 3
-(live watching) is committed on top of that and about to ship as
-v0.4.105. Remaining: feature 4 (split view), feature 5 (search index).
-This file is the source of truth for what's left and in what order.
+`main` is at v0.4.105 (feature 3, live watching). Feature 4 (split view)
+is committed on top of that and about to ship as v0.4.106. Remaining:
+feature 5 (search index), the highest-risk one. This file is the source
+of truth for what's left and in what order.

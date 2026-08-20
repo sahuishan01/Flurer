@@ -447,6 +447,71 @@ body {
     overflow: hidden;
 }
 
+/* Split view lays the two panes out on the row axis; each pane keeps the
+   column layout the single-pane case has always used. */
+.explorer-content-split {
+    flex-direction: row;
+    gap: 0.5em;
+}
+
+.explorer-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Without this the panes refuse to shrink below their content width and
+       the wider one pushes the other off screen. */
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.explorer-content-split .explorer-pane {
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+
+/* Which pane keyboard shortcuts and OS drops will act on. Only shown while
+   split — with one pane there is nothing to disambiguate, and a permanent
+   highlight would just be noise. */
+.explorer-content-split .explorer-pane-active {
+    border-color: var(--accent);
+}
+
+.explorer-pane-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.25em 0.4em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.explorer-pane-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    font-size: var(--text-label);
+    opacity: 0.8;
+}
+
+/* Floats over the list rather than taking a row of its own, so adding the
+   split affordance costs no vertical space in the common single-pane case. */
+.explorer-pane-actions {
+    position: absolute;
+    top: 0.3em;
+    right: 0.6em;
+    z-index: 4;
+    opacity: 0.5;
+}
+
+.explorer-pane-actions:hover {
+    opacity: 1;
+}
+
 /* .view-stack/.view-pane are flex items on the row axis (view-rail |
    sidebar | view-stack) as well as the column axis further in — each level
    here previously only set min-height: 0, which stops row content from
