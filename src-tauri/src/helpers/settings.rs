@@ -190,15 +190,7 @@ pub fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String>
 
 #[tauri::command]
 pub async fn get_settings(state: State<'_, AppState>) -> Result<Settings, String> {
-    // Diagnostic only, same reasoning as the startup markers in lib.rs: this
-    // is the very first command the frontend calls, and its resolution is
-    // what flips the launch spinner off. If the log shows "invoked" with no
-    // matching "returning", the hang is a deadlock on state.settings, not
-    // the settings file itself.
-    log::info!("get_settings: invoked");
-    let result = state.settings.lock().await.clone();
-    log::info!("get_settings: returning");
-    Ok(result)
+    Ok(state.settings.lock().await.clone())
 }
 
 #[tauri::command]

@@ -11,7 +11,7 @@ resolver = "2"
 
 [package]
 name = "flurer"
-version = "0.4.100"
+version = "0.4.99"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -29,11 +29,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# "devtools" is diagnostic-only, added alongside the startup log markers in
-# lib.rs/helpers/settings.rs to chase the launch-spinner hang report —
-# without it, a release build has no Inspect Element and no way to see a
-# frontend-side console error. Remove once the cause is found.
-tauri = { version = "2", features = ["tray-icon", "devtools"] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-global-shortcut = "2"
