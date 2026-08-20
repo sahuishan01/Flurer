@@ -387,29 +387,6 @@ export function FileList(props: FileListProps) {
     setLastClickedIndex(null);
   });
 
-  // Kick off (or resume) background size computation for every folder row as
-  // soon as it's listed, rather than waiting for the user to hover/select it.
-  //
-  // Entries for folders outside the current listing are deliberately kept.
-  // This used to prune down to exactly the visible rows and mirror that onto
-  // the module-level cache, which meant navigating C: -> D: discarded every
-  // size known for C: — so coming back re-invoked the backend for each row
-  // and, whenever the backend's own cache had also churned, re-walked them.
-  // Retention is bounded by MAX_FOLDER_SIZES below instead.
-  createEffect(() => {
-    const list = entries();
-    const known = untrack(folderSizes);
-    for (const entry of list) {
-      const state = known.get(entry.path);
-      // FileList is unmounted when Settings opens. If the backend finishes a
-      // walk while this listener is gone, the module-level cache keeps the
-      // stale pending state. Ask Rust again on remount so a completed walk is
-      // replayed as Ready instead of leaving the row spinning forever.
-      const pending = state === "pending" || (typeof state === "object" && !state.done);
-      if (entry.isDir && (!state || pending)) fetchFolderSize(entry.path);
-    }
-  });
-
   onMount(() => {
     let unlisten: (() => void) | undefined;
     let disposed = false;
@@ -724,6 +701,228 @@ export function FileList(props: FileListProps) {
     const map = new Map<string, number>();
     sortedEntries().forEach((entry, i) => map.set(entry.path, i));
     return map;
+  });
+
+  // ---- Virtualized rendering ------------------------------------------
+  //
+  // Grouped and ungrouped rendering are flattened into one item list so the
+  // windowing math has a single sequence to index into. Group headers stay
+  // in the sequence (rather than being hoisted out) so a header scrolls with
+  // its section exactly as it did when everything was rendered at once.
+  type FlatItem = { kind: "header"; label: string; count: number } | { kind: "row"; entry: DirEntry };
+
+  const flatItems = createMemo<FlatItem[]>(() => {
+    const sections = groupedSections();
+    if (!sections) return sortedEntries().map((entry) => ({ kind: "row", entry }) as FlatItem);
+    const out: FlatItem[] = [];
+    for (const section of sections) {
+      out.push({ kind: "header", label: section.label, count: section.entries.length });
+      for (const entry of section.entries) out.push({ kind: "row", entry });
+    }
+    return out;
+  });
+
+  // Below this, rendering everything is cheaper than the bookkeeping — and
+  // it keeps the common case (an ordinary folder) on the exact code path it
+  // has always used, including native browser find-in-page over all rows.
+  const VIRTUAL_THRESHOLD = 200;
+  // Enough rows above and below the viewport that a fast scroll or a
+  // keyboard-repeat arrow never outruns the render.
+  const OVERSCAN = 12;
+
+  // Content-search rows carry an extra snippet line, so their heights vary
+  // per row and the uniform-height model below would misplace them. Those
+  // result sets are small by nature (they're already capped by the search),
+  // so they simply render in full.
+  const virtualized = createMemo(() => !isContentSearch() && flatItems().length > VIRTUAL_THRESHOLD);
+
+  const [scrollTop, setScrollTop] = createSignal(0);
+  const [viewportHeight, setViewportHeight] = createSignal(0);
+  // Seeded with plausible values so the very first frame renders a sane
+  // window; both are replaced by real measurements immediately after.
+  const [rowHeight, setRowHeight] = createSignal(28);
+  const [headerRowHeight, setHeaderRowHeight] = createSignal(30);
+  // The <thead> is inside the same scroller as the rows and is not sticky,
+  // so scrollTop includes it. Item offsets are measured from the top of
+  // <tbody>, and this reconciles the two.
+  const [theadHeight, setTheadHeight] = createSignal(0);
+  let wrapEl: HTMLDivElement | undefined;
+
+  // Running offset of every item, plus a final entry for the total height —
+  // so `offsets[i + 1] - offsets[i]` is item i's height and `offsets.at(-1)`
+  // is the full scroll extent, with no special case for the last item.
+  const itemOffsets = createMemo(() => {
+    const items = flatItems();
+    const rh = rowHeight();
+    const hh = headerRowHeight();
+    const offsets = new Array<number>(items.length + 1);
+    let y = 0;
+    for (let i = 0; i < items.length; i++) {
+      offsets[i] = y;
+      y += items[i].kind === "header" ? hh : rh;
+    }
+    offsets[items.length] = y;
+    return offsets;
+  });
+
+  /** Index of the last item starting at or before `value`. */
+  function itemIndexAt(offsets: number[], value: number) {
+    let low = 0;
+    let high = offsets.length - 1;
+    while (low < high) {
+      const mid = (low + high + 1) >> 1;
+      if (offsets[mid] <= value) low = mid;
+      else high = mid - 1;
+    }
+    return low;
+  }
+
+  const visibleRange = createMemo(() => {
+    const total = flatItems().length;
+    if (!virtualized()) return { start: 0, end: total };
+    const offsets = itemOffsets();
+    const top = Math.max(0, scrollTop() - theadHeight());
+    // Before the first measurement lands, assume a generous viewport rather
+    // than a zero-height one — rendering a few rows too many for one frame
+    // is invisible; rendering none is a blank list.
+    const height = viewportHeight() || 800;
+    const first = itemIndexAt(offsets, top);
+    const last = itemIndexAt(offsets, top + height);
+    return {
+      start: Math.max(0, first - OVERSCAN),
+      end: Math.min(total, last + 1 + OVERSCAN),
+    };
+  });
+
+  const visibleItems = createMemo(() => {
+    const { start, end } = visibleRange();
+    // slice() preserves the item object identities from flatItems(), which
+    // is what lets <For> reuse row DOM across scrolls instead of tearing
+    // every row down and rebuilding it each frame.
+    return flatItems().slice(start, end);
+  });
+
+  const topSpacerHeight = createMemo(() => (virtualized() ? itemOffsets()[visibleRange().start] : 0));
+  const bottomSpacerHeight = createMemo(() => {
+    if (!virtualized()) return 0;
+    const offsets = itemOffsets();
+    return offsets[offsets.length - 1] - offsets[visibleRange().end];
+  });
+
+  // Real measurements of one rendered row, one group header and the thead.
+  // The row/header observer is re-pointed at whichever row is currently
+  // first in the window. Font size and family are global CSS variables set
+  // on the document root (see App.tsx), not props, so there is nothing
+  // reactive to depend on — watching a live row for resize catches those
+  // changes, and anything else that alters row height, without having to
+  // enumerate the causes.
+  let metricsObserver: ResizeObserver | undefined;
+  let observedRow: HTMLElement | undefined;
+  let observedHeader: HTMLElement | undefined;
+
+  function measureRowMetrics() {
+    if (!wrapEl) return;
+    setViewportHeight(wrapEl.clientHeight);
+    const thead = wrapEl.querySelector<HTMLElement>("thead");
+    setTheadHeight(thead?.offsetHeight ?? 0);
+
+    const row = wrapEl.querySelector<HTMLElement>("tr.file-row");
+    if (row?.offsetHeight) setRowHeight(row.offsetHeight);
+    const header = wrapEl.querySelector<HTMLElement>("tr.group-header-row");
+    if (header?.offsetHeight) setHeaderRowHeight(header.offsetHeight);
+
+    if (row && row !== observedRow) {
+      if (observedRow) metricsObserver?.unobserve(observedRow);
+      observedRow = row;
+      metricsObserver?.observe(row);
+    }
+    if (header && header !== observedHeader) {
+      if (observedHeader) metricsObserver?.unobserve(observedHeader);
+      observedHeader = header;
+      metricsObserver?.observe(header);
+    }
+  }
+
+  // Re-measure when the listing changes or search toggles (search adds a
+  // Location column, which can rewrap names and change row height).
+  // Deferred a frame so measurement reads post-layout values.
+  createEffect(() => {
+    isSearching();
+    flatItems().length;
+    requestAnimationFrame(measureRowMetrics);
+  });
+
+  onMount(() => {
+    if (!wrapEl) return;
+    metricsObserver = new ResizeObserver(() => measureRowMetrics());
+    metricsObserver.observe(wrapEl);
+    onCleanup(() => {
+      metricsObserver?.disconnect();
+      metricsObserver = undefined;
+      observedRow = undefined;
+      observedHeader = undefined;
+    });
+  });
+
+  /**
+   * Brings a row into view by path. Falls back to scrollIntoView for the
+   * unvirtualized case; when virtualized the row usually isn't in the DOM
+   * yet, so its position has to come from the offsets table instead.
+   */
+  function scrollRowIntoView(path: string) {
+    if (virtualized() && wrapEl) {
+      const index = flatItems().findIndex((item) => item.kind === "row" && item.entry.path === path);
+      if (index >= 0) {
+        const offsets = itemOffsets();
+        const top = offsets[index] + theadHeight();
+        const bottom = offsets[index + 1] + theadHeight();
+        const viewTop = wrapEl.scrollTop;
+        const viewBottom = viewTop + wrapEl.clientHeight;
+        if (top < viewTop) wrapEl.scrollTop = top;
+        else if (bottom > viewBottom) wrapEl.scrollTop = bottom - wrapEl.clientHeight;
+        return;
+      }
+    }
+    document.querySelector(`[data-row-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "nearest" });
+  }
+
+  // Kick off (or resume) background size computation for folder rows as soon
+  // as they're on screen, rather than waiting for the user to hover/select.
+  //
+  // Entries for folders outside the current listing are deliberately kept.
+  // This used to prune down to exactly the visible rows and mirror that onto
+  // the module-level cache, which meant navigating C: -> D: discarded every
+  // size known for C: — so coming back re-invoked the backend for each row
+  // and, whenever the backend's own cache had also churned, re-walked them.
+  // Retention is bounded by MAX_FOLDER_SIZES below instead.
+  // In a virtualized list this narrows to the rows actually on screen: a
+  // folder with tens of thousands of subfolders would otherwise fire that
+  // many invokes the instant it opens, which swamps the backend's worker
+  // pool with walks for rows the user will never scroll to. Sorting or
+  // grouping *by size* is the exception — those need every size to place
+  // any row, so they still request the whole listing up front.
+  //
+  // Deliberately placed after visibleItems/virtualized above (rather than
+  // near entries()/folderSizes() where the un-virtualized version of this
+  // effect used to live) so it never has to forward-reference them.
+  const foldersNeedingSize = createMemo<DirEntry[]>(() => {
+    const needsEverySize = props.sortKey === "size" || props.groupBy === "size";
+    if (!virtualized() || needsEverySize) return entries();
+    return visibleItems().flatMap((item) => (item.kind === "row" ? [item.entry] : []));
+  });
+
+  createEffect(() => {
+    const list = foldersNeedingSize();
+    const known = untrack(folderSizes);
+    for (const entry of list) {
+      const state = known.get(entry.path);
+      // FileList is unmounted when Settings opens. If the backend finishes a
+      // walk while this listener is gone, the module-level cache keeps the
+      // stale pending state. Ask Rust again on remount so a completed walk is
+      // replayed as Ready instead of leaving the row spinning forever.
+      const pending = state === "pending" || (typeof state === "object" && !state.done);
+      if (entry.isDir && (!state || pending)) fetchFolderSize(entry.path);
+    }
   });
 
   function handleRowClick(e: MouseEvent, entry: DirEntry, index: number) {
@@ -1215,9 +1414,7 @@ export function FileList(props: FileListProps) {
 
     setSelected(new Set([match.path]));
     setLastClickedIndex(list.indexOf(match));
-    document
-      .querySelector(`[data-row-path="${CSS.escape(match.path)}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    scrollRowIntoView(match.path);
   }
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));
@@ -1261,6 +1458,9 @@ export function FileList(props: FileListProps) {
         class="file-row"
         classList={{
           "file-row-dir": entry.isDir,
+          // Stripe parity comes from the row's index in the full list, not
+          // from its DOM position — see the .file-row-alt rule in App.css.
+          "file-row-alt": index() % 2 === 1,
           "file-row-selected": selected().has(entry.path),
           "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
         }}
@@ -1395,7 +1595,14 @@ export function FileList(props: FileListProps) {
           </Show>
         </div>
         <div class="file-list-split">
-        <div class="file-list-table-wrap" onMouseDown={handleListMouseDown}>
+        <div
+          class="file-list-table-wrap"
+          ref={wrapEl}
+          onMouseDown={handleListMouseDown}
+          onScroll={(e) => {
+            if (virtualized()) setScrollTop(e.currentTarget.scrollTop);
+          }}
+        >
         <Show when={marqueeRect()}>
           {(rect) => (
             <div
@@ -1435,27 +1642,29 @@ export function FileList(props: FileListProps) {
                 </td>
               </tr>
             </Show>
-            <Show
-              when={groupedSections()}
-              fallback={<For each={sortedEntries()}>{(entry, index) => renderRow(entry, index)}</For>}
-            >
-              {(sections) => (
-                <For each={sections()}>
-                  {(section) => (
-                    <>
-                      <tr class="group-header-row">
-                        <td colspan={isSearching() ? 4 : 3}>
-                          <span class="group-header-label">{section.label}</span>
-                          <span class="group-header-count">{section.entries.length}</span>
-                        </td>
-                      </tr>
-                      <For each={section.entries}>
-                        {(entry) => renderRow(entry, () => indexByPath().get(entry.path) ?? 0)}
-                      </For>
-                    </>
-                  )}
-                </For>
-              )}
+            <Show when={topSpacerHeight() > 0}>
+              <tr class="file-row-spacer" aria-hidden="true">
+                <td colspan={isSearching() ? 4 : 3} style={{ height: `${topSpacerHeight()}px` }} />
+              </tr>
+            </Show>
+            <For each={visibleItems()}>
+              {(item) =>
+                item.kind === "header" ? (
+                  <tr class="group-header-row">
+                    <td colspan={isSearching() ? 4 : 3}>
+                      <span class="group-header-label">{item.label}</span>
+                      <span class="group-header-count">{item.count}</span>
+                    </td>
+                  </tr>
+                ) : (
+                  renderRow(item.entry, () => indexByPath().get(item.entry.path) ?? 0)
+                )
+              }
+            </For>
+            <Show when={bottomSpacerHeight() > 0}>
+              <tr class="file-row-spacer" aria-hidden="true">
+                <td colspan={isSearching() ? 4 : 3} style={{ height: `${bottomSpacerHeight()}px` }} />
+              </tr>
             </Show>
           </tbody>
         </table>

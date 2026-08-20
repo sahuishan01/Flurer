@@ -1893,12 +1893,26 @@ button.sidebar-drive,
     background-color: var(--hover-bg);
 }
 
-.file-table tbody tr:nth-child(even):not(.file-row-selected) {
+/* Zebra striping is driven by an explicit class rather than :nth-child
+   because the list is virtualized: only a window of rows exists in the DOM
+   at a time, and the spacer rows that stand in for the rest would shift
+   :nth-child parity on every scroll, making the stripes crawl. The class is
+   set from each row's index in the full list, so a row keeps its stripe
+   regardless of where the render window happens to start. */
+.file-table tbody tr.file-row-alt:not(.file-row-selected) {
     background-color: color-mix(in srgb, var(--control-bg) 38%, transparent);
 }
 
-.file-table tbody tr:nth-child(even):not(.file-row-selected):hover {
+.file-table tbody tr.file-row-alt:not(.file-row-selected):hover {
     background-color: var(--hover-bg);
+}
+
+/* Stand-ins for the rows outside the render window. They must not pick up
+   row padding or borders — their entire job is to be exactly as tall as the
+   rows they replace, so the scrollbar and scroll position stay honest. */
+.file-table tbody tr.file-row-spacer > td {
+    padding: 0;
+    border: 0;
 }
 
 .file-row-selected,
