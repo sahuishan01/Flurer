@@ -1,4 +1,14 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  untrack,
+} from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -306,6 +316,144 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  // ---- Streamed directory listings -------------------------------------
+  //
+  // A plain listing arrives as a sequence of `directory-chunk` events rather
+  // than one return value, so a huge folder starts painting after the first
+  // few hundred entries instead of after the whole thing has been read,
+  // serialized, shipped across IPC and parsed. See list_directory_streamed
+  // in fs/mod.rs for why chunks are sorted before they're sent.
+  type DirectoryChunk = {
+    key: string;
+    path: string;
+    seq: number;
+    entries: DirEntry[];
+    done: boolean;
+    unreadable: number;
+    unreadableEntries: UnreadableEntry[];
+    error: string | null;
+  };
+
+  const streamId = createUniqueId();
+
+  // Identifies the listing currently being awaited. Bumped on every request
+  // so chunks from a folder the user has already navigated away from are
+  // dropped instead of being merged into the new folder's rows.
+  let listingRequestId = 0;
+  let activeListing: {
+    id: number;
+    path: string;
+    silent: boolean;
+    nextSeq: number;
+    // Only used by silent refreshes, which hold everything back and swap in
+    // one go — a live re-list must not blank the rows it's replacing. Not
+    // exercised until feature 3 (live watching) starts passing silent:true;
+    // plain refresh() never does today.
+    buffer: DirEntry[];
+  } | null = null;
+
+  // Gates the "This folder is empty" message: with a streamed listing the
+  // rows start out genuinely empty for a moment, and flashing "empty" at
+  // the user before the first chunk lands would be a lie.
+  const [listingInFlight, setListingInFlight] = createSignal(false);
+
+  const streamKeyFor = (id: number) => `${streamId}#${id}`;
+
+  function startStreamedListing(silent: boolean) {
+    const id = ++listingRequestId;
+    activeListing = { id, path: props.path, silent, nextSeq: 0, buffer: [] };
+    setListingInFlight(true);
+    // Must not race the chunk listener below — a small folder's entire
+    // listing can arrive within microseconds of the invoke landing, faster
+    // than listen()'s registration promise resolves. Awaiting that promise
+    // here (rather than firing the invoke from onMount and registering the
+    // listener separately) is what makes that race structurally impossible
+    // instead of just unlikely.
+    chunkListenerReady
+      .then(() => {
+        // A newer request started while waiting, so this one is already dead.
+        if (activeListing?.id !== id) return;
+        return invoke("list_directory_streamed", {
+          key: streamKeyFor(id),
+          path: props.path,
+          sortKey: props.sortKey,
+          sortDirection: props.sortDirection,
+          groupFoldersFirst: props.groupFoldersFirst,
+        });
+      })
+      .catch((err) => {
+        if (activeListing?.id !== id) return;
+        activeListing = null;
+        setListingInFlight(false);
+        setError(String(err));
+      });
+  }
+
+  function handleDirectoryChunk(chunk: DirectoryChunk) {
+    const listing = activeListing;
+    // Stale: a newer request has started, or this chunk belongs to a folder
+    // that is no longer the one on screen.
+    if (!listing || chunk.key !== streamKeyFor(listing.id) || chunk.path !== props.path) return;
+    // Out of order or replayed. Tauri delivers events in order today, but
+    // silently double-appending a chunk would be near-impossible to spot.
+    if (chunk.seq !== listing.nextSeq) return;
+    listing.nextSeq += 1;
+
+    if (chunk.error) {
+      activeListing = null;
+      setListingInFlight(false);
+      setError(chunk.error);
+      return;
+    }
+
+    if (listing.silent) {
+      listing.buffer.push(...chunk.entries);
+    } else {
+      setError("");
+      // Append rather than replace: refresh() has already cleared the list
+      // for a non-silent request, so each chunk extends what's on screen.
+      setEntries((previous) => (chunk.seq === 0 ? chunk.entries : [...previous, ...chunk.entries]));
+    }
+
+    if (!chunk.done) return;
+
+    activeListing = null;
+    setListingInFlight(false);
+    if (listing.silent) {
+      setError("");
+      setEntries(listing.buffer);
+      setContentMatches(new Map());
+      setUnreadableExpanded(false);
+    }
+    setUnreadable(chunk.unreadable);
+    setUnreadableEntries(chunk.unreadableEntries);
+  }
+
+  // Registration is started here in the component body, not in onMount, and
+  // every listing waits on it (via chunkListenerReady) before asking the
+  // backend for anything — see startStreamedListing above.
+  let chunkUnlisten: (() => void) | undefined;
+  let chunkListenerDisposed = false;
+  const chunkListenerReady = listen<DirectoryChunk>("directory-chunk", (event) =>
+    handleDirectoryChunk(event.payload),
+  )
+    .then((fn) => {
+      if (chunkListenerDisposed) fn();
+      else chunkUnlisten = fn;
+    })
+    .catch((err) => {
+      // Without a listener no chunk can ever arrive, so fail the pending
+      // request loudly rather than leaving a blank list spinning.
+      activeListing = null;
+      setListingInFlight(false);
+      setError(`Couldn't listen for directory updates: ${err}`);
+    });
+
+  onCleanup(() => {
+    chunkListenerDisposed = true;
+    chunkUnlisten?.();
+  });
+
   async function refresh() {
     setEntries([]);
     setContentMatches(new Map());
@@ -341,12 +489,11 @@ export function FileList(props: FileListProps) {
           unreadableEntries: [],
         };
       } else {
-        result = await invoke<DirListing>("list_directory", {
-          path: props.path,
-          sortKey: props.sortKey,
-          sortDirection: props.sortDirection,
-          groupFoldersFirst: props.groupFoldersFirst,
-        });
+        // Plain listings stream in over `directory-chunk` events; the
+        // handler owns setting state from here, so there's nothing to
+        // apply below.
+        startStreamedListing(false);
+        return;
       }
       if (
         currentPathReq !== props.path ||
@@ -1632,7 +1779,7 @@ export function FileList(props: FileListProps) {
             </tr>
           </thead>
           <tbody>
-            <Show when={sortedEntries().length === 0}>
+            <Show when={sortedEntries().length === 0 && !listingInFlight()}>
               <tr>
                 <td colspan={isSearching() ? 4 : 3} style="text-align:center;padding:3em 1em;opacity:0.5;">
                   <div style="display:flex;flex-direction:column;align-items:center;gap:0.6em;">
