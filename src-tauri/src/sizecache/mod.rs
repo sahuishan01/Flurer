@@ -503,7 +503,9 @@ fn is_windows_volatile_path(path: &Path) -> bool {
     false
 }
 
-fn is_ignored_watcher_path(path: &Path) -> bool {
+// Also used by searchindex/mod.rs (its recursive-root watcher and rebuild
+// walk want the same exclusions this module's own watcher applies).
+pub(crate) fn is_ignored_watcher_path(path: &Path) -> bool {
     is_internal_app_path(path) || is_windows_volatile_path(path)
 }
 
