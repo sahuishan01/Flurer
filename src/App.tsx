@@ -384,6 +384,11 @@ function App() {
     persistSettings();
   }
 
+  function updateSearchIndexRoots(roots: string[]) {
+    setSettings("searchIndexRoots", roots);
+    persistSettings();
+  }
+
   function toggleFavourite(path: string) {
     const isFavourite = settings.favouritePaths.includes(path);
     setSettings(
@@ -1161,6 +1166,8 @@ function App() {
                   onDisabledPluginsChange={updateDisabledPlugins}
                   pluginSettings={settings.pluginSettings}
                   onPluginSettingsChange={updatePluginSettings}
+                  searchIndexRoots={settings.searchIndexRoots}
+                  onSearchIndexRootsChange={updateSearchIndexRoots}
                 />
               </div>
             </Show>

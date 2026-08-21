@@ -11,6 +11,7 @@ mod logging;
 mod network;
 mod plugins;
 mod progress;
+mod searchindex;
 mod shortcuts;
 mod sizecache;
 mod state;
@@ -31,6 +32,7 @@ use fs::{
 };
 use helpers::settings::{get_settings, load_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
+use searchindex::{clear_search_index, rebuild_search_index, search_index_query, search_index_status};
 use sizecache::{clear_folder_size_cache, get_folder_size, get_folder_size_cache_stats, recompute_folder_size};
 use tauri::{Manager, PhysicalSize};
 use tokio::sync::Mutex;
@@ -103,6 +105,21 @@ pub fn run() {
                 shortcuts::show_and_focus_main_window(&app.handle());
             }
             sizecache::init(&app.handle());
+            // Deliberately deferred off the setup thread: this is the one
+            // reintroduced feature that ever ran synchronously in .setup()
+            // in the original (reverted) attempt, and it's the prime
+            // remaining suspect for the launch-hang that revert was for
+            // (see HANDOFF.md). searchindex::init only reads a persisted
+            // index file and starts a filesystem watcher — nothing it does
+            // needs to finish before the window is usable, so spawning it
+            // costs nothing and makes it categorically impossible for this
+            // feature to block startup, regardless of what it does inside.
+            let search_index_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                log::info!("search index: init starting (background thread)");
+                searchindex::init(&search_index_handle);
+                log::info!("search index: init finished");
+            });
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -193,6 +210,11 @@ pub fn run() {
             take_launch_path,
             // Native row drag-out (see dnd.ts)
             set_external_drop_allowed,
+            // Search index
+            search_index_status,
+            search_index_query,
+            rebuild_search_index,
+            clear_search_index,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -325,6 +325,58 @@ export function FileList(props: FileListProps) {
     }
   }
 
+  // ---- Search index ------------------------------------------------------
+  //
+  // Which roots the backend currently has indexed. Kept here rather than
+  // asked per query so a search doesn't pay a round trip just to find out
+  // whether it can use the fast path.
+  const [indexedRoots, setIndexedRoots] = createSignal<string[]>([]);
+
+  async function loadIndexedRoots() {
+    try {
+      const status = await invoke<{ roots: string[]; entryCount: number }>("search_index_status");
+      // An index with roots but no entries (cleared, or a rebuild that found
+      // nothing) can't answer anything, so treat it as absent.
+      setIndexedRoots(status.entryCount > 0 ? status.roots : []);
+    } catch {
+      setIndexedRoots([]);
+    }
+  }
+
+  onMount(() => {
+    loadIndexedRoots();
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    listen<{ done: boolean }>("search-index-progress", (event) => {
+      if (event.payload.done) loadIndexedRoots();
+    }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
+      unlisten = fn;
+    });
+    onCleanup(() => {
+      disposed = true;
+      unlisten?.();
+    });
+  });
+
+  /** Whether `path` is inside (or is) one of the indexed roots. */
+  function isPathIndexed(path: string) {
+    const normalize = (value: string) => value.toLowerCase().replace(/\//g, "\\");
+    const target = normalize(path);
+    return indexedRoots().some((root) => {
+      const normalizedRoot = normalize(root);
+      // The separator check is what stops "C:\Users\Ish" from being treated
+      // as covering "C:\Users\Ishan".
+      return (
+        target === normalizedRoot ||
+        target.startsWith(normalizedRoot.endsWith("\\") ? normalizedRoot : `${normalizedRoot}\\`)
+      );
+    });
+  }
+
   // ---- Streamed directory listings -------------------------------------
   //
   // A plain listing arrives as a sequence of `directory-chunk` events rather
@@ -537,15 +589,19 @@ export function FileList(props: FileListProps) {
           : [];
         result = { entries: matches.map((m) => m.entry), unreadable: 0, unreadableEntries: [] };
       } else if (isSearching()) {
-        result = {
-          entries: await invoke<DirEntry[]>("search_directory", {
-            root: props.path,
-            query: props.searchQuery.trim(),
-            recursive: props.searchRecursive,
-          }),
-          unreadable: 0,
-          unreadableEntries: [],
-        };
+        const query = props.searchQuery.trim();
+        // Only recursive search can use the index. A non-recursive search is
+        // a filter over the folder already on screen, and answering it from
+        // the index would wrongly surface hits from subfolders.
+        const entries =
+          props.searchRecursive && isPathIndexed(props.path)
+            ? await invoke<DirEntry[]>("search_index_query", { query, root: props.path })
+            : await invoke<DirEntry[]>("search_directory", {
+                root: props.path,
+                query,
+                recursive: props.searchRecursive,
+              });
+        result = { entries, unreadable: 0, unreadableEntries: [] };
       } else {
         // Plain listings stream in over `directory-chunk` events; the
         // handler owns setting state from here, so there's nothing to

@@ -93,6 +93,10 @@ export type Settings = {
   // DEFAULT_IN_APP_SHORTCUTS per-action rather than requiring every action
   // to have an explicit entry.
   inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
+  // Roots (folders/drives) the user has opted into the name-search index.
+  // Empty means the index is unused and search falls back to walking the
+  // tree per query (see searchindex/mod.rs).
+  searchIndexRoots: string[];
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -142,6 +146,7 @@ export const DEFAULT_SETTINGS: Settings = {
   windowHeight: DEFAULT_WINDOW_HEIGHT,
   windowMaximized: false,
   inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
+  searchIndexRoots: [],
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

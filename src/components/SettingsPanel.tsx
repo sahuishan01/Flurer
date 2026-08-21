@@ -1,6 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 import { CustomizationSettings } from "./CustomizationSettings";
 import { UpdatesView } from "./UpdatesView";
+import { SearchIndexSettings } from "./SearchIndexSettings";
 import { CloseIcon } from "./icons";
 import type { BackgroundSettings, Theme } from "../lib/settings";
 import type { InAppShortcutAction } from "../lib/shortcuts";
@@ -54,6 +55,8 @@ type SettingsPanelProps = {
   onDisabledPluginsChange: (disabled: string[]) => void;
   pluginSettings: Record<string, any>;
   onPluginSettingsChange: (pluginId: string, patch: any) => void;
+  searchIndexRoots: string[];
+  onSearchIndexRootsChange: (roots: string[]) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -64,6 +67,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
       const list = [
         { id: "customization", label: "Customization" },
         { id: "plugins", label: "Plugins" },
+        { id: "search-index", label: "Search index" },
         { id: "updates", label: "Updates" },
       ];
     for (const p of registeredPlugins()) {
@@ -164,6 +168,12 @@ export function SettingsPanel(props: SettingsPanelProps) {
                 onPluginSettingsChange: (patch: any) => props.onPluginSettingsChange(id, patch)
               });
             }}
+          </Show>
+          <Show when={category() === "search-index"}>
+            <SearchIndexSettings
+              roots={props.searchIndexRoots}
+              onRootsChange={props.onSearchIndexRootsChange}
+            />
           </Show>
           <Show when={category() === "updates"}>
             <UpdatesView />

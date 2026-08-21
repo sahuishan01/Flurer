@@ -1611,6 +1611,52 @@ button.sidebar-drive,
     margin-top: 0.75em;
 }
 
+.search-index-status {
+    margin-top: 0.75em;
+    font-size: var(--text-label);
+    opacity: 0.8;
+}
+
+.search-index-roots {
+    list-style: none;
+    margin: 0.6em 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+}
+
+.search-index-roots li {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.3em 0.5em;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: color-mix(in srgb, var(--control-bg) 40%, transparent);
+}
+
+/* Paths can be long and must not stretch the settings pane; the ellipsis
+   goes on the left so the leaf folder — the part that identifies the root —
+   stays readable. */
+.search-index-root-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    font-size: var(--text-label);
+}
+
+.search-index-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin-top: 0.75em;
+}
+
 .shortcut-label {
     font-size: var(--text-label);
 }

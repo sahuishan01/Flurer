@@ -190,6 +190,11 @@ pub struct Settings {
     // maximize icon toggled, and it ignores taskbar-reserved space).
     #[serde(default)]
     pub window_maximized: bool,
+    // Roots (folders/drives) the user has opted into the search index —
+    // see searchindex/mod.rs. Empty means the index is unused; a settings
+    // file from before this field existed just defaults to that.
+    #[serde(default)]
+    pub search_index_roots: Vec<String>,
 }
 
 fn default_global_shortcut() -> String {
@@ -249,6 +254,7 @@ impl Default for Settings {
             window_width: default_window_width(),
             window_height: default_window_height(),
             window_maximized: false,
+            search_index_roots: Vec::new(),
         }
     }
 }
