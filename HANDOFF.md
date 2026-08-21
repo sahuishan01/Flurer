@@ -1,9 +1,13 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-Current version: **0.4.105** (tagged, pushed). Features 1, 2, and 3 of 5
+Current version: **0.4.106** (tagged, pushed). Features 1, 2, and 3 of 5
 shipped and confirmed working by the user. Feature 4 (split view)
-implemented and about to ship as v0.4.106. (v0.4.104 was an unrelated
-updater fix, not one of the 5 features — see git log.)
+shipped as v0.4.106, but the user found a real bug (couldn't type a path
+into the second pane) and asked for an N-pane grid instead of a fixed
+two-pane split — that rework is implemented and about to ship as
+v0.4.107; **not yet confirmed working**, don't treat feature 4 as done
+until it is. (v0.4.104 was an unrelated updater fix, not one of the 5
+features — see git log.)
 
 If you're picking this up cold: read this whole file before touching code.
 It exists so you don't have to re-read the conversation that produced it.
@@ -166,30 +170,59 @@ doesn't leak.
 No `.setup()`-time init — watches are only registered per-request from
 the frontend, never during app startup. Low risk to the launch hang.
 
-## Feature 4 — split view (DONE, shipping as v0.4.106)
+## Feature 4 — split view (DONE, shipped as v0.4.106, then extended to an
+N-pane grid in v0.4.107)
 
-Files: `src/components/ExplorerView.tsx` (rewritten to host two panes,
-shared clipboard, an explicit `activePane` signal so document-level
-keyboard shortcuts and OS file-drops apply to only one pane — both
-`FileList`s bind those to `document`, so without an active-pane concept
-one Delete keypress would fire in both), `src/components/FileList.tsx`
-(new `active?: boolean` prop, defaults to true, gates the keydown handler
-and the OS-drop handler), `src/App.tsx` + `src/lib/settings.ts` +
-`src-tauri/src/state/mod.rs` (persist `splitViewPath: string | null` /
-`split_view_path: Option<String>`).
+**v0.4.106** shipped a single two-pane split (`splitPath: string | null`),
+matching the original `38c8f08` design exactly, including its known
+loose-vs-strict-null gotcha (fixed from the start this time). The second
+pane's header was just a read-only `<span>` for the path plus an Up
+button — deliberately minimal, reasoning that duplicating the window's
+full address bar per pane was a much larger change than the split itself.
 
-**Known gotcha already found once:** the split-open check must be a loose
-`props.splitPath != null`, not `!== null`. A settings file written before
-this field existed deserializes it as `undefined`, and a strict
-`!== null` reads `undefined` as "split is open," laying out the explorer
-for a second pane that never renders. This was caught and fixed in
-`f6310d6` — make sure it's in the code from the start this time, it's a
-one-line difference (`!=` vs `!==`) that's easy to lose when re-deriving
-by hand.
+**The user hit this directly**: unable to change the second pane's path
+even though it was the active/selected pane, because there was no way to
+*type* a path there at all — only double-click-into-folder and Up
+worked. They also asked for up to 4 horizontal x 4 vertical panes, not
+just one second pane. **v0.4.107 replaced the two-pane model with an
+N-pane grid** in response:
 
-Frontend-only for the pane mechanics; the only Rust touch is the new
-settings field, which is inert data with no `.setup()`-time behavior.
-Low risk.
+- `splitPath: string | null` → `splitCols: number` (1-4) +
+  `splitPanePaths: string[]` (one entry per *extra* open pane, in fill
+  order; pane 0 is always the window's own primary path and isn't stored
+  in this array) — same shape change in `settings.ts` and
+  `state/mod.rs`'s `Settings` struct. `#[serde(default)]` on both new
+  Rust fields makes this a safe schema change: a settings.json from
+  v0.4.106 with the old `splitViewPath` field just has that field
+  ignored and the new ones default to unsplit.
+- Rows aren't a separate stored dimension — panes wrap onto a new row
+  automatically once `splitCols` fills up, capped at `MAX_ROWS = 4`
+  (`MAX_PANES = 16` total including the primary pane). This satisfies
+  "up to 4 horizontal x 4 vertical" with one user-facing control
+  (a columns stepper, 1-4) instead of two, since row count falls out of
+  pane count ÷ columns.
+- **Every extra pane now gets a real `ExplorerPathBar`** (the same
+  component the primary pane's address bar in `App.tsx`'s `CommandBar`
+  uses — breadcrumb popover, editable path input with autocomplete,
+  favourite toggle) instead of a static label. This is the actual fix
+  for the reported bug: typing/pasting a path into any pane's own address
+  bar now navigates that pane.
+- Extra panes are rendered with Solid's `<Index>`, not `<For>`: panes are
+  addressed by *position* (pane k is `splitPanePaths[k-1]`), and two
+  panes can legitimately show the same folder at once, which `For`'s
+  keyed-by-value semantics would collide on. `Index` calls its render
+  function once per slot and updates an accessor as that slot's path
+  changes, which is also what lets each pane's local `pathInput` signal
+  (the address bar's in-progress typed text) survive navigation instead
+  of being torn down and recreated.
+- `addPane()` opens the new pane at the parent of whichever pane is
+  currently active (not always the primary), `closePane(i)` splices that
+  entry out and re-targets `activePane` if it pointed at the closed pane
+  or shifted past it.
+
+Still frontend-only for the pane mechanics; the only Rust touch remains
+the settings fields, inert data with no `.setup()`-time behavior. Low
+risk to the launch-hang regression this whole effort is about.
 
 ## Feature 5 — search index (LAST, highest risk, needs a real change)
 
@@ -316,7 +349,8 @@ for the remaining features.
 
 ## Current git state
 
-`main` is at v0.4.105 (feature 3, live watching). Feature 4 (split view)
-is committed on top of that and about to ship as v0.4.106. Remaining:
+`main` is at v0.4.106 (feature 4, first cut of split view). The N-pane
+grid rework is committed on top of that and about to ship as v0.4.107 —
+still feature 4, not a new feature slot. Remaining after it's confirmed:
 feature 5 (search index), the highest-risk one. This file is the source
 of truth for what's left and in what order.

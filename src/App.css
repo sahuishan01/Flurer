@@ -447,10 +447,15 @@ body {
     overflow: hidden;
 }
 
-/* Split view lays the two panes out on the row axis; each pane keeps the
-   column layout the single-pane case has always used. */
+/* Split view lays panes out on a grid, wrapping onto new rows once a row
+   fills up at --split-cols wide; each pane keeps the column layout the
+   single-pane case has always used. --split-cols is set inline per render
+   (ExplorerView.tsx) since it's a user-adjustable count (1-4), not a fixed
+   value CSS alone can express. */
 .explorer-content-split {
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: repeat(var(--split-cols, 1), 1fr);
+    grid-auto-rows: 1fr;
     gap: 0.5em;
 }
 
@@ -486,16 +491,14 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.explorer-pane-path {
+/* Each extra pane owns a full ExplorerPathBar (breadcrumb + editable
+   input + favourite toggle) rather than a read-only path label, so its
+   folder can actually be retyped/navigated the same way the primary
+   pane's address bar works — a plain <span> here was the original design
+   and is exactly what made the second pane's path feel stuck. */
+.explorer-pane-header .explorer-path-bar {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    direction: rtl;
-    text-align: left;
-    font-size: var(--text-label);
-    opacity: 0.8;
 }
 
 /* Floats over the list rather than taking a row of its own, so adding the
@@ -505,11 +508,27 @@ body {
     top: 0.3em;
     right: 0.6em;
     z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
     opacity: 0.5;
 }
 
 .explorer-pane-actions:hover {
     opacity: 1;
+}
+
+.split-cols-stepper {
+    display: flex;
+    align-items: center;
+    gap: 0.15em;
+}
+
+.split-cols-count {
+    min-width: 1.2em;
+    text-align: center;
+    font-size: var(--text-label);
+    font-variant-numeric: tabular-nums;
 }
 
 /* .view-stack/.view-pane are flex items on the row axis (view-rail |

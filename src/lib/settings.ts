@@ -37,9 +37,13 @@ export type Settings = {
   uiTintOpacity: number;
   uiBlurPx: number;
   lastMainView: LastMainView;
-  // Second explorer pane's folder, or null when the view isn't split.
-  // Persisted so a split workspace survives a restart.
-  splitViewPath: string | null;
+  // Explorer split grid: up to 4 columns, wrapping into new rows as panes
+  // are added (capped at 4 rows, so 16 panes total including the primary
+  // one). Pane 0 is always the window's own primary path and isn't stored
+  // here; splitPanePaths holds the *extra* panes' folders in fill order,
+  // one entry per open pane.
+  splitCols: number;
+  splitPanePaths: string[];
   persistGraphState: boolean;
   graphState: GraphState | null;
   favouritePaths: string[];
@@ -113,7 +117,8 @@ export const DEFAULT_SETTINGS: Settings = {
   uiTintOpacity: 0.35,
   uiBlurPx: 12,
   lastMainView: "explorer",
-  splitViewPath: null,
+  splitCols: 1,
+  splitPanePaths: [],
   persistGraphState: true,
   graphState: null,
   favouritePaths: [],

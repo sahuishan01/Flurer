@@ -1003,8 +1003,10 @@ function App() {
                   onGroupFoldersFirstChange={updateGroupFoldersFirst}
                   groupBy={settings.groupBy}
                   onGroupByChange={updateGroupBy}
-                  splitPath={settings.splitViewPath}
-                  onSplitPathChange={(path) => setSettings("splitViewPath", path)}
+                  splitCols={settings.splitCols}
+                  onSplitColsChange={(cols) => setSettings("splitCols", cols)}
+                  splitPanePaths={settings.splitPanePaths}
+                  onSplitPanePathsChange={(paths) => setSettings("splitPanePaths", paths)}
                 />
               </div>
             </Show>

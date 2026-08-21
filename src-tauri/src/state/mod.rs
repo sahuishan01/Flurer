@@ -108,9 +108,18 @@ pub struct Settings {
     pub ui_tint_opacity: f32,
     pub ui_blur_px: f32,
     pub last_main_view: LastMainView,
-    // Second explorer pane's folder; None when the view isn't split.
+    // Explorer split grid: up to 4 columns, wrapping into new rows as
+    // panes are added (capped at 4 rows, so 16 panes total including the
+    // primary one). Pane 0 is always the window's own primary path
+    // (currentPath/history/sidebar) and isn't stored here; split_pane_paths
+    // holds the *extra* panes' folders in fill order, one entry per open
+    // pane — closing a pane removes its entry outright (unlike split_cols,
+    // there's no "shrink without losing panes" behavior for pane count
+    // itself, only for how many columns wide they're laid out).
+    #[serde(default = "default_split_dim")]
+    pub split_cols: u8,
     #[serde(default)]
-    pub split_view_path: Option<String>,
+    pub split_pane_paths: Vec<String>,
     pub persist_graph_state: bool,
     pub graph_state: Option<GraphState>,
     pub favourite_paths: Vec<String>,
@@ -203,6 +212,10 @@ fn default_window_height() -> u32 {
     600
 }
 
+fn default_split_dim() -> u8 {
+    1
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -212,7 +225,8 @@ impl Default for Settings {
             ui_tint_opacity: 0.35,
             ui_blur_px: 12.0,
             last_main_view: LastMainView::default(),
-            split_view_path: None,
+            split_cols: 1,
+            split_pane_paths: Vec::new(),
             persist_graph_state: true,
             graph_state: None,
             favourite_paths: Vec::new(),
