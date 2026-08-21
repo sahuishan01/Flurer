@@ -33,6 +33,15 @@ type HistoryEntry = { view: MainView; path: string };
 function App() {
   const [currentPath, setCurrentPath] = createSignal(DEFAULT_PATH);
   const [pathInput, setPathInput] = createSignal(DEFAULT_PATH);
+  // Which explorer pane global navigation (the top address bar, sidebar
+  // clicks on a drive/favourite/recent, the search box) targets. 0 is the
+  // primary pane (currentPath, with real back/forward history and tabs);
+  // k (k >= 1) is settings.splitPanePaths[k - 1], which has neither — see
+  // navigateActivePane and activePanePath below. Owned here rather than
+  // inside ExplorerView because the CommandBar's address bar and Sidebar
+  // live outside it and need to read/target the same pane ExplorerView
+  // considers "active" for keyboard shortcuts and drops.
+  const [activePane, setActivePane] = createSignal(0);
   const [mainView, setMainView] = createSignal<MainView>("explorer");
   const [history, setHistory] = createSignal<HistoryEntry[]>([{ view: "explorer", path: DEFAULT_PATH }]);
   const [historyIndex, setHistoryIndex] = createSignal(0);
@@ -564,7 +573,6 @@ function App() {
     setHistoryIndex(index);
     setMainView(entry.view);
     setCurrentPath(entry.path);
-    setPathInput(entry.path);
     suppressHistoryPush = false;
   }
 
@@ -622,10 +630,40 @@ function App() {
 
   function navigateTo(path: string) {
     setCurrentPath(path);
-    setPathInput(path);
     setMainView("explorer");
     pushHistory({ view: "explorer", path });
     recordRecent(path);
+  }
+
+  /** Whichever pane global navigation currently targets — see activePane. */
+  function activePanePath(): string {
+    const i = activePane();
+    return i === 0 ? currentPath() : (settings.splitPanePaths[i - 1] ?? currentPath());
+  }
+
+  // pathInput (the top address bar's in-progress typed text) always
+  // mirrors whichever pane is active, not just the primary one — so
+  // switching which pane has focus updates the address bar to show that
+  // pane's folder instead of leaving it stuck on stale text.
+  createEffect(() => setPathInput(activePanePath()));
+
+  /**
+   * Routes a navigation from outside ExplorerView (top address bar,
+   * sidebar drive/favourite/recent click) to whichever pane is active.
+   * Pane 0 goes through navigateTo so it keeps participating in
+   * back/forward history and tabs; any other pane is just a direct
+   * settings update, matching how ExplorerView itself navigates extra
+   * panes — they were never given history of their own (see HANDOFF.md).
+   */
+  function navigateActivePane(path: string) {
+    const i = activePane();
+    if (i === 0) {
+      navigateTo(path);
+      return;
+    }
+    const next = settings.splitPanePaths.slice();
+    next[i - 1] = path;
+    setSettings("splitPanePaths", next);
   }
 
   function selectView(view: MainView) {
@@ -682,16 +720,17 @@ function App() {
   const [graphFocusRequest, setGraphFocusRequest] = createSignal<GraphFocusRequest | null>(null);
 
   // Picking a place from the sidebar (a drive, a recent/favourite folder, or
-  // a quick-access shortcut) normally jumps to Explorer — but while already
-  // looking at the storage graph, jumping away from it is more disruptive
-  // than useful, so this asks GraphView to expand and center on that path's
-  // node there instead.
+  // a quick-access shortcut) normally jumps to whichever explorer pane is
+  // active — but while already looking at the storage graph, jumping away
+  // from it is more disruptive than useful, so this asks GraphView to
+  // expand and center on that path's node there instead.
   function selectSidebarPath(path: string) {
     if (mainView() === "graph") {
       setGraphFocusRequest((prev) => ({ path, token: (prev?.token ?? 0) + 1 }));
       return;
     }
-    navigateTo(path);
+    setMainView("explorer");
+    navigateActivePane(path);
   }
 
   function closeSettings() {
@@ -945,10 +984,10 @@ function App() {
           viewControls={
             <Show when={mainView() === "explorer"}>
               <ExplorerPathBar
-                path={currentPath()}
+                path={activePanePath()}
                 pathInput={pathInput()}
                 onPathInputChange={setPathInput}
-                onNavigate={navigateTo}
+                onNavigate={navigateActivePane}
                 favouritePaths={settings.favouritePaths}
                 onToggleFavourite={toggleFavourite}
               />
@@ -965,7 +1004,7 @@ function App() {
           <Show when={showSidebar()}>
             <Sidebar
               data-bg-lightness={sidebarLightness()}
-              currentPath={currentPath()}
+              currentPath={activePanePath()}
               onSelectPath={selectSidebarPath}
               onSelectView={selectView}
               activeView={mainView()}
@@ -1007,6 +1046,8 @@ function App() {
                   onSplitColsChange={(cols) => setSettings("splitCols", cols)}
                   splitPanePaths={settings.splitPanePaths}
                   onSplitPanePathsChange={(paths) => setSettings("splitPanePaths", paths)}
+                  activePane={activePane()}
+                  onActivePaneChange={setActivePane}
                 />
               </div>
             </Show>

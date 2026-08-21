@@ -30,6 +30,13 @@ type ExplorerViewProps = {
   onSplitColsChange: (cols: number) => void;
   splitPanePaths: string[];
   onSplitPanePathsChange: (paths: string[]) => void;
+  // Which pane keyboard shortcuts, OS drops, the top address bar, sidebar
+  // clicks, and the search box all target. Owned by App.tsx (not this
+  // component) because the address bar and sidebar live outside
+  // ExplorerView and need to agree with it on what "active" means. 0 is
+  // the primary pane; k (k >= 1) is splitPanePaths[k - 1].
+  activePane: number;
+  onActivePaneChange: (pane: number) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -42,12 +49,6 @@ export function ExplorerView(props: ExplorerViewProps) {
   // pasting in another is the main reason to have a split at all.
   const [clipboard, setClipboard] = createSignal<ClipboardState>(null);
 
-  // Which pane keyboard shortcuts and OS drops apply to. 0 is the primary
-  // pane; k (k >= 1) is splitPanePaths[k - 1]. Tracked on pointer and focus
-  // rather than hover so the target doesn't change out from under someone
-  // who has moved the mouse away before pressing Delete.
-  const [activePane, setActivePane] = createSignal(0);
-
   const totalPanes = () => 1 + props.splitPanePaths.length;
   const isSplit = () => totalPanes() > 1;
   // Never wider than there are panes to fill it, so a 4-column grid with
@@ -55,7 +56,7 @@ export function ExplorerView(props: ExplorerViewProps) {
   const effectiveCols = () => Math.max(1, Math.min(props.splitCols, MAX_COLS, totalPanes()));
 
   function activePanePath(): string {
-    const i = activePane();
+    const i = props.activePane;
     return i === 0 ? props.path : (props.splitPanePaths[i - 1] ?? props.path);
   }
 
@@ -82,15 +83,15 @@ export function ExplorerView(props: ExplorerViewProps) {
     const base = activePanePath();
     const next = [...props.splitPanePaths, parentOf(base) ?? base];
     props.onSplitPanePathsChange(next);
-    setActivePane(next.length);
+    props.onActivePaneChange(next.length);
   }
 
   function closePane(overallIndex: number) {
     const arrIndex = overallIndex - 1;
     const next = props.splitPanePaths.filter((_, i) => i !== arrIndex);
     props.onSplitPanePathsChange(next);
-    if (activePane() === overallIndex) setActivePane(0);
-    else if (activePane() > overallIndex) setActivePane(activePane() - 1);
+    if (props.activePane === overallIndex) props.onActivePaneChange(0);
+    else if (props.activePane > overallIndex) props.onActivePaneChange(props.activePane - 1);
   }
 
   function updateExtraPane(arrIndex: number, path: string) {
@@ -111,9 +112,9 @@ export function ExplorerView(props: ExplorerViewProps) {
     >
       <div
         class="explorer-pane"
-        classList={{ "explorer-pane-active": isSplit() && activePane() === 0 }}
-        onFocusIn={() => setActivePane(0)}
-        onPointerDown={() => setActivePane(0)}
+        classList={{ "explorer-pane-active": isSplit() && props.activePane === 0 }}
+        onFocusIn={() => props.onActivePaneChange(0)}
+        onPointerDown={() => props.onActivePaneChange(0)}
       >
         <div class="explorer-pane-actions">
           <Show
@@ -161,7 +162,7 @@ export function ExplorerView(props: ExplorerViewProps) {
           data-bg-lightness={props["data-bg-lightness"]}
           path={props.path}
           onNavigate={props.onNavigate}
-          active={!isSplit() || activePane() === 0}
+          active={!isSplit() || props.activePane === 0}
           sortKey={props.sortKey}
           sortDirection={props.sortDirection}
           onSortChange={props.onSortChange}
@@ -171,8 +172,12 @@ export function ExplorerView(props: ExplorerViewProps) {
           onGroupByChange={props.onGroupByChange}
           clipboard={clipboard()}
           onClipboardChange={setClipboard}
-          searchQuery={props.searchQuery}
-          searchRecursive={props.searchRecursive}
+          // The search box drives whichever pane is active, not always the
+          // primary — otherwise switching focus to an extra pane and typing
+          // a query would silently keep filtering a pane that isn't even
+          // visible as "the one being searched".
+          searchQuery={props.activePane === 0 ? props.searchQuery : ""}
+          searchRecursive={props.activePane === 0 ? props.searchRecursive : false}
           favouritePaths={props.favouritePaths}
           onToggleFavourite={props.onToggleFavourite}
           folderColors={props.folderColors}
@@ -201,9 +206,9 @@ export function ExplorerView(props: ExplorerViewProps) {
           return (
             <div
               class="explorer-pane explorer-pane-secondary"
-              classList={{ "explorer-pane-active": activePane() === overallIndex }}
-              onFocusIn={() => setActivePane(overallIndex)}
-              onPointerDown={() => setActivePane(overallIndex)}
+              classList={{ "explorer-pane-active": props.activePane === overallIndex }}
+              onFocusIn={() => props.onActivePaneChange(overallIndex)}
+              onPointerDown={() => props.onActivePaneChange(overallIndex)}
             >
               <div class="explorer-pane-header">
                 <ExplorerPathBar
@@ -228,7 +233,7 @@ export function ExplorerView(props: ExplorerViewProps) {
                 data-bg-lightness={props["data-bg-lightness"]}
                 path={pathAt()}
                 onNavigate={(p) => updateExtraPane(arrIndex, p)}
-                active={activePane() === overallIndex}
+                active={props.activePane === overallIndex}
                 sortKey={props.sortKey}
                 sortDirection={props.sortDirection}
                 onSortChange={props.onSortChange}
@@ -238,11 +243,10 @@ export function ExplorerView(props: ExplorerViewProps) {
                 onGroupByChange={props.onGroupByChange}
                 clipboard={clipboard()}
                 onClipboardChange={setClipboard}
-                // The window's search box drives the primary pane only —
-                // applying one query to every pane would make the split
-                // useless as a "search here, browse there" workspace.
-                searchQuery=""
-                searchRecursive={false}
+                // The search box drives whichever pane is active — see the
+                // same gating on the primary pane's FileList above.
+                searchQuery={props.activePane === overallIndex ? props.searchQuery : ""}
+                searchRecursive={props.activePane === overallIndex ? props.searchRecursive : false}
                 favouritePaths={props.favouritePaths}
                 onToggleFavourite={props.onToggleFavourite}
                 folderColors={props.folderColors}

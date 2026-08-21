@@ -1,13 +1,13 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-Current version: **0.4.106** (tagged, pushed). Features 1, 2, and 3 of 5
-shipped and confirmed working by the user. Feature 4 (split view)
-shipped as v0.4.106, but the user found a real bug (couldn't type a path
-into the second pane) and asked for an N-pane grid instead of a fixed
-two-pane split — that rework is implemented and about to ship as
-v0.4.107; **not yet confirmed working**, don't treat feature 4 as done
-until it is. (v0.4.104 was an unrelated updater fix, not one of the 5
-features — see git log.)
+Current version: **0.4.107** (tagged, pushed). Features 1, 2, and 3 of 5
+shipped and confirmed working by the user. Feature 4 (split view) has
+gone through two rounds of user feedback since its first cut in
+v0.4.106 — an N-pane grid rework (v0.4.107, confirmed working) and a
+global-navigation routing fix (about to ship as v0.4.108, **not yet
+confirmed**). Don't treat feature 4 as done until v0.4.108 is confirmed.
+(v0.4.104 was an unrelated updater fix, not one of the 5 features — see
+git log.)
 
 If you're picking this up cold: read this whole file before touching code.
 It exists so you don't have to re-read the conversation that produced it.
@@ -224,6 +224,42 @@ Still frontend-only for the pane mechanics; the only Rust touch remains
 the settings fields, inert data with no `.setup()`-time behavior. Low
 risk to the launch-hang regression this whole effort is about.
 
+**Second round of user feedback on v0.4.107**: the per-pane address bars
+worked, but global navigation — the top address bar in `CommandBar`,
+sidebar clicks (drives/favourites/recents/quick-access), the search box —
+only ever affected the primary pane, even when a different pane was
+selected/active. This was because `activePane` lived entirely inside
+`ExplorerView`, invisible to `App.tsx`, so nothing outside it could target
+whichever pane the user actually had focused. **v0.4.108 lifted
+`activePane` up to `App.tsx`**, passed down to `ExplorerView` as a
+controlled prop (`activePane`/`onActivePaneChange`) instead of a local
+signal:
+
+- `App.tsx` gained `activePanePath()` (resolves to `currentPath()` for
+  pane 0, `settings.splitPanePaths[i-1]` otherwise) and
+  `navigateActivePane(path)` (routes through `navigateTo` — keeping
+  back/forward history and tabs — for pane 0, or a direct
+  `splitPanePaths` update otherwise, matching how `ExplorerView` already
+  navigates extra panes).
+- The top `ExplorerPathBar`, `Sidebar`'s `currentPath` (used only for
+  highlighting), and `selectSidebarPath` all now read/target
+  `activePanePath()`/`navigateActivePane` instead of always
+  `currentPath()`/`navigateTo`.
+- `pathInput` (the top address bar's in-progress typed text) is now kept
+  in sync via a `createEffect` on `activePanePath()` rather than being
+  set manually at each navigation call site — so switching which pane is
+  active also updates what the address bar displays, not just what it
+  writes to.
+- The search box's query is now gated per pane inside `ExplorerView`
+  (`props.activePane === <that pane's index> ? props.searchQuery : ""`)
+  instead of the primary pane unconditionally receiving it and every
+  extra pane unconditionally not — so search follows whichever pane has
+  focus.
+- Tabs and back/forward history remain **primary-pane-only by design** —
+  that's an intentional, pre-existing scope (see the tab-sync comment in
+  `App.tsx`), not something this fix changed. Only pane 0 participates in
+  either.
+
 ## Feature 5 — search index (LAST, highest risk, needs a real change)
 
 New module: `src-tauri/src/searchindex/mod.rs` (flat in-memory `Vec` of
@@ -349,8 +385,8 @@ for the remaining features.
 
 ## Current git state
 
-`main` is at v0.4.106 (feature 4, first cut of split view). The N-pane
-grid rework is committed on top of that and about to ship as v0.4.107 —
+`main` is at v0.4.107 (feature 4, N-pane grid rework). A global-navigation
+routing fix on top of that is committed and about to ship as v0.4.108 —
 still feature 4, not a new feature slot. Remaining after it's confirmed:
 feature 5 (search index), the highest-risk one. This file is the source
 of truth for what's left and in what order.
