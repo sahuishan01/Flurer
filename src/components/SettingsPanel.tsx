@@ -57,6 +57,8 @@ type SettingsPanelProps = {
   onPluginSettingsChange: (pluginId: string, patch: any) => void;
   searchIndexRoots: string[];
   onSearchIndexRootsChange: (roots: string[]) => void;
+  recentPaths: string[];
+  favouritePaths: string[];
   "data-bg-lightness"?: string;
 };
 
@@ -173,6 +175,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
             <SearchIndexSettings
               roots={props.searchIndexRoots}
               onRootsChange={props.onSearchIndexRootsChange}
+              recentPaths={props.recentPaths}
+              favouritePaths={props.favouritePaths}
             />
           </Show>
           <Show when={category() === "updates"}>

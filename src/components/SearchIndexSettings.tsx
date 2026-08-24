@@ -2,6 +2,7 @@ import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderPlusIcon, RefreshIcon, TrashIcon } from "./icons";
+import { DirectoryPickerModal } from "./DirectoryPickerModal";
 
 type IndexStatus = {
   roots: string[];
@@ -17,6 +18,8 @@ type IndexProgress = {
 type SearchIndexSettingsProps = {
   roots: string[];
   onRootsChange: (roots: string[]) => void;
+  recentPaths: string[];
+  favouritePaths: string[];
 };
 
 /**
@@ -30,6 +33,7 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
   const [status, setStatus] = createSignal<IndexStatus | null>(null);
   const [progress, setProgress] = createSignal(0);
   const [error, setError] = createSignal("");
+  const [pickerOpen, setPickerOpen] = createSignal(false);
 
   async function refreshStatus() {
     try {
@@ -59,17 +63,12 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
     });
   });
 
-  async function addRoot() {
+  async function addRoot(picked: string) {
     setError("");
-    try {
-      const picked = await invoke<string | null>("pick_folder");
-      if (!picked || props.roots.includes(picked)) return;
-      const next = [...props.roots, picked];
-      props.onRootsChange(next);
-      await rebuild(next);
-    } catch (err) {
-      setError(String(err));
-    }
+    if (!picked || props.roots.includes(picked)) return;
+    const next = [...props.roots, picked];
+    props.onRootsChange(next);
+    await rebuild(next);
   }
 
   async function removeRoot(root: string) {
@@ -139,7 +138,7 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
       </ul>
 
       <div class="search-index-actions">
-        <button type="button" onClick={addRoot} disabled={busy()}>
+        <button type="button" onClick={() => setPickerOpen(true)} disabled={busy()}>
           <FolderPlusIcon /> Add folder
         </button>
         <button type="button" onClick={() => rebuild(props.roots)} disabled={busy() || props.roots.length === 0}>
@@ -157,6 +156,16 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
           <TrashIcon /> Clear index
         </button>
       </div>
+
+      <Show when={pickerOpen()}>
+        <DirectoryPickerModal
+          title="Choose a folder to index"
+          recentPaths={props.recentPaths}
+          favouritePaths={props.favouritePaths}
+          onSelect={addRoot}
+          onClose={() => setPickerOpen(false)}
+        />
+      </Show>
     </section>
   );
 }

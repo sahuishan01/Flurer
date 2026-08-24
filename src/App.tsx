@@ -1168,6 +1168,8 @@ function App() {
                   onPluginSettingsChange={updatePluginSettings}
                   searchIndexRoots={settings.searchIndexRoots}
                   onSearchIndexRootsChange={updateSearchIndexRoots}
+                  recentPaths={settings.recentPaths}
+                  favouritePaths={settings.favouritePaths}
                 />
               </div>
             </Show>
