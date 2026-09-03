@@ -86,6 +86,7 @@ export type Settings = {
   // that state via `Window.maximize()` instead of just resizing to the
   // maximized dimensions (see App.tsx's onResized/onMaximized handlers).
   windowMaximized: boolean;
+  sidebarWidth: number;
   // In-app shortcuts (Delete/Rename/Copy/Cut/Paste/Select all in the file
   // list) — distinct from globalShortcut above, which is the OS-wide
   // show-Flurer hotkey. Partial<> because a settings file saved before this
@@ -102,6 +103,7 @@ export type Settings = {
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
 export const DEFAULT_WINDOW_WIDTH = 800;
 export const DEFAULT_WINDOW_HEIGHT = 600;
+export const DEFAULT_SIDEBAR_WIDTH = 220;
 
 export const DEFAULT_SETTINGS: Settings = {
   wallpaper: null,
@@ -145,6 +147,7 @@ export const DEFAULT_SETTINGS: Settings = {
   windowWidth: DEFAULT_WINDOW_WIDTH,
   windowHeight: DEFAULT_WINDOW_HEIGHT,
   windowMaximized: false,
+  sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
   searchIndexRoots: [],
 };

@@ -1677,6 +1677,9 @@ export function FileList(props: FileListProps) {
     setSelected(new Set([match.path]));
     setLastClickedIndex(list.indexOf(match));
     scrollRowIntoView(match.path);
+    // Move actual DOM focus to the matched row so a subsequent Enter (bound
+    // per-row) opens it instead of firing on whatever was focused before.
+    document.querySelector<HTMLElement>(`[data-row-path="${CSS.escape(match.path)}"]`)?.focus();
   }
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));

@@ -96,6 +96,45 @@ pub fn run() {
                 if window_maximized {
                     window.maximize()?;
                 }
+
+                let app_handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    match event {
+                        tauri::WindowEvent::CloseRequested { .. } => {
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                let state = app_handle.state::<AppState>();
+                                if let Ok(mut settings) = state.settings.try_lock() {
+                                    let is_max = w.is_maximized().unwrap_or(false);
+                                    settings.window_maximized = is_max;
+                                    if !is_max {
+                                        if let Ok(size) = w.inner_size() {
+                                            if size.width >= 400 && size.height >= 300 {
+                                                settings.window_width = size.width;
+                                                settings.window_height = size.height;
+                                            }
+                                        }
+                                    }
+                                    let _ = save_settings(&app_handle, &settings);
+                                }
+                            }
+                        }
+                        tauri::WindowEvent::Resized(size) => {
+                            if let Some(w) = app_handle.get_webview_window("main") {
+                                if let Ok(false) = w.is_maximized() {
+                                    if size.width >= 400 && size.height >= 300 {
+                                        let state = app_handle.state::<AppState>();
+                                        if let Ok(mut settings) = state.settings.try_lock() {
+                                            settings.window_width = size.width;
+                                            settings.window_height = size.height;
+                                            settings.window_maximized = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                });
             }
             // The window starts hidden (see tauri.conf.json) so a
             // login-triggered autostart launch never flashes it open before
@@ -223,6 +262,22 @@ pub fn run() {
         // user quits are lost and those folders recalculate on next launch.
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                if let Some(w) = app.get_webview_window("main") {
+                    let state = app.state::<AppState>();
+                    if let Ok(mut settings) = state.settings.try_lock() {
+                        let is_max = w.is_maximized().unwrap_or(false);
+                        settings.window_maximized = is_max;
+                        if !is_max {
+                            if let Ok(size) = w.inner_size() {
+                                if size.width >= 400 && size.height >= 300 {
+                                    settings.window_width = size.width;
+                                    settings.window_height = size.height;
+                                }
+                            }
+                        }
+                        let _ = save_settings(app, &settings);
+                    }
+                }
                 sizecache::flush(app);
             }
         });

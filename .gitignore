@@ -3,3 +3,5 @@ dist
 .env
 src-tauri/target
 .claude/settings.local.json
+graphify-out/
+.opencode/

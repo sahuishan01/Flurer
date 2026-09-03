@@ -960,6 +960,47 @@ function App() {
     return settingsLoaded() && !wallpaperPending();
   }
 
+  const MIN_SIDEBAR_WIDTH = 140;
+  const MAX_SIDEBAR_WIDTH = 500;
+
+  function handleSidebarResizeStart(e: PointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    target.classList.add("dragging");
+
+    const startX = e.clientX;
+    const startWidth = settings.sidebarWidth || 220;
+
+    function onPointerMove(moveEvent: PointerEvent) {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = Math.min(
+        MAX_SIDEBAR_WIDTH,
+        Math.max(MIN_SIDEBAR_WIDTH, startWidth + deltaX)
+      );
+      setSettings("sidebarWidth", newWidth);
+    }
+
+    function onPointerUp(upEvent: PointerEvent) {
+      try {
+        target.releasePointerCapture(upEvent.pointerId);
+      } catch (_) {}
+      target.classList.remove("dragging");
+      target.removeEventListener("pointermove", onPointerMove);
+      target.removeEventListener("pointerup", onPointerUp);
+      persistSettings();
+    }
+
+    target.addEventListener("pointermove", onPointerMove);
+    target.addEventListener("pointerup", onPointerUp);
+  }
+
+  function handleSidebarResizeReset() {
+    setSettings("sidebarWidth", 220);
+    persistSettings();
+  }
+
   return (
     <main class="container">
       <Show when={settings.background.backgroundType !== "none"}>
@@ -1004,7 +1045,7 @@ function App() {
           <ExplorerTabs tabs={tabs()} activeTabId={activeTabId()} onSwitch={switchTab} onClose={closeTab} onNew={openNewTab} />
         </Show>
 
-        <div class="explorer-view">
+        <div class="explorer-view" style={{ "--sidebar-width": `${settings.sidebarWidth || 220}px` }}>
           <ViewRail activeView={mainView()} onSelectView={selectView} />
           <Show when={showSidebar()}>
             <Sidebar
@@ -1018,10 +1059,17 @@ function App() {
               folderColors={settings.folderColors}
               recentPaths={settings.recentPaths}
               onRemoveRecent={removeRecent}
+              width={settings.sidebarWidth}
               customContent={activePlugin()?.sidebar?.({
                 currentPath: currentPath(),
                 onSelectPath: selectSidebarPath
               })}
+            />
+            <div
+              class="sidebar-resizer"
+              onPointerDown={handleSidebarResizeStart}
+              onDblClick={handleSidebarResizeReset}
+              title="Drag to resize drive panel (double-click to reset)"
             />
           </Show>
           {/* Views are mounted and unmounted on toggle so resources

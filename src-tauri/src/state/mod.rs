@@ -190,6 +190,8 @@ pub struct Settings {
     // maximize icon toggled, and it ignores taskbar-reserved space).
     #[serde(default)]
     pub window_maximized: bool,
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: u32,
     // Roots (folders/drives) the user has opted into the search index —
     // see searchindex/mod.rs. Empty means the index is unused; a settings
     // file from before this field existed just defaults to that.
@@ -215,6 +217,10 @@ fn default_window_width() -> u32 {
 
 fn default_window_height() -> u32 {
     600
+}
+
+fn default_sidebar_width() -> u32 {
+    220
 }
 
 fn default_split_dim() -> u8 {
@@ -254,6 +260,7 @@ impl Default for Settings {
             window_width: default_window_width(),
             window_height: default_window_height(),
             window_maximized: false,
+            sidebar_width: default_sidebar_width(),
             search_index_roots: Vec::new(),
         }
     }

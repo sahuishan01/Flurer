@@ -60,6 +60,7 @@ type SidebarProps = {
   recentPaths: string[];
   onRemoveRecent: (path: string) => void;
   customContent?: JSX.Element;
+  width?: number;
   "data-bg-lightness"?: string;
 };
 
@@ -75,18 +76,25 @@ type SidebarEntryProps = {
 
 function SidebarEntry(props: SidebarEntryProps) {
   return (
-    <div class="sidebar-entry" data-tip={props.path}>
+    <div class="sidebar-entry" data-tip={props.path} data-drop-path={props.path}>
       <button
         type="button"
         class="sidebar-item"
         classList={{ active: props.active }}
         aria-label={baseName(props.path)}
-        data-drop-path={props.path}
         onClick={() => props.onNavigate(props.path)}
       >
         <span class="sidebar-icon">{props.icon}</span>
-        {props.colorHex && <span class="folder-color-dot" style={{ background: props.colorHex }} />}
         <span class="sidebar-entry-label">{baseName(props.path)}</span>
+        <Show when={props.colorHex}>
+          {(hex) => (
+            <span
+              class="folder-color-dot"
+              style={{ background: hex() }}
+              aria-label="Color tag"
+            />
+          )}
+        </Show>
       </button>
       <button
         type="button"
@@ -120,13 +128,22 @@ export function Sidebar(props: SidebarProps) {
     }
   });
 
-  onMount(async () => {
+  async function refreshDrives() {
     try {
       const disks = await invoke<PhysicalDisk[]>("get_disk_topology");
       setDrives(disks.flatMap((disk) => disk.volumes));
     } catch (err) {
       console.error("Failed to load drives", err);
     }
+  }
+
+  onMount(() => {
+    refreshDrives();
+    // Windows doesn't give us a WM_DEVICECHANGE event today, so poll for
+    // newly-attached/removed drives (e.g. a USB stick plugged in) instead of
+    // only ever loading the list once at startup.
+    const poll = setInterval(refreshDrives, 3000);
+    onCleanup(() => clearInterval(poll));
   });
 
   let tipTarget: HTMLElement | null = null;
@@ -165,6 +182,7 @@ export function Sidebar(props: SidebarProps) {
     <>
     <nav
       class="sidebar"
+      style={{ width: props.width ? `${props.width}px` : undefined }}
       data-bg-lightness={props["data-bg-lightness"]}
       onPointerMove={handleTipMove}
       onPointerLeave={() => {
