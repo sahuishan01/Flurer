@@ -182,6 +182,7 @@ export function Sidebar(props: SidebarProps) {
     <>
     <nav
       class="sidebar"
+      classList={{ "is-narrow": (props.width ?? 220) < 150 }}
       style={{ width: props.width ? `${props.width}px` : undefined }}
       data-bg-lightness={props["data-bg-lightness"]}
       onPointerMove={handleTipMove}

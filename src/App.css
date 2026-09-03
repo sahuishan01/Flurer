@@ -672,8 +672,10 @@ body {
 }
 
 .sidebar {
+    container-type: inline-size;
+    container-name: sidebar;
     width: var(--sidebar-width, 220px);
-    min-width: 140px;
+    min-width: 52px;
     max-width: 500px;
     flex-shrink: 0;
     display: flex;
@@ -3218,10 +3220,9 @@ button.danger:not(.context-menu-item):hover {
     }
 }
 
-/* Responsive: narrow windows */
-@media (max-width: 900px) {
+/* Drive panel collapsed / icon-only rules (driven by drive panel's OWN width, not app window width) */
+@container sidebar (max-width: 150px) {
     .sidebar {
-        width: 52px;
         padding: 1em 0.4em;
         align-items: center;
     }
@@ -3231,6 +3232,10 @@ button.danger:not(.context-menu-item):hover {
         width: 100%;
         padding: 0.5em 0.2em;
         font-size: 0;
+    }
+
+    .sidebar-icon {
+        font-size: 1rem;
     }
 
     .sidebar-section-label {
@@ -3263,6 +3268,65 @@ button.danger:not(.context-menu-item):hover {
     .sidebar-drive-usage {
         display: none;
     }
+
+    .sidebar-divider {
+        margin: 0.3em 0;
+    }
+}
+
+.sidebar.is-narrow {
+    padding: 1em 0.4em;
+    align-items: center;
+}
+
+.sidebar.is-narrow .sidebar-item {
+    justify-content: center;
+    width: 100%;
+    padding: 0.5em 0.2em;
+    font-size: 0;
+}
+
+.sidebar.is-narrow .sidebar-icon {
+    font-size: 1rem;
+}
+
+.sidebar.is-narrow .sidebar-section-label {
+    display: block;
+    font-size: 0;
+    width: 100%;
+    height: 1px;
+    margin: 0.4em 0;
+    background-color: var(--border-color);
+    padding: 0;
+    text-indent: -9999px;
+}
+
+.sidebar.is-narrow .sidebar-section-label::before {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-empty-label {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-entry:hover {
+    background-color: transparent;
+}
+
+.sidebar.is-narrow .sidebar-entry-remove {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-drive-usage {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-divider {
+    margin: 0.3em 0;
+}
+
+/* Responsive: narrow windows */
+@media (max-width: 900px) {
 
     .sidebar-divider {
         margin: 0.3em 0;
@@ -3345,11 +3409,6 @@ button.danger:not(.context-menu-item):hover {
 }
 
 @media (max-width: 480px) {
-    .sidebar {
-        width: 40px;
-        padding: 0.8em 0.3em;
-    }
-
     .view-rail {
         width: 32px;
         padding: 0.4em 0;

@@ -16,6 +16,25 @@ pub fn launched_minimized() -> bool {
     std::env::args().any(|a| a == MINIMIZED_ARG)
 }
 
+fn save_current_window_metrics(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let state = app.state::<crate::state::AppState>();
+        if let Ok(mut settings) = state.settings.try_lock() {
+            let is_max = w.is_maximized().unwrap_or(false);
+            settings.window_maximized = is_max;
+            if !is_max {
+                if let Ok(size) = w.inner_size() {
+                    if size.width >= 400 && size.height >= 300 {
+                        settings.window_width = size.width;
+                        settings.window_height = size.height;
+                    }
+                }
+            }
+            let _ = crate::helpers::settings::save_settings(app, &settings);
+        };
+    }
+}
+
 // Builds the tray icon + its right-click menu (Show / Quit), and wires the
 // window's close button to hide instead of exit — the whole point of the
 // tray is to keep the process (and therefore the global shortcut, which
@@ -29,7 +48,10 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("Flurer").on_menu_event(|app, event| {
         match event.id().as_ref() {
             "show" => shortcuts::show_and_focus_main_window(app),
-            "quit" => app.exit(0),
+            "quit" => {
+                save_current_window_metrics(app);
+                app.exit(0);
+            }
             _ => {}
         }
     });
@@ -42,6 +64,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         let app_handle = app.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                save_current_window_metrics(&app_handle);
                 api.prevent_close();
                 shortcuts::hide_main_window(&app_handle);
             }

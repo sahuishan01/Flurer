@@ -960,7 +960,7 @@ function App() {
     return settingsLoaded() && !wallpaperPending();
   }
 
-  const MIN_SIDEBAR_WIDTH = 140;
+  const MIN_SIDEBAR_WIDTH = 52;
   const MAX_SIDEBAR_WIDTH = 500;
 
   function handleSidebarResizeStart(e: PointerEvent) {
