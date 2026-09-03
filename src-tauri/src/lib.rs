@@ -115,7 +115,7 @@ pub fn run() {
                                         }
                                     }
                                     let _ = save_settings(&app_handle, &settings);
-                                }
+                                };
                             }
                         }
                         tauri::WindowEvent::Resized(size) => {
@@ -127,7 +127,7 @@ pub fn run() {
                                             settings.window_width = size.width;
                                             settings.window_height = size.height;
                                             settings.window_maximized = false;
-                                        }
+                                        };
                                     }
                                 }
                             }
@@ -276,7 +276,7 @@ pub fn run() {
                             }
                         }
                         let _ = save_settings(app, &settings);
-                    }
+                    };
                 }
                 sizecache::flush(app);
             }
