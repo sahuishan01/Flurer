@@ -30,7 +30,7 @@ use fs::{
     get_quick_access, list_directory, list_directory_streamed, list_graph_children, move_items,
     open_file_with_default, open_terminal_here, pick_folder, rename_item, search_content, search_directory,
 };
-use helpers::settings::{get_settings, load_settings, set_settings};
+use helpers::settings::{get_settings, load_settings, save_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
 use searchindex::{clear_search_index, rebuild_search_index, search_index_query, search_index_status};
 use sizecache::{clear_folder_size_cache, get_folder_size, get_folder_size_cache_stats, recompute_folder_size};
