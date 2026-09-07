@@ -53,6 +53,13 @@ export type BatchResult = {
   failed: OpFailure[];
 };
 
+export type TrashEntry = {
+  id: string;
+  name: string;
+  originalPath: string;
+  timeDeleted: number;
+};
+
 export type ClipboardMode = "copy" | "cut";
 
 export type ClipboardState = {

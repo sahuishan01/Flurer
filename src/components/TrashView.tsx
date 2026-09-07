@@ -2,13 +2,7 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
 import { RefreshIcon, TrashIcon, UndoIcon } from "./icons";
-
-type TrashEntry = {
-  id: string;
-  name: string;
-  originalPath: string;
-  timeDeleted: number;
-};
+import type { TrashEntry } from "../lib/fs";
 
 type TrashViewProps = {
   "data-bg-lightness"?: string;

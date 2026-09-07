@@ -427,23 +427,22 @@ function App() {
 
   // Most-recent-first, deduped (revisiting a path just moves it back to the
   // front rather than adding a second entry), capped so the list can't grow
-  // forever.
+  // forever. When navigating deeper into nested folders, intermediate ancestors
+  // are removed so only the latest/deepest subfolder appears in recents.
   function recordRecent(path: string) {
     const limit = Math.max(MIN_HISTORY_ITEMS, Math.min(MAX_HISTORY_ITEMS, settings.maxHistoryItems));
-    const prevRecent = settings.recentPaths[0];
-    const normalizedPath = path.replace(/[\\/]+$/, "");
-    const normalizedPrev = prevRecent ? prevRecent.replace(/[\\/]+$/, "") : "";
+    const normalizedNew = path.replace(/[\\/]+$/, "").toLowerCase();
 
-    let filtered = settings.recentPaths.filter((p) => p !== path);
-    // If we were just at `normalizedPrev` and navigating into a nested subfolder (`path` is inside `normalizedPrev`),
-    // replace `normalizedPrev` with `path` in recentPaths so intermediate parent folders aren't accumulated.
-    if (
-      normalizedPrev &&
-      normalizedPath !== normalizedPrev &&
-      normalizedPath.toLowerCase().startsWith(normalizedPrev.toLowerCase() + (normalizedPrev.endsWith(":") ? "\\" : "/"))
-    ) {
-      filtered = filtered.filter((p) => p !== prevRecent);
+    function isAncestorOrEqual(parent: string, childNormalized: string): boolean {
+      const p = parent.replace(/[\\/]+$/, "").toLowerCase();
+      if (!p || p === childNormalized) return true;
+      const prefix = p.endsWith(":") ? `${p}\\` : `${p}\\`;
+      const prefixAlt = p.endsWith(":") ? `${p}/` : `${p}/`;
+      return childNormalized.startsWith(prefix) || childNormalized.startsWith(prefixAlt);
     }
+
+    // Filter out identical paths and any existing recent path that is an ancestor of the new path.
+    const filtered = settings.recentPaths.filter((p) => !isAncestorOrEqual(p, normalizedNew));
 
     const next = [path, ...filtered].slice(0, limit);
     setSettings("recentPaths", next);

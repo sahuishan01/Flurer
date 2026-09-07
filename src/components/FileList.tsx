@@ -23,7 +23,6 @@ import {
   ArchiveIcon,
   ClipboardIcon,
   CopyIcon,
-  FileIcon,
   FilePlusIcon,
   FileTypeIcon,
   FolderIcon,
@@ -53,9 +52,17 @@ import {
   type SortDirection,
   type SortKey,
   type UnreadableEntry,
+  type TrashEntry,
 } from "../lib/fs";
 import { FOLDER_COLOR_PRESETS } from "../lib/settings";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "../lib/shortcuts";
+
+type UndoAction =
+  | { type: "rename"; from: string; to: string }
+  | { type: "move"; items: { from: string; to: string }[] }
+  | { type: "create"; path: string }
+  | { type: "bulkRename"; items: { from: string; to: string }[] }
+  | { type: "delete"; items: { id: string; path: string }[] };
 
 type FileListProps = {
   path: string;
@@ -178,6 +185,9 @@ export function FileList(props: FileListProps) {
     if (action.type === "rename") return `Renamed "${baseName(action.from)}"`;
     if (action.type === "create") return `Created "${baseName(action.path)}"`;
     if (action.type === "bulkRename") return `Renamed ${action.items.length} items`;
+    if (action.type === "delete") {
+      return action.items.length > 1 ? `Deleted ${action.items.length} items` : `Deleted "${baseName(action.items[0].path)}"`;
+    }
     return action.items.length > 1 ? `Moved ${action.items.length} items` : `Moved "${baseName(action.items[0].from)}"`;
   }
 
@@ -192,6 +202,8 @@ export function FileList(props: FileListProps) {
         await invoke<string>("rename_item", { path: action.to, newName: baseName(action.from) });
       } else if (action.type === "create") {
         await invoke<BatchResult>("delete_items", { paths: [action.path] });
+      } else if (action.type === "delete") {
+        await invoke("restore_trash_items", { ids: action.items.map((i) => i.id) });
       } else if (action.type === "bulkRename") {
         // Each item renamed independently, same as the forward operation —
         // there's no batch rename command to group these into.
@@ -1319,6 +1331,23 @@ export function FileList(props: FileListProps) {
       const result = await invoke<BatchResult>("delete_items", { paths });
       if (result.failed.length > 0) {
         setOpError(result.failed.map((f) => `${f.path}: ${f.error}`).join("; "));
+      }
+      if (result.succeeded.length > 0) {
+        try {
+          const trashEntries = await invoke<TrashEntry[]>("list_trash");
+          const succeededSet = new Set(result.succeeded.map((p) => p.replace(/[\\/]+$/, "").toLowerCase()));
+          const matches = trashEntries.filter((e) =>
+            succeededSet.has(e.originalPath.replace(/[\\/]+$/, "").toLowerCase()),
+          );
+          if (matches.length > 0) {
+            pushUndo({
+              type: "delete",
+              items: matches.map((m) => ({ id: m.id, path: m.originalPath })),
+            });
+          }
+        } catch {
+          // If trash listing or id matching fails, delete still succeeded; omit undo toast
+        }
       }
       setSelected(new Set<string>());
       refresh();

@@ -72,11 +72,30 @@ This file acts as a context preservation and coordination document for future AI
 
 ---
 
-## 6. Development Workflow & Release Process
+## 6. Graphify-First Codebase Navigation
+
+Before grepping or manually reading files to answer codebase or architecture questions, agents **MUST** use the graphify knowledge graph located at `graphify-out/`.
+
+### Rules:
+1. **Query first**: Run `graphify query "<question>"` for any codebase or architecture question. This returns a scoped subgraph, usually much smaller than raw grep output.
+2. **Trace relationships**: Use `graphify path "<A>" "<B>"` to find how two concepts/files/symbols are connected.
+3. **Explain concepts**: Use `graphify explain "<concept>"` for focused explanations of specific nodes.
+4. **Wiki index**: If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
+5. **Broad review**: Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain do not surface enough context.
+6. **Keep graph current**: After modifying code files, run `graphify update .` to keep the graph up to date (AST-only, no API cost).
+
+### When to Fall Back to Grep:
+- The graphify graph doesn't exist yet (`graphify-out/` is missing).
+- The query returns no relevant results after trying multiple phrasings.
+- You need exact string matches (e.g. searching for a specific error message or magic constant).
+
+---
+
+## 7. Development Workflow & Release Process
 
 This section defines the rigid workflow any AI agent must follow when making code changes to Flurer. It is designed to prevent orphaned builds, version-drift, and silent failures.
 
-### 6.1. Notifications on Every Task
+### 7.1. Notifications on Every Task
 
 After every agent turn that performs a user-requested task (modification, build, test, deploy — not simple Q&A), the agent MUST send a push notification to the ntfy `agent-tasks` topic:
 
@@ -88,7 +107,7 @@ After every agent turn that performs a user-requested task (modification, build,
 
 Do NOT send notifications for conversational chat or simple questions.
 
-### 6.2. Commit & Push After Every Modification
+### 7.2. Commit & Push After Every Modification
 
 After every successful modification (code change, config change, dependency update), the agent MUST:
 
@@ -105,7 +124,7 @@ After every successful modification (code change, config change, dependency upda
 
 The version number in both `package.json` and `Cargo.toml` must always be kept in sync.
 
-### 6.3. Watch for CI Completion
+### 7.3. Watch for CI Completion
 
 After pushing, the agent MUST watch the GitHub Actions workflow run to completion:
 
@@ -116,7 +135,7 @@ After pushing, the agent MUST watch the GitHub Actions workflow run to completio
 2. Poll every 30–60 seconds until `status` is `completed`.
 3. If the run **fails**, report the failure in the turn output and in the ntfy notification. Do NOT bump the version. Do NOT proceed.
 
-### 6.4. Version Bump Rule — Only After a Successful Build
+### 7.4. Version Bump Rule — Only After a Successful Build
 
 The version number MUST only be incremented **after** a CI build has completed successfully and produced a release-ready artifact. The sequence is:
 
@@ -143,7 +162,7 @@ When bumping:
 - Bump both `package.json` and `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` in the same commit.
 - After the release succeeds: `git push origin main` to bring the version-bump commit to main.
 
-### 6.5. Release Notification
+### 7.5. Release Notification
 
 After the Release workflow succeeds (GitHub Release created with MSI/NSIS assets), send a notification to the ntfy `agent-releases` topic:
 
@@ -151,7 +170,7 @@ After the Release workflow succeeds (GitHub Release created with MSI/NSIS assets
 - **Headers**: `Title: Flurer v<new-version> Released ($(hostname))`
 - **Body**: Bulleted summary of what changed in the release with a link to the release page on GitHub.
 
-### 6.6. Summary Diagram
+### 7.6. Summary Diagram
 
 ```
 ┌─────────────┐     ┌──────────┐     ┌───────────┐     ┌──────────────┐
