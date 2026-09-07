@@ -1,7 +1,7 @@
 import { createEffect, createSignal, Index, Show } from "solid-js";
 import { FileList } from "./FileList";
 import { ExplorerPathBar } from "./ExplorerPathBar";
-import { CloseIcon, LayersIcon } from "./icons";
+import { CloseIcon, PlusIcon, SplitPaneIcon } from "./icons";
 import { parentDir, type ClipboardState, type GroupByKey, type SortDirection, type SortKey } from "../lib/fs";
 import type { InAppShortcutAction } from "../lib/shortcuts";
 
@@ -88,11 +88,20 @@ export function ExplorerView(props: ExplorerViewProps) {
   }
 
   function closePane(overallIndex: number) {
-    const arrIndex = overallIndex - 1;
-    const next = props.splitPanePaths.filter((_, i) => i !== arrIndex);
-    props.onSplitPanePathsChange(next);
-    if (props.activePane === overallIndex) props.onActivePaneChange(0);
-    else if (props.activePane > overallIndex) props.onActivePaneChange(props.activePane - 1);
+    if (overallIndex === 0) {
+      if (props.splitPanePaths.length === 0) return;
+      const firstSecondary = props.splitPanePaths[0];
+      const remainingSecondaries = props.splitPanePaths.slice(1);
+      props.onNavigate(firstSecondary);
+      props.onSplitPanePathsChange(remainingSecondaries);
+      props.onActivePaneChange(0);
+    } else {
+      const arrIndex = overallIndex - 1;
+      const next = props.splitPanePaths.filter((_, i) => i !== arrIndex);
+      props.onSplitPanePathsChange(next);
+      if (props.activePane === overallIndex) props.onActivePaneChange(0);
+      else if (props.activePane > overallIndex) props.onActivePaneChange(props.activePane - 1);
+    }
   }
 
   function updateExtraPane(arrIndex: number, path: string) {
@@ -109,6 +118,9 @@ export function ExplorerView(props: ExplorerViewProps) {
     props.onSplitColsChange(Math.max(1, Math.min(MAX_COLS, n)));
   }
 
+  const [primaryPathInput, setPrimaryPathInput] = createSignal(props.path);
+  createEffect(() => setPrimaryPathInput(props.path));
+
   return (
     <div
       class="explorer-content"
@@ -121,48 +133,75 @@ export function ExplorerView(props: ExplorerViewProps) {
         onFocusIn={() => props.onActivePaneChange(0)}
         onPointerDown={() => props.onActivePaneChange(0)}
       >
-        <div class="explorer-pane-actions">
-          <Show
-            when={isSplit()}
-            fallback={
-              <button type="button" class="icon-btn" title="Split view" aria-label="Split view" onClick={addPane}>
-                <LayersIcon />
-              </button>
-            }
-          >
-            <button
-              type="button"
-              class="icon-btn"
-              title="Add pane"
-              aria-label="Add pane"
-              disabled={totalPanes() >= MAX_PANES}
-              onClick={addPane}
-            >
-              +
-            </button>
-            <div class="split-cols-stepper" title="Grid columns">
+        <Show
+          when={isSplit()}
+          fallback={
+            <div class="explorer-pane-actions">
               <button
                 type="button"
                 class="icon-btn"
-                aria-label="Fewer columns"
-                disabled={props.splitCols <= 1}
-                onClick={() => setCols(props.splitCols - 1)}
+                title="Split view"
+                aria-label="Split view"
+                onClick={addPane}
               >
-                –
-              </button>
-              <span class="split-cols-count">{props.splitCols}</span>
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="More columns"
-                disabled={props.splitCols >= MAX_COLS}
-                onClick={() => setCols(props.splitCols + 1)}
-              >
-                +
+                <SplitPaneIcon size={16} />
               </button>
             </div>
-          </Show>
-        </div>
+          }
+        >
+          <div class="explorer-pane-header">
+            <ExplorerPathBar
+              path={props.path}
+              pathInput={primaryPathInput()}
+              onPathInputChange={setPrimaryPathInput}
+              onNavigate={props.onNavigate}
+              favouritePaths={props.favouritePaths}
+              onToggleFavourite={props.onToggleFavourite}
+            />
+            <div class="explorer-pane-header-actions">
+              <button
+                type="button"
+                class="icon-btn"
+                title="Add pane"
+                aria-label="Add pane"
+                disabled={totalPanes() >= MAX_PANES}
+                onClick={addPane}
+              >
+                <PlusIcon size={15} />
+              </button>
+              <div class="split-cols-stepper" title="Grid columns">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="Fewer columns"
+                  disabled={props.splitCols <= 1}
+                  onClick={() => setCols(props.splitCols - 1)}
+                >
+                  –
+                </button>
+                <span class="split-cols-count">{props.splitCols}</span>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  aria-label="More columns"
+                  disabled={props.splitCols >= MAX_COLS}
+                  onClick={() => setCols(props.splitCols + 1)}
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                class="icon-btn"
+                title="Close pane"
+                aria-label="Close pane"
+                onClick={() => closePane(0)}
+              >
+                <CloseIcon size={15} />
+              </button>
+            </div>
+          </div>
+        </Show>
         <FileList
           data-bg-lightness={props["data-bg-lightness"]}
           path={props.path}

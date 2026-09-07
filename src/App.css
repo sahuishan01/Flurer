@@ -501,6 +501,13 @@ body {
     min-width: 0;
 }
 
+.explorer-pane-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    flex-shrink: 0;
+}
+
 /* Floats over the list rather than taking a row of its own, so adding the
    split affordance costs no vertical space in the common single-pane case. */
 .explorer-pane-actions {

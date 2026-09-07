@@ -1,5 +1,5 @@
 import { Show, type JSX } from "solid-js";
-import { ArrowLeftIcon, ArrowRightIcon, LayersIcon, SearchIcon } from "./icons";
+import { ArrowLeftIcon, ArrowRightIcon, RecursiveIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
 import { createPopover } from "../lib/popover";
 
@@ -90,7 +90,7 @@ export function CommandBar(props: CommandBarProps) {
         aria-pressed={props.searchRecursive}
         onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
       >
-        <LayersIcon size={16} />
+        <RecursiveIcon size={16} />
       </button>
 
       <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
