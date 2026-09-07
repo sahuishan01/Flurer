@@ -595,17 +595,117 @@ function App() {
     suppressHistoryPush = false;
   }
 
+  // History for secondary panes (arrIndex 0 corresponds to activePane 1, etc.)
+  // Each pane stores a list of paths and an active index.
+  const [paneHistories, setPaneHistories] = createSignal<{ paths: string[]; index: number }[]>([]);
+
+  function ensurePaneHistory(arrIndex: number, currentPanePath: string) {
+    setPaneHistories((prev) => {
+      const next = prev.slice();
+      while (next.length <= arrIndex) {
+        next.push({ paths: [], index: -1 });
+      }
+      if (next[arrIndex].paths.length === 0) {
+        next[arrIndex] = { paths: [currentPanePath], index: 0 };
+      }
+      return next;
+    });
+  }
+
+  function pushPaneHistory(arrIndex: number, newPath: string) {
+    setPaneHistories((prev) => {
+      const next = prev.slice();
+      while (next.length <= arrIndex) {
+        next.push({ paths: [], index: -1 });
+      }
+      const entry = next[arrIndex];
+      const cur = entry.paths[entry.index];
+      if (cur === newPath) return prev;
+      const truncated = entry.paths.slice(0, entry.index + 1);
+      next[arrIndex] = {
+        paths: [...truncated, newPath],
+        index: truncated.length,
+      };
+      return next;
+    });
+  }
+
+  function navigateExtraPane(arrIndex: number, path: string) {
+    const curPath = settings.splitPanePaths[arrIndex] ?? currentPath();
+    ensurePaneHistory(arrIndex, curPath);
+    pushPaneHistory(arrIndex, path);
+    const next = settings.splitPanePaths.slice();
+    next[arrIndex] = path;
+    setSettings("splitPanePaths", next);
+    recordRecent(path);
+  }
+
+  function handleSplitPanePathsChange(paths: string[]) {
+    setSettings("splitPanePaths", paths);
+    setPaneHistories((prev) => prev.slice(0, paths.length));
+  }
+
+  function canGoBack(): boolean {
+    const pane = activePane();
+    if (pane === 0) return historyIndex() > 0;
+    const arrIndex = pane - 1;
+    const hist = paneHistories()[arrIndex];
+    return hist ? hist.index > 0 : false;
+  }
+
+  function canGoForward(): boolean {
+    const pane = activePane();
+    if (pane === 0) return historyIndex() < history().length - 1;
+    const arrIndex = pane - 1;
+    const hist = paneHistories()[arrIndex];
+    return hist ? hist.index < hist.paths.length - 1 : false;
+  }
+
   function goBack() {
-    const index = historyIndex();
-    if (index <= 0) return;
-    applyHistoryEntry(history()[index - 1], index - 1);
+    const pane = activePane();
+    if (pane === 0) {
+      const index = historyIndex();
+      if (index <= 0) return;
+      applyHistoryEntry(history()[index - 1], index - 1);
+      return;
+    }
+    const arrIndex = pane - 1;
+    const curHist = paneHistories()[arrIndex];
+    if (!curHist || curHist.index <= 0) return;
+    const newIndex = curHist.index - 1;
+    const targetPath = curHist.paths[newIndex];
+    setPaneHistories((prev) => {
+      const next = prev.slice();
+      next[arrIndex] = { ...next[arrIndex], index: newIndex };
+      return next;
+    });
+    const nextPaths = settings.splitPanePaths.slice();
+    nextPaths[arrIndex] = targetPath;
+    setSettings("splitPanePaths", nextPaths);
   }
 
   function goForward() {
-    const h = history();
-    const index = historyIndex();
-    if (index >= h.length - 1) return;
-    applyHistoryEntry(h[index + 1], index + 1);
+    const pane = activePane();
+    if (pane === 0) {
+      const h = history();
+      const index = historyIndex();
+      if (index >= h.length - 1) return;
+      applyHistoryEntry(h[index + 1], index + 1);
+      return;
+    }
+    const arrIndex = pane - 1;
+    const curHist = paneHistories()[arrIndex];
+    if (!curHist || curHist.index >= curHist.paths.length - 1) return;
+    const newIndex = curHist.index + 1;
+    const targetPath = curHist.paths[newIndex];
+    setPaneHistories((prev) => {
+      const next = prev.slice();
+      next[arrIndex] = { ...next[arrIndex], index: newIndex };
+      return next;
+    });
+    const nextPaths = settings.splitPanePaths.slice();
+    nextPaths[arrIndex] = targetPath;
+    setSettings("splitPanePaths", nextPaths);
   }
 
   // Alt+Left/Right and the mouse's side (back/forward) buttons — standard
@@ -680,9 +780,7 @@ function App() {
       navigateTo(path);
       return;
     }
-    const next = settings.splitPanePaths.slice();
-    next[i - 1] = path;
-    setSettings("splitPanePaths", next);
+    navigateExtraPane(i - 1, path);
   }
 
   function selectView(view: MainView) {
@@ -739,6 +837,7 @@ function App() {
     ]);
     setActiveTabId(tab.id);
     setActivePane(0);
+    setPaneHistories([]);
     setSettings("splitPanePaths", []);
     setSettings("splitCols", 1);
   }
@@ -761,6 +860,7 @@ function App() {
 
     setActiveTabId(id);
     setActivePane(0);
+    setPaneHistories([]);
     setSettings("splitPanePaths", targetTab.splitPanePaths ? targetTab.splitPanePaths.slice() : []);
     setSettings("splitCols", targetTab.splitCols ?? 1);
     navigateTo(targetTab.path);
@@ -777,6 +877,7 @@ function App() {
       const fallback = next[Math.max(0, index - 1)];
       setActiveTabId(fallback.id);
       setActivePane(0);
+      setPaneHistories([]);
       setSettings("splitPanePaths", fallback.splitPanePaths ? fallback.splitPanePaths.slice() : []);
       setSettings("splitCols", fallback.splitCols ?? 1);
       navigateTo(fallback.path);
@@ -1079,8 +1180,8 @@ function App() {
       <div class="app-shell" data-bg-lightness={shellLightness()}>
         <CommandBar
           data-bg-lightness={shellLightness()}
-          canGoBack={historyIndex() > 0}
-          canGoForward={historyIndex() < history().length - 1}
+          canGoBack={canGoBack()}
+          canGoForward={canGoForward()}
           onBack={goBack}
           onForward={goForward}
           searchQuery={searchQuery()}
@@ -1159,7 +1260,8 @@ function App() {
                   splitCols={settings.splitCols}
                   onSplitColsChange={(cols) => setSettings("splitCols", cols)}
                   splitPanePaths={settings.splitPanePaths}
-                  onSplitPanePathsChange={(paths) => setSettings("splitPanePaths", paths)}
+                  onSplitPanePathsChange={handleSplitPanePathsChange}
+                  onNavigateExtraPane={navigateExtraPane}
                   activePane={activePane()}
                   onActivePaneChange={setActivePane}
                 />

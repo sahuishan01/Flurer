@@ -37,6 +37,7 @@ type ExplorerViewProps = {
   // the primary pane; k (k >= 1) is splitPanePaths[k - 1].
   activePane: number;
   onActivePaneChange: (pane: number) => void;
+  onNavigateExtraPane?: (arrIndex: number, path: string) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -95,9 +96,13 @@ export function ExplorerView(props: ExplorerViewProps) {
   }
 
   function updateExtraPane(arrIndex: number, path: string) {
-    const next = props.splitPanePaths.slice();
-    next[arrIndex] = path;
-    props.onSplitPanePathsChange(next);
+    if (props.onNavigateExtraPane) {
+      props.onNavigateExtraPane(arrIndex, path);
+    } else {
+      const next = props.splitPanePaths.slice();
+      next[arrIndex] = path;
+      props.onSplitPanePathsChange(next);
+    }
   }
 
   function setCols(n: number) {
