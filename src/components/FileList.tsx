@@ -1360,14 +1360,14 @@ export function FileList(props: FileListProps) {
     const startX = e.clientX;
     const startY = e.clientY;
     const dragPaths = selected().has(entry.path) && selected().size > 1 ? [...selected()] : [entry.path];
-    const mode: "copy" | "move" = e.ctrlKey || e.metaKey ? "copy" : "move";
     let started = false;
 
     function onMove(ev: MouseEvent) {
       if (started || Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
       started = true;
       cleanup();
-      void beginRowDrag(dragPaths, mode);
+      const dragMode: "copy" | "move" = ev.shiftKey || e.shiftKey ? "move" : "copy";
+      void beginRowDrag(dragPaths, dragMode);
     }
     function cleanup() {
       document.removeEventListener("mousemove", onMove);
