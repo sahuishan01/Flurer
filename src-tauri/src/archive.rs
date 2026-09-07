@@ -88,8 +88,14 @@ fn compress_to_zip_inner(
         walk_for_archive(&path, &base, &mut entries)?;
     }
 
-    let total = (entries.len() as u64).max(1);
-    let mut done = 0u64;
+    let total_bytes: u64 = entries
+        .iter()
+        .filter(|e| !e.is_dir)
+        .map(|e| fs::metadata(&e.abs_path).map(|m| m.len()).unwrap_or(0))
+        .sum();
+    let total = total_bytes.max(1);
+    let mut done_bytes = 0u64;
+    let mut last_emitted = 0u64;
     on_progress(0, total, false, None);
 
     let file = fs::File::create(&dest_path).map_err(|e| format!("Cannot create {dest_zip}: {e}"))?;
@@ -97,27 +103,57 @@ fn compress_to_zip_inner(
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
     let mut error: Option<String> = None;
+    let mut chunk_buf = [0u8; 64 * 1024];
+
     for entry in entries {
         if is_cancelled(task_id, cancelled) {
             error = Some("Cancelled".to_string());
             break;
         }
-        let result = if entry.is_dir {
-            writer.add_directory(&entry.archive_name, options)
+        if entry.is_dir {
+            if let Err(e) = writer.add_directory(&entry.archive_name, options) {
+                error = Some(format!("Failed on {}: {e}", entry.archive_name));
+                break;
+            }
         } else {
-            (|| -> zip::result::ZipResult<()> {
-                writer.start_file(&entry.archive_name, options)?;
-                let mut f = fs::File::open(&entry.abs_path)?;
-                std::io::copy(&mut f, &mut writer)?;
-                Ok(())
-            })()
-        };
-        if let Err(e) = result {
-            error = Some(format!("Failed on {}: {e}", entry.archive_name));
-            break;
+            if let Err(e) = writer.start_file(&entry.archive_name, options) {
+                error = Some(format!("Failed on {}: {e}", entry.archive_name));
+                break;
+            }
+            let mut f = match fs::File::open(&entry.abs_path) {
+                Ok(f) => f,
+                Err(e) => {
+                    error = Some(format!("Failed to open {}: {e}", entry.archive_name));
+                    break;
+                }
+            };
+            loop {
+                if is_cancelled(task_id, cancelled) {
+                    error = Some("Cancelled".to_string());
+                    break;
+                }
+                let n = match f.read(&mut chunk_buf) {
+                    Ok(0) => break,
+                    Ok(n) => n,
+                    Err(e) => {
+                        error = Some(format!("Error reading {}: {e}", entry.archive_name));
+                        break;
+                    }
+                };
+                if let Err(e) = writer.write_all(&chunk_buf[..n]) {
+                    error = Some(format!("Error writing to archive {}: {e}", entry.archive_name));
+                    break;
+                }
+                done_bytes += n as u64;
+                if done_bytes - last_emitted >= 256 * 1024 || done_bytes == total {
+                    last_emitted = done_bytes;
+                    on_progress(done_bytes, total, false, None);
+                }
+            }
+            if error.is_some() {
+                break;
+            }
         }
-        done += 1;
-        on_progress(done, total, false, None);
     }
 
     if error.is_none() {
@@ -186,10 +222,17 @@ fn extract_archive_inner(
     let file = fs::File::open(&zip_path).map_err(|e| format!("Cannot open {zip_path}: {e}"))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid ZIP: {e}"))?;
 
-    let total = (archive.len() as u64).max(1);
+    let total_bytes: u64 = (0..archive.len())
+        .filter_map(|i| archive.by_index(i).ok().map(|e| e.size()))
+        .sum();
+    let total = total_bytes.max(1);
+    let mut done_bytes = 0u64;
+    let mut last_emitted = 0u64;
     on_progress(0, total, false, None);
 
     let mut error: Option<String> = None;
+    let mut chunk_buf = [0u8; 64 * 1024];
+
     for i in 0..archive.len() {
         if is_cancelled(task_id, cancelled) {
             error = Some("Cancelled".to_string());
@@ -209,24 +252,52 @@ fn extract_archive_inner(
         }
         let out_path = dest.join(&name);
         let is_dir = name.ends_with('/');
-        let write_result = (|| -> std::io::Result<()> {
-            if is_dir {
-                fs::create_dir_all(&out_path)?;
-            } else {
-                if let Some(parent) = out_path.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                let mut buf = Vec::new();
-                entry.read_to_end(&mut buf)?;
-                fs::write(&out_path, &buf)?;
+        if is_dir {
+            if let Err(e) = fs::create_dir_all(&out_path) {
+                error = Some(format!("Failed to create directory {name}: {e}"));
+                break;
             }
-            Ok(())
-        })();
-        if let Err(e) = write_result {
-            error = Some(format!("Failed on {name}: {e}"));
-            break;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    error = Some(format!("Failed to create parent directory for {name}: {e}"));
+                    break;
+                }
+            }
+            let mut out_file = match fs::File::create(&out_path) {
+                Ok(f) => f,
+                Err(e) => {
+                    error = Some(format!("Failed to create file {name}: {e}"));
+                    break;
+                }
+            };
+            loop {
+                if is_cancelled(task_id, cancelled) {
+                    error = Some("Cancelled".to_string());
+                    break;
+                }
+                let n = match entry.read(&mut chunk_buf) {
+                    Ok(0) => break,
+                    Ok(n) => n,
+                    Err(e) => {
+                        error = Some(format!("Failed reading archive entry {name}: {e}"));
+                        break;
+                    }
+                };
+                if let Err(e) = out_file.write_all(&chunk_buf[..n]) {
+                    error = Some(format!("Failed writing extracted file {name}: {e}"));
+                    break;
+                }
+                done_bytes += n as u64;
+                if done_bytes - last_emitted >= 256 * 1024 || done_bytes == total {
+                    last_emitted = done_bytes;
+                    on_progress(done_bytes, total, false, None);
+                }
+            }
+            if error.is_some() {
+                break;
+            }
         }
-        on_progress((i + 1) as u64, total, false, None);
     }
 
     on_progress(total, total, true, error.clone());
