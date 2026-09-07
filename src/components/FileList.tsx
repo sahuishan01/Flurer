@@ -1438,7 +1438,10 @@ export function FileList(props: FileListProps) {
   // already handed the real files to whatever received it.
   async function beginRowDrag(paths: string[], mode: "copy" | "move") {
     try {
-      const { result, cursorPos } = await startRowDrag(paths, mode);
+      // Native startRowDrag always uses "copy" mode so tauri-plugin-drag does not
+      // silently delete source files on disk when drops are rejected externally.
+      // Internal moves are executed below via transferItems and recorded in pushUndo.
+      const { result, cursorPos } = await startRowDrag(paths, "copy");
       if (result !== "Dropped") return;
       const target = await elementAtDropPoint(cursorPos);
       const dropEl = target?.closest("[data-drop-path]") as HTMLElement | null;
