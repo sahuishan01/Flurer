@@ -93,7 +93,7 @@ jobs:
           $range = if ($prevTag) { "$prevTag..${{ github.ref_name }}" } else { "${{ github.ref_name }}" }
 
           $log = git log $range --pretty=format:"- %s" --no-merges |
-            Where-Object { $_ -notmatch '^- bump version' }
+            Where-Object { $_ -notmatch '(?i)^-\s*(chore:\s*)?bump' }
           $changelog = if ($log) { ($log -join "`n") } else { "No notable changes." }
 
           "changelog<<CHANGELOG_EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
