@@ -430,7 +430,22 @@ function App() {
   // forever.
   function recordRecent(path: string) {
     const limit = Math.max(MIN_HISTORY_ITEMS, Math.min(MAX_HISTORY_ITEMS, settings.maxHistoryItems));
-    const next = [path, ...settings.recentPaths.filter((p) => p !== path)].slice(0, limit);
+    const prevRecent = settings.recentPaths[0];
+    const normalizedPath = path.replace(/[\\/]+$/, "");
+    const normalizedPrev = prevRecent ? prevRecent.replace(/[\\/]+$/, "") : "";
+
+    let filtered = settings.recentPaths.filter((p) => p !== path);
+    // If we were just at `normalizedPrev` and navigating into a nested subfolder (`path` is inside `normalizedPrev`),
+    // replace `normalizedPrev` with `path` in recentPaths so intermediate parent folders aren't accumulated.
+    if (
+      normalizedPrev &&
+      normalizedPath !== normalizedPrev &&
+      normalizedPath.toLowerCase().startsWith(normalizedPrev.toLowerCase() + (normalizedPrev.endsWith(":") ? "\\" : "/"))
+    ) {
+      filtered = filtered.filter((p) => p !== prevRecent);
+    }
+
+    const next = [path, ...filtered].slice(0, limit);
     setSettings("recentPaths", next);
     persistSettings();
   }
