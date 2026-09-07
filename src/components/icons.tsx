@@ -259,6 +259,7 @@ export function FolderIcon(props: IconProps) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      class={props.class}
     >
       <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.4a1.5 1.5 0 0 1 1.2.6l1 1.4h8.4A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5Z" />
     </svg>
@@ -276,6 +277,7 @@ export function FileIcon(props: IconProps) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      class={props.class}
     >
       <path d="M6 3.5A1.5 1.5 0 0 1 7.5 2H13l5 5v13.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5Z" />
       <path d="M13 2v4.5A1.5 1.5 0 0 0 14.5 8H19" />
@@ -384,6 +386,7 @@ export function ArchiveIcon(props: IconProps) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      class={props.class}
     >
       <rect x="3" y="4" width="18" height="4" rx="1" />
       <path d="M4 8v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
@@ -687,6 +690,7 @@ export function ImageIcon(props: IconProps) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      class={props.class}
     >
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
@@ -706,6 +710,7 @@ export function MusicIcon(props: IconProps) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      class={props.class}
     >
       <path d="M9 18V5l12-2v13" />
       <circle cx="6" cy="18" r="3" />
@@ -916,6 +921,8 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "py":
     case "c":
     case "cpp":
+    case "cc":
+    case "cxx":
     case "h":
     case "hpp":
     case "cs":
@@ -928,8 +935,12 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "bash":
     case "zsh":
     case "bat":
+    case "cmd":
     case "ps1":
     case "css":
+    case "scss":
+    case "sass":
+    case "less":
     case "html":
     case "htm":
     case "sql":
@@ -938,6 +949,10 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "yaml":
     case "yml":
     case "xml":
+    case "ini":
+    case "cfg":
+    case "conf":
+    case "env":
       return <CodeIcon size={props.size ?? 15} class={`file-icon-code ${props.class || ""}`} />;
 
     case "pdf":
@@ -947,6 +962,7 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "xls":
     case "xlsx":
     case "tsv":
+    case "ods":
       return <SpreadsheetIcon size={props.size ?? 15} class={`file-icon-spreadsheet ${props.class || ""}`} />;
 
     case "txt":
@@ -954,8 +970,12 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "markdown":
     case "doc":
     case "docx":
+    case "odt":
     case "log":
     case "rtf":
+    case "ppt":
+    case "pptx":
+    case "odp":
       return <TextDocumentIcon size={props.size ?? 15} class={`file-icon-text ${props.class || ""}`} />;
 
     case "exe":
@@ -966,6 +986,8 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "rpm":
     case "apk":
     case "bin":
+    case "dll":
+    case "sys":
       return <ExecutableIcon size={props.size ?? 15} class={`file-icon-exe ${props.class || ""}`} />;
 
     case "ttf":
@@ -976,6 +998,6 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
       return <FontIcon size={props.size ?? 15} class={`file-icon-font ${props.class || ""}`} />;
 
     default:
-      return <FileIcon size={props.size ?? 15} class={props.class} />;
+      return <FileIcon size={props.size ?? 15} class={`file-icon-generic ${props.class || ""}`} />;
   }
 }

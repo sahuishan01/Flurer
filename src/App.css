@@ -2142,7 +2142,52 @@ button.sidebar-drive,
 
 .file-name-cell svg {
     flex-shrink: 0;
-    opacity: 0.75;
+    opacity: 0.85;
+}
+
+/* File type icon colors */
+.file-name-cell svg.file-icon-image {
+    color: #38bdf8;
+}
+
+.file-name-cell svg.file-icon-audio {
+    color: #c084fc;
+}
+
+.file-name-cell svg.file-icon-video {
+    color: #f472b6;
+}
+
+.file-name-cell svg.file-icon-archive {
+    color: #fb923c;
+}
+
+.file-name-cell svg.file-icon-code {
+    color: #60a5fa;
+}
+
+.file-name-cell svg.file-icon-pdf {
+    color: #f87171;
+}
+
+.file-name-cell svg.file-icon-spreadsheet {
+    color: #34d399;
+}
+
+.file-name-cell svg.file-icon-text {
+    color: #94a3b8;
+}
+
+.file-name-cell svg.file-icon-exe {
+    color: #fb7185;
+}
+
+.file-name-cell svg.file-icon-font {
+    color: #a78bfa;
+}
+
+.file-name-cell svg.file-icon-generic {
+    color: var(--text-secondary);
 }
 
 .file-location {
@@ -3263,7 +3308,7 @@ button.danger:not(.context-menu-item):hover {
 }
 
 /* Drive panel collapsed / icon-only rules (driven by drive panel's OWN width, not app window width) */
-@container sidebar (max-width: 150px) {
+@container sidebar (max-width: 80px) {
     .sidebar {
         padding: 1em 0.4em;
         align-items: center;
@@ -3301,6 +3346,10 @@ button.danger:not(.context-menu-item):hover {
 
     .sidebar-entry:hover {
         background-color: transparent;
+    }
+
+    .sidebar-entry .sidebar-entry-label {
+        display: none;
     }
 
     .sidebar-entry-remove {
@@ -3353,6 +3402,10 @@ button.danger:not(.context-menu-item):hover {
 
 .sidebar.is-narrow .sidebar-entry:hover {
     background-color: transparent;
+}
+
+.sidebar.is-narrow .sidebar-entry .sidebar-entry-label {
+    display: none;
 }
 
 .sidebar.is-narrow .sidebar-entry-remove {
