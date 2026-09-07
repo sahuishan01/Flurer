@@ -25,6 +25,7 @@ import {
   CopyIcon,
   FileIcon,
   FilePlusIcon,
+  FileTypeIcon,
   FolderIcon,
   FolderPlusIcon,
   InfoIcon,
@@ -1774,7 +1775,7 @@ export function FileList(props: FileListProps) {
         }}
       >
         <td class="file-name-cell">
-          {entry.isDir ? <FolderIcon size={15} /> : <FileIcon size={15} />}
+          <FileTypeIcon path={entry.path} isDir={entry.isDir} size={15} />
           {props.folderColors[entry.path] && (
             <span class="folder-color-dot" style={{ background: props.folderColors[entry.path] }} title="Color tag" />
           )}

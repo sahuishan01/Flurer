@@ -1,6 +1,6 @@
 import { createResource, createSignal, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import { CloseIcon, FileIcon } from "./icons";
+import { CloseIcon, FileTypeIcon } from "./icons";
 import { baseName } from "../lib/fs";
 
 type FilePreview =
@@ -92,7 +92,7 @@ export function PreviewPanel(props: PreviewPanelProps) {
               }
               return (
                 <div class="preview-panel-empty">
-                  <FileIcon size={28} />
+                  <FileTypeIcon path={props.path} size={28} />
                   <p class="preview-panel-hint">No preview available for this file type.</p>
                 </div>
               );

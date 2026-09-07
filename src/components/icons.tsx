@@ -669,9 +669,257 @@ export function FilmIcon(props: IconProps) {
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
+      class={props.class}
     >
       <polygon points="23 7 16 12 23 17 23 7" />
       <rect x="1" y="5" width="15" height="14" rx="2" />
     </svg>
   );
+}
+
+export function CodeIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+export function TextDocumentIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </svg>
+  );
+}
+
+export function PdfIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M9 15h2a1.5 1.5 0 0 0 0-3H9v5" />
+    </svg>
+  );
+}
+
+export function SpreadsheetIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="3" y1="15" x2="21" y2="15" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+      <line x1="15" y1="3" x2="15" y2="21" />
+    </svg>
+  );
+}
+
+export function ExecutableIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <polygon points="10 8 16 12 10 16 10 8" />
+    </svg>
+  );
+}
+
+export function FontIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <polyline points="4 20 12 4 20 20" />
+      <line x1="7" y1="14" x2="17" y2="14" />
+    </svg>
+  );
+}
+
+export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: number; class?: string }) {
+  if (props.isDir) {
+    return <FolderIcon size={props.size ?? 15} class={props.class} />;
+  }
+
+  const dotIdx = props.path.lastIndexOf(".");
+  const ext = dotIdx >= 0 ? props.path.slice(dotIdx + 1).toLowerCase() : "";
+
+  switch (ext) {
+    case "png":
+    case "jpg":
+    case "jpeg":
+    case "gif":
+    case "webp":
+    case "bmp":
+    case "ico":
+    case "svg":
+    case "tiff":
+    case "avif":
+      return <ImageIcon size={props.size ?? 15} class={`file-icon-image ${props.class || ""}`} />;
+
+    case "mp3":
+    case "wav":
+    case "flac":
+    case "aac":
+    case "ogg":
+    case "m4a":
+    case "wma":
+    case "opus":
+      return <MusicIcon size={props.size ?? 15} class={`file-icon-audio ${props.class || ""}`} />;
+
+    case "mp4":
+    case "mkv":
+    case "avi":
+    case "mov":
+    case "wmv":
+    case "webm":
+    case "flv":
+    case "m4v":
+      return <FilmIcon size={props.size ?? 15} class={`file-icon-video ${props.class || ""}`} />;
+
+    case "zip":
+    case "rar":
+    case "7z":
+    case "tar":
+    case "gz":
+    case "bz2":
+    case "xz":
+    case "tgz":
+    case "iso":
+      return <ArchiveIcon size={props.size ?? 15} class={`file-icon-archive ${props.class || ""}`} />;
+
+    case "rs":
+    case "ts":
+    case "tsx":
+    case "js":
+    case "jsx":
+    case "mjs":
+    case "cjs":
+    case "py":
+    case "c":
+    case "cpp":
+    case "h":
+    case "hpp":
+    case "cs":
+    case "go":
+    case "java":
+    case "kt":
+    case "rb":
+    case "php":
+    case "sh":
+    case "bash":
+    case "zsh":
+    case "bat":
+    case "ps1":
+    case "css":
+    case "html":
+    case "htm":
+    case "sql":
+    case "json":
+    case "toml":
+    case "yaml":
+    case "yml":
+    case "xml":
+      return <CodeIcon size={props.size ?? 15} class={`file-icon-code ${props.class || ""}`} />;
+
+    case "pdf":
+      return <PdfIcon size={props.size ?? 15} class={`file-icon-pdf ${props.class || ""}`} />;
+
+    case "csv":
+    case "xls":
+    case "xlsx":
+    case "tsv":
+      return <SpreadsheetIcon size={props.size ?? 15} class={`file-icon-spreadsheet ${props.class || ""}`} />;
+
+    case "txt":
+    case "md":
+    case "markdown":
+    case "doc":
+    case "docx":
+    case "log":
+    case "rtf":
+      return <TextDocumentIcon size={props.size ?? 15} class={`file-icon-text ${props.class || ""}`} />;
+
+    case "exe":
+    case "msi":
+    case "app":
+    case "dmg":
+    case "deb":
+    case "rpm":
+    case "apk":
+    case "bin":
+      return <ExecutableIcon size={props.size ?? 15} class={`file-icon-exe ${props.class || ""}`} />;
+
+    case "ttf":
+    case "otf":
+    case "woff":
+    case "woff2":
+    case "eot":
+      return <FontIcon size={props.size ?? 15} class={`file-icon-font ${props.class || ""}`} />;
+
+    default:
+      return <FileIcon size={props.size ?? 15} class={props.class} />;
+  }
 }
