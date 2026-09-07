@@ -2,7 +2,12 @@ import { For, Show } from "solid-js";
 import { CloseIcon } from "./icons";
 import { baseName } from "../lib/fs";
 
-export type ExplorerTab = { id: string; path: string };
+export type ExplorerTab = {
+  id: string;
+  path: string;
+  splitPanePaths?: string[];
+  splitCols?: number;
+};
 
 type ExplorerTabsProps = {
   tabs: ExplorerTab[];

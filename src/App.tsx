@@ -690,36 +690,80 @@ function App() {
     pushHistory({ view, path: currentPath() });
   }
 
-  // Explorer tabs: deliberately session-only bookmarks of "a location I
-  // want to switch back to quickly", not independent navigation contexts —
-  // each tab's own back/forward history isn't tracked separately, switching
-  // tabs just calls navigateTo like any other jump (sidebar, breadcrumb),
-  // so the existing global history/back-forward stack stays the single
-  // source of truth instead of needing a second one per tab.
-  const [tabs, setTabs] = createSignal<ExplorerTab[]>([{ id: crypto.randomUUID(), path: DEFAULT_PATH }]);
+  // Explorer tabs: session bookmarks with independent folder paths and sub-pane
+  // layouts (splitPanePaths and splitCols), so modifying panes in one tab
+  // does not affect any other tab.
+  const [tabs, setTabs] = createSignal<ExplorerTab[]>([
+    {
+      id: crypto.randomUUID(),
+      path: DEFAULT_PATH,
+      splitPanePaths: settings.splitPanePaths.slice(),
+      splitCols: settings.splitCols,
+    },
+  ]);
   const [activeTabId, setActiveTabId] = createSignal(tabs()[0].id);
 
-  // Keeps the active tab's remembered path in sync with wherever normal
-  // Explorer navigation (breadcrumb, sidebar, double-click) actually took
-  // it — so a tab always reflects "where I last was in this tab", the same
-  // way a browser tab's own address updates as you click links in it.
+  // Keeps the active tab's remembered state (path, split panes, split cols) in sync
+  // with normal navigation and pane layout changes.
   createEffect(() => {
     const path = currentPath();
+    const splitPanePaths = settings.splitPanePaths.slice();
+    const splitCols = settings.splitCols;
     if (mainView() !== "explorer") return;
-    setTabs((prev) => prev.map((t) => (t.id === activeTabId() ? { ...t, path } : t)));
+    setTabs((prev) =>
+      prev.map((t) =>
+        t.id === activeTabId()
+          ? { ...t, path, splitPanePaths, splitCols }
+          : t
+      )
+    );
   });
 
   function openNewTab() {
-    const tab: ExplorerTab = { id: crypto.randomUUID(), path: currentPath() };
-    setTabs((prev) => [...prev, tab]);
+    // New tab opens with a fresh single-pane view at the current path
+    const tab: ExplorerTab = {
+      id: crypto.randomUUID(),
+      path: currentPath(),
+      splitPanePaths: [],
+      splitCols: 1,
+    };
+    // Sync current tab before switching
+    const currentTabId = activeTabId();
+    setTabs((prev) => [
+      ...prev.map((t) =>
+        t.id === currentTabId
+          ? { ...t, path: currentPath(), splitPanePaths: settings.splitPanePaths.slice(), splitCols: settings.splitCols }
+          : t
+      ),
+      tab,
+    ]);
     setActiveTabId(tab.id);
+    setActivePane(0);
+    setSettings("splitPanePaths", []);
+    setSettings("splitCols", 1);
   }
 
   function switchTab(id: string) {
-    const tab = tabs().find((t) => t.id === id);
-    if (!tab) return;
+    if (id === activeTabId()) return;
+    const currentTabId = activeTabId();
+    const currentTabs = tabs();
+    const targetTab = currentTabs.find((t) => t.id === id);
+    if (!targetTab) return;
+
+    // Save active tab's current state
+    setTabs((prev) =>
+      prev.map((t) =>
+        t.id === currentTabId
+          ? { ...t, path: currentPath(), splitPanePaths: settings.splitPanePaths.slice(), splitCols: settings.splitCols }
+          : t
+      )
+    );
+
     setActiveTabId(id);
-    navigateTo(tab.path);
+    setActivePane(0);
+    setSettings("splitPanePaths", targetTab.splitPanePaths ? targetTab.splitPanePaths.slice() : []);
+    setSettings("splitCols", targetTab.splitCols ?? 1);
+    navigateTo(targetTab.path);
   }
 
   function closeTab(id: string) {
@@ -732,6 +776,9 @@ function App() {
     if (activeTabId() === id) {
       const fallback = next[Math.max(0, index - 1)];
       setActiveTabId(fallback.id);
+      setActivePane(0);
+      setSettings("splitPanePaths", fallback.splitPanePaths ? fallback.splitPanePaths.slice() : []);
+      setSettings("splitCols", fallback.splitCols ?? 1);
       navigateTo(fallback.path);
     }
   }
