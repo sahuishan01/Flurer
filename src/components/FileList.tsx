@@ -113,11 +113,19 @@ type FolderSizeState = "pending" | { size: number; done: boolean; error?: string
 // folder already known.
 const persistentFolderSizes = new Map<string, FolderSizeState>();
 
-type UndoAction =
-  | { type: "rename"; from: string; to: string }
-  | { type: "move"; items: { from: string; to: string }[] }
-  | { type: "create"; path: string }
-  | { type: "bulkRename"; items: { from: string; to: string }[] };
+const PREVIEWABLE_EXTENSIONS = new Set([
+  "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg",
+  "txt", "md", "markdown", "json", "toml", "yaml", "yml", "xml", "csv", "log", "rs", "ts", "tsx", "js", "jsx",
+  "mjs", "cjs", "css", "html", "htm", "py", "sh", "bash", "zsh", "c", "h", "cpp", "hpp", "cc", "java", "kt",
+  "go", "rb", "php", "sql", "ini", "conf", "cfg", "env", "gitignore", "gitattributes", "lock",
+]);
+
+function isPreviewableFile(path: string): boolean {
+  const dotIndex = path.lastIndexOf(".");
+  if (dotIndex === -1 || dotIndex === path.length - 1) return false;
+  const ext = path.slice(dotIndex + 1).toLowerCase();
+  return PREVIEWABLE_EXTENSIONS.has(ext);
+}
 
 export function FileList(props: FileListProps) {
   const [entries, setEntries] = createSignal<DirEntry[]>([]);
@@ -217,6 +225,13 @@ export function FileList(props: FileListProps) {
   const [lastClickedIndex, setLastClickedIndex] = createSignal<number | null>(null);
   const [marqueeRect, setMarqueeRect] = createSignal<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  const [windowWidth, setWindowWidth] = createSignal(window.innerWidth);
+  onMount(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    onCleanup(() => window.removeEventListener("resize", handleResize));
+  });
+
   // Preview panel: shows automatically whenever exactly one file (not a
   // folder — nothing to preview there) is selected, rather than needing a
   // separate toggle threaded through ExplorerPathBar/App.tsx. Dismissing it
@@ -226,11 +241,12 @@ export function FileList(props: FileListProps) {
   // (VS Code's, Explorer's) treat "closed" as scoped to the current pick.
   const [previewDismissed, setPreviewDismissed] = createSignal(false);
   const previewPath = createMemo(() => {
+    if (windowWidth() < 768) return null;
     const sel = selected();
     if (sel.size !== 1) return null;
     const [only] = sel;
     const entry = entries().find((e) => e.path === only);
-    return entry && !entry.isDir ? entry.path : null;
+    return entry && !entry.isDir && isPreviewableFile(entry.path) ? entry.path : null;
   });
   createEffect(() => {
     previewPath();

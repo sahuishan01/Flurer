@@ -1,8 +1,10 @@
-import { createSignal, Show, onMount } from "solid-js";
+import { createSignal, Show, onMount, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { RefreshIcon } from "./icons";
+import { formatBytes } from "../lib/fs";
 
 type UpdateInfo = {
   latestVersion: string;
@@ -13,12 +15,22 @@ type UpdateInfo = {
   hasUpdate: boolean;
 };
 
+type UpdateProgressPayload = {
+  downloaded: number;
+  total: number;
+  percent: number;
+  stage: string;
+};
+
 export function UpdatesView() {
   const [updateInfo, setUpdateInfo] = createSignal<UpdateInfo | null>(null);
   const [checking, setChecking] = createSignal(false);
   const [error, setError] = createSignal("");
   const [downloading, setDownloading] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("");
+  const [progress, setProgress] = createSignal<UpdateProgressPayload | null>(null);
+
+  let unlistenProgress: (() => void) | undefined;
 
   onMount(async () => {
     try {
@@ -27,6 +39,18 @@ export function UpdatesView() {
     } catch {
       setAppVersion("0.0.0");
     }
+
+    try {
+      unlistenProgress = await listen<UpdateProgressPayload>("update-progress", (event) => {
+        setProgress(event.payload);
+      });
+    } catch (err) {
+      console.error("Failed to listen for update progress", err);
+    }
+  });
+
+  onCleanup(() => {
+    unlistenProgress?.();
   });
 
   async function check() {
@@ -52,6 +76,7 @@ export function UpdatesView() {
     if (!info || !info.hasUpdate) return;
     setDownloading(true);
     setError("");
+    setProgress(null);
     try {
       await invoke("download_and_install_update", { url: info.downloadUrl });
     } catch (err) {
@@ -79,7 +104,7 @@ export function UpdatesView() {
           Current version: <strong>v{appVersion()}</strong>
         </p>
         <div class="updates-actions">
-          <button type="button" onClick={check} disabled={checking() || !appVersion()}>
+          <button type="button" onClick={check} disabled={checking() || !appVersion() || downloading()}>
             <RefreshIcon size={14} />
             {checking() ? "Checking…" : "Check for Updates"}
           </button>
@@ -92,6 +117,26 @@ export function UpdatesView() {
             </button>
           </Show>
         </div>
+
+        <Show when={downloading() || progress()}>
+          <div class="update-progress-container">
+            <div class="update-progress-info">
+              <span>{progress()?.stage || "Downloading update…"}</span>
+              <Show when={progress() && progress()!.total > 0}>
+                <span>
+                  {formatBytes(progress()!.downloaded)} / {formatBytes(progress()!.total)} ({progress()!.percent.toFixed(1)}%)
+                </span>
+              </Show>
+            </div>
+            <div class="update-progress-bar">
+              <div
+                class="update-progress-fill"
+                style={{ width: `${Math.min(100, Math.max(0, progress()?.percent || 0))}%` }}
+              />
+            </div>
+          </div>
+        </Show>
+
         <Show when={canUpdate()}>
           <p class="settings-hint">
             Installs silently in the background (you'll still see Windows' permission prompt) — no setup wizard. Flurer

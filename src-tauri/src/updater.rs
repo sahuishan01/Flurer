@@ -116,73 +116,113 @@ fn is_per_machine_install() -> bool {
         .unwrap_or(false)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProgressPayload {
+    pub downloaded: u64,
+    pub total: u64,
+    pub percent: f64,
+    pub stage: String,
+}
+
 #[tauri::command]
 pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri::Emitter;
+    use tokio::io::AsyncWriteExt;
+
     log::info!("download_and_install_update: starting download from {url}");
+    let task_id = crate::progress::next_task_id();
+
+    let emit = |downloaded: u64, total: u64, stage: &str, finished: bool, error: Option<String>| {
+        let percent = if total > 0 { (downloaded as f64 / total as f64) * 100.0 } else { 0.0 };
+        let _ = app.emit(
+            "update-progress",
+            UpdateProgressPayload {
+                downloaded,
+                total,
+                percent,
+                stage: stage.to_string(),
+            },
+        );
+        crate::progress::emit_progress(
+            &app,
+            task_id,
+            &format!("Updating Flurer ({stage})"),
+            downloaded,
+            total,
+            finished,
+            error,
+            total == 0,
+        );
+    };
+
+    emit(0, 0, "Connecting…", false, None);
+
     let client = reqwest::Client::new();
-    let resp = client
+    let mut resp = client
         .get(&url)
         .header("User-Agent", USER_AGENT)
         .send()
         .await
-        .inspect_err(|e| log::error!("download_and_install_update: request failed: {e}"))
+        .inspect_err(|e| {
+            let err_msg = format!("Download request failed: {e}");
+            emit(0, 0, "Failed", true, Some(err_msg.clone()));
+            log::error!("download_and_install_update: request failed: {e}");
+        })
         .map_err(|e| format!("Download request failed: {e}"))?;
 
     if !resp.status().is_success() {
+        let err_msg = format!("Download returned HTTP {}", resp.status());
+        emit(0, 0, "Failed", true, Some(err_msg.clone()));
         log::error!("download_and_install_update: HTTP {}", resp.status());
-        return Err(format!("Download returned HTTP {}", resp.status()));
+        return Err(err_msg);
     }
 
-    let total_size = resp
-        .content_length()
-        .unwrap_or(0);
+    let total_size = resp.content_length().unwrap_or(0);
+    emit(0, total_size, "Downloading installer…", false, None);
 
     // Stream to a temp file
     let temp_dir = std::env::temp_dir();
     let file_name = url
         .split('/')
         .last()
-        .unwrap_or("flurer-update.msi");
+        .unwrap_or("flurer-update.exe");
 
     let output_path = temp_dir.join(file_name);
-    let bytes = resp
-        .bytes()
-        .await
-        .inspect_err(|e| log::error!("download_and_install_update: failed to read download stream: {e}"))
-        .map_err(|e| format!("Failed to read download stream: {e}"))?;
-
-    tokio::fs::write(&output_path, &bytes)
+    let mut file = tokio::fs::File::create(&output_path)
         .await
         .inspect_err(|e| {
-            log::error!("download_and_install_update: failed to write {}: {e}", output_path.display())
+            let err_msg = format!("Failed to create installer file: {e}");
+            emit(0, total_size, "Failed", true, Some(err_msg.clone()));
         })
-        .map_err(|e| format!("Failed to write installer to disk: {e}"))?;
+        .map_err(|e| format!("Failed to create installer file: {e}"))?;
 
-    // Launch the installer silently — no wizard pages, no "Next/Next/Finish"
-    // popup. This is separate from the UAC consent prompt below: that's a
-    // Windows security gate on elevation itself, not part of the
-    // installer's own UI, and silent mode doesn't (and shouldn't) suppress
-    // it. NSIS's /S skips every page and reuses the existing install
-    // location (its RestorePreviousInstallLocation logic already does that
-    // for an in-place upgrade, silent or not). MSI's /quiet does the same;
-    // /norestart avoids a surprise reboot even if the installer would
-    // otherwise want one — Flurer isn't the kind of app that needs one.
+    let mut downloaded: u64 = 0;
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| format!("Error downloading installer chunk: {e}"))?
+    {
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("Failed to write installer chunk: {e}"))?;
+        downloaded += chunk.len() as u64;
+        emit(downloaded, total_size, "Downloading installer…", false, None);
+    }
+
+    file.flush()
+        .await
+        .map_err(|e| format!("Failed to flush installer: {e}"))?;
+    drop(file);
+
+    emit(total_size, total_size, "Launching installer…", false, None);
+
     let installer_path = output_path.to_string_lossy().to_string();
     let is_msi = file_name.ends_with(".msi");
 
     let child = if is_msi {
         launch_elevated_and_relaunch("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
     } else {
-        // `installMode: "both"` (tauri.conf.json) bundles NsisMultiUser,
-        // which picks per-user vs per-machine itself when no scope is
-        // given on the command line — and since we always elevate to run
-        // the installer (see launch_elevated_and_relaunch below), a silent
-        // run with no scope flag defaults to a *new* per-machine install
-        // rather than overwriting a pre-existing per-user one. That leaves
-        // two copies on disk: the stale per-user exe (still what
-        // current_exe() below points at, so it's what gets relaunched) and
-        // an unused per-machine one. Force the scope to match wherever the
-        // running copy actually lives so this is an in-place upgrade.
         let scope_flag = if is_per_machine_install() { "/AllUsers" } else { "/CurrentUser" };
         launch_elevated_and_relaunch(&installer_path, &[scope_flag, "/S"])
     };
@@ -190,21 +230,17 @@ pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> 
     match child {
         Ok(_) => {
             log::info!("download_and_install_update: launched silent installer {installer_path} ({total_size} bytes), app will exit and relaunch once it's done");
-            // The watcher script we just spawned already waits for the
-            // installer and relaunches us — our own job here is done. Exit
-            // now rather than waiting for the installer's "close the
-            // running app" step to force us closed: that step is a
-            // property of the bundler's generated installer, not something
-            // this code controls or can rely on being present for both
-            // targets, whereas exiting ourselves is deterministic and also
-            // guarantees our own file handles (the running exe/DLLs) are
-            // released before the installer tries to overwrite them.
+            emit(total_size, total_size, "Installer launched. Relaunching Flurer…", true, None);
+            crate::progress::cleanup_task(task_id);
             app.exit(0);
             Ok(())
         }
         Err(e) => {
+            let err_msg = format!("Failed to launch installer: {e}");
+            emit(downloaded, total_size, "Failed", true, Some(err_msg.clone()));
+            crate::progress::cleanup_task(task_id);
             log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
-            Err(format!("Failed to launch installer: {e}"))
+            Err(err_msg)
         }
     }
 }
