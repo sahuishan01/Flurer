@@ -1360,15 +1360,22 @@ export function FileList(props: FileListProps) {
       if (result.succeeded.length > 0) {
         try {
           const trashEntries = await invoke<TrashEntry[]>("list_trash");
-          const succeededSet = new Set(result.succeeded.map((p) => p.replace(/[\\/]+$/, "").toLowerCase()));
-          const matches = trashEntries.filter((e) =>
-            succeededSet.has(e.originalPath.replace(/[\\/]+$/, "").toLowerCase()),
-          );
-          if (matches.length > 0) {
-            pushUndo({
-              type: "delete",
-              items: matches.map((m) => ({ id: m.id, path: m.originalPath })),
-            });
+          if (trashEntries.length > 0) {
+            const undoItems: { id: string; path: string }[] = [];
+            for (const succeededPath of result.succeeded) {
+              const target = succeededPath.replace(/[\\/]+$/, "").toLowerCase();
+              const matching = trashEntries.filter(
+                (e) => e.originalPath.replace(/[\\/]+$/, "").toLowerCase() === target,
+              );
+              if (matching.length > 0) {
+                // Pick the most recently deleted item matching this path
+                matching.sort((a, b) => b.timeDeleted - a.timeDeleted);
+                undoItems.push({ id: matching[0].id, path: matching[0].originalPath });
+              }
+            }
+            if (undoItems.length > 0) {
+              pushUndo({ type: "delete", items: undoItems });
+            }
           }
         } catch {
           // If trash listing or id matching fails, delete still succeeded; omit undo toast
