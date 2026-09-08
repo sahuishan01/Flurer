@@ -1326,7 +1326,11 @@ function App() {
           data-bg-lightness={shellLightness()}
           canGoBack={canGoBack()}
           canGoForward={canGoForward()}
-          canGoUp={Boolean(parentDir(activePanePath()) && parentDir(activePanePath()) !== activePanePath())}
+          canGoUp={(() => {
+            const cur = activePanePath();
+            const p = parentDir(cur);
+            return Boolean(p && p !== cur && p !== cur.replace(/[/\\]+$/, ""));
+          })()}
           onBack={goBack}
           onForward={goForward}
           onUp={() => {
