@@ -20,7 +20,7 @@ import {
   type Settings,
   type Theme,
 } from "./lib/settings";
-import { cleanDirPath, type GroupByKey, type SortKey } from "./lib/fs";
+import { cleanDirPath, parentDir, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
@@ -1326,8 +1326,16 @@ function App() {
           data-bg-lightness={shellLightness()}
           canGoBack={canGoBack()}
           canGoForward={canGoForward()}
+          canGoUp={Boolean(parentDir(activePanePath()) && parentDir(activePanePath()) !== activePanePath())}
           onBack={goBack}
           onForward={goForward}
+          onUp={() => {
+            const cur = activePanePath();
+            const p = parentDir(cur);
+            if (p && p !== cur && p !== cur.replace(/[/\\]+$/, "")) {
+              navigateActivePane(p);
+            }
+          }}
           searchQuery={searchQuery()}
           onSearchQueryChange={setSearchQuery}
           searchRecursive={searchRecursive()}

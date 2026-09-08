@@ -1,13 +1,15 @@
 import { Show, type JSX } from "solid-js";
-import { ArrowLeftIcon, ArrowRightIcon, RecursiveIcon, SearchIcon } from "./icons";
+import { ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, RecursiveIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
 import { createPopover } from "../lib/popover";
 
 type CommandBarProps = {
   canGoBack: boolean;
   canGoForward: boolean;
+  canGoUp?: boolean;
   onBack: () => void;
   onForward: () => void;
+  onUp?: () => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   searchRecursive: boolean;
@@ -32,17 +34,28 @@ export function CommandBar(props: CommandBarProps) {
   return (
     <div class="command-bar" data-bg-lightness={props["data-bg-lightness"]}>
       <div class="command-bar-nav">
-        <button type="button" class="icon-btn" aria-label="Back" disabled={!props.canGoBack} onClick={props.onBack}>
+        <button type="button" class="icon-btn" aria-label="Back" title="Back" disabled={!props.canGoBack} onClick={props.onBack}>
           <ArrowLeftIcon size={18} />
         </button>
         <button
           type="button"
           class="icon-btn"
           aria-label="Forward"
+          title="Forward"
           disabled={!props.canGoForward}
           onClick={props.onForward}
         >
           <ArrowRightIcon size={18} />
+        </button>
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label="Up"
+          title="Up (Go to parent folder)"
+          disabled={!props.canGoUp}
+          onClick={props.onUp}
+        >
+          <ArrowUpIcon size={18} />
         </button>
       </div>
 
