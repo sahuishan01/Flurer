@@ -19,7 +19,7 @@ import {
   type Theme,
 } from "./lib/settings";
 import type { GroupByKey, SortKey } from "./lib/fs";
-import { DEFAULT_IN_APP_SHORTCUTS, type InAppShortcutAction } from "./lib/shortcuts";
+import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
 import { loadInstalledPlugins, registeredPlugins } from "./lib/plugins";
@@ -736,80 +736,68 @@ function App() {
       const activeEl = document.activeElement;
       const typingInInput = isInputElement(activeEl);
 
-      // --- Shortcuts that work even while an input is focused ---
-      // Alt+Left / Alt+Right: history navigation
-      if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          goBack();
-          return;
-        } else if (e.key === "ArrowRight") {
-          e.preventDefault();
-          goForward();
-          return;
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          const cur = activePanePath();
-          const p = parentDir(cur);
-          if (p && p !== cur && p !== cur.replace(/[/\\]+$/, "")) {
-            navigateActivePane(p);
-          }
-          return;
-        } else if (e.key.toLowerCase() === "d") {
-          // Alt+D: Focus address bar
-          e.preventDefault();
-          const pathBtn = document.querySelector(".explorer-path-bar .icon-btn") as HTMLButtonElement | null;
-          pathBtn?.click();
-          return;
-        }
+      function bound(action: InAppShortcutAction): boolean {
+        return matchesKeyCombo(e, settings.inAppShortcuts[action] ?? DEFAULT_IN_APP_SHORTCUTS[action]);
       }
 
-      // Ctrl+L: Address bar focus
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "l") {
+      // --- Navigation & Window shortcuts ---
+      if (bound("navBack")) {
+        e.preventDefault();
+        goBack();
+        return;
+      } else if (bound("navForward")) {
+        e.preventDefault();
+        goForward();
+        return;
+      } else if (bound("navParent")) {
+        e.preventDefault();
+        const cur = activePanePath();
+        const p = parentDir(cur);
+        if (p && p !== cur && p !== cur.replace(/[/\\]+$/, "")) {
+          navigateActivePane(p);
+        }
+        return;
+      } else if (bound("focusAddressBar") || (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "d")) {
         e.preventDefault();
         const pathBtn = document.querySelector(".explorer-path-bar .icon-btn") as HTMLButtonElement | null;
         pathBtn?.click();
         return;
-      }
-
-      // Ctrl+F / F3: Search
-      if (((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") || e.key === "F3") {
+      } else if (bound("focusSearch") || e.key === "F3") {
         e.preventDefault();
         const searchBtn = document.querySelector(".search-trigger .icon-btn") as HTMLButtonElement | null;
         searchBtn?.click();
         return;
-      }
-
-      // Tab / pane shortcuts
-      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-        if (e.key.toLowerCase() === "t" && !e.shiftKey) {
-          e.preventDefault();
-          openNewTab();
-          return;
-        }
-        if (e.key.toLowerCase() === "w" && !e.shiftKey) {
-          e.preventDefault();
-          closeTab(activeTabId());
-          return;
-        }
-        if (e.key === "Tab") {
-          e.preventDefault();
-          const currentTabs = tabs();
-          if (currentTabs.length > 1) {
-            const idx = currentTabs.findIndex((t) => t.id === activeTabId());
-            if (idx >= 0) {
-              const nextIdx = e.shiftKey
-                ? (idx - 1 + currentTabs.length) % currentTabs.length
-                : (idx + 1) % currentTabs.length;
-              switchTab(currentTabs[nextIdx].id);
-            }
+      } else if (bound("newTab")) {
+        e.preventDefault();
+        openNewTab();
+        return;
+      } else if (bound("closeTab")) {
+        e.preventDefault();
+        closeTab(activeTabId());
+        return;
+      } else if (bound("nextTab")) {
+        e.preventDefault();
+        const currentTabs = tabs();
+        if (currentTabs.length > 1) {
+          const idx = currentTabs.findIndex((t) => t.id === activeTabId());
+          if (idx >= 0) {
+            const nextIdx = (idx + 1) % currentTabs.length;
+            switchTab(currentTabs[nextIdx].id);
           }
-          return;
         }
-      }
-
-      // F6: Cycle active split pane
-      if (e.key === "F6" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        return;
+      } else if (bound("prevTab")) {
+        e.preventDefault();
+        const currentTabs = tabs();
+        if (currentTabs.length > 1) {
+          const idx = currentTabs.findIndex((t) => t.id === activeTabId());
+          if (idx >= 0) {
+            const nextIdx = (idx - 1 + currentTabs.length) % currentTabs.length;
+            switchTab(currentTabs[nextIdx].id);
+          }
+        }
+        return;
+      } else if (bound("cyclePane")) {
         e.preventDefault();
         const total = 1 + settings.splitPanePaths.length;
         if (total > 1) {

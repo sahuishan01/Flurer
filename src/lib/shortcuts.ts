@@ -34,7 +34,23 @@ export function matchesKeyCombo(e: KeyboardEvent, combo: string | undefined): bo
   return eventKey.toLowerCase() === key.toLowerCase();
 }
 
-export type InAppShortcutAction = "delete" | "rename" | "copy" | "cut" | "paste" | "selectAll";
+export type InAppShortcutAction =
+  | "delete"
+  | "rename"
+  | "copy"
+  | "cut"
+  | "paste"
+  | "selectAll"
+  | "navParent"
+  | "navBack"
+  | "navForward"
+  | "focusAddressBar"
+  | "focusSearch"
+  | "newTab"
+  | "closeTab"
+  | "nextTab"
+  | "prevTab"
+  | "cyclePane";
 
 export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   delete: "Delete selected item(s)",
@@ -43,11 +59,34 @@ export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   cut: "Cut",
   paste: "Paste",
   selectAll: "Select all",
+  navParent: "Go to parent folder",
+  navBack: "Go back",
+  navForward: "Go forward",
+  focusAddressBar: "Focus address bar",
+  focusSearch: "Focus search bar",
+  newTab: "New explorer tab",
+  closeTab: "Close active tab",
+  nextTab: "Switch to next tab",
+  prevTab: "Switch to previous tab",
+  cyclePane: "Cycle active split pane",
 };
 
-// Matches the behavior FileList's handleKeyDown hardcoded before this became
-// configurable — a user who never opens the new Settings section sees no
-// change at all.
+export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShortcutAction[] }[] = [
+  {
+    category: "File Operations",
+    actions: ["delete", "rename", "copy", "cut", "paste", "selectAll"],
+  },
+  {
+    category: "Navigation",
+    actions: ["navParent", "navBack", "navForward", "focusAddressBar", "focusSearch"],
+  },
+  {
+    category: "Tabs & Panes",
+    actions: ["newTab", "closeTab", "nextTab", "prevTab", "cyclePane"],
+  },
+];
+
+// Matches the behavior hardcoded before these became configurable.
 export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   delete: "Delete",
   rename: "F2",
@@ -55,4 +94,14 @@ export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   cut: "Ctrl+X",
   paste: "Ctrl+V",
   selectAll: "Ctrl+A",
+  navParent: "Alt+ArrowUp",
+  navBack: "Alt+ArrowLeft",
+  navForward: "Alt+ArrowRight",
+  focusAddressBar: "Ctrl+L",
+  focusSearch: "Ctrl+F",
+  newTab: "Ctrl+T",
+  closeTab: "Ctrl+W",
+  nextTab: "Ctrl+Tab",
+  prevTab: "Ctrl+Shift+Tab",
+  cyclePane: "F6",
 };

@@ -3,7 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 import type { FolderSizeCacheStats } from "../lib/fs";
 import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
 import {
-  DEFAULT_GLOBAL_SHORTCUT,
   FONT_FAMILY_PRESETS,
   GRADIENT_DIRECTIONS,
   GRADIENT_PRESETS,
@@ -13,9 +12,7 @@ import {
   MIN_HISTORY_ITEMS,
   SOLID_COLOR_PRESETS,
 } from "../lib/settings";
-import { DEFAULT_IN_APP_SHORTCUTS, formatKeyCombo, IN_APP_SHORTCUT_LABELS, type InAppShortcutAction } from "../lib/shortcuts";
 
-const IN_APP_SHORTCUT_ACTIONS = Object.keys(IN_APP_SHORTCUT_LABELS) as InAppShortcutAction[];
 import {
   sizedUnsplashUrl,
   UNSPLASH_FREQUENCY_OPTIONS,
@@ -101,11 +98,6 @@ type CustomizationSettingsProps = {
   onLiveFolderSizeUpdatesChange: (enabled: boolean) => void;
   maxHistoryItems: number;
   onMaxHistoryItemsChange: (limit: number) => void;
-  globalShortcut: string;
-  onGlobalShortcutChange: (shortcut: string) => void;
-  inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
-  onInAppShortcutChange: (action: InAppShortcutAction, combo: string) => void;
-  onResetInAppShortcut: (action: InAppShortcutAction) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -156,55 +148,6 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   function handleSaveApiKey() {
     props.onSaveUnsplashApiKey(apiKeyInput());
     setApiKeyInput("");
-  }
-
-  // Global shortcut recorder — captures the next key combo pressed while
-  // "recording" and formats it into the "Ctrl+Alt+E" style string the Rust
-  // side's shortcut parser expects, rather than making the user type a
-  // syntax they'd have to already know.
-  const [recordingShortcut, setRecordingShortcut] = createSignal(false);
-
-  function formatShortcutFromEvent(e: KeyboardEvent): string | null {
-    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return null;
-    const parts: string[] = [];
-    if (e.ctrlKey) parts.push("Ctrl");
-    if (e.altKey) parts.push("Alt");
-    if (e.shiftKey) parts.push("Shift");
-    if (e.metaKey) parts.push("Super");
-    if (parts.length === 0) return null; // require at least one modifier
-    parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
-    return parts.join("+");
-  }
-
-  function handleShortcutRecorderKeyDown(e: KeyboardEvent) {
-    e.preventDefault();
-    if (e.key === "Escape") {
-      setRecordingShortcut(false);
-      return;
-    }
-    const shortcut = formatShortcutFromEvent(e);
-    if (!shortcut) return;
-    props.onGlobalShortcutChange(shortcut);
-    setRecordingShortcut(false);
-  }
-
-  // Same recorder UX as the global shortcut above, but for FileList's
-  // per-action in-app shortcuts — one signal tracking *which* action is
-  // currently being recorded (rather than a boolean) since there are six of
-  // these, and formatKeyCombo() without requireModifier since a bare
-  // "Delete" or "F2" binding is normal here, unlike an OS-wide hotkey.
-  const [recordingInAppAction, setRecordingInAppAction] = createSignal<InAppShortcutAction | null>(null);
-
-  function handleInAppShortcutRecorderKeyDown(e: KeyboardEvent, action: InAppShortcutAction) {
-    e.preventDefault();
-    if (e.key === "Escape") {
-      setRecordingInAppAction(null);
-      return;
-    }
-    const combo = formatKeyCombo(e);
-    if (!combo) return;
-    props.onInAppShortcutChange(action, combo);
-    setRecordingInAppAction(null);
   }
 
   // Search state for the "From Fixed List" picker. Kept local to this
@@ -772,71 +715,6 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           doesn't affect anything else.
         </p>
 
-        <div class="shortcut-control">
-          <span class="shortcut-label">Global shortcut to open Flurer</span>
-          <div class="shortcut-recorder-row">
-            <button
-              type="button"
-              class="shortcut-recorder"
-              classList={{ recording: recordingShortcut() }}
-              onClick={() => setRecordingShortcut(true)}
-              onKeyDown={(e) => recordingShortcut() && handleShortcutRecorderKeyDown(e)}
-              onBlur={() => setRecordingShortcut(false)}
-            >
-              {recordingShortcut()
-                ? "Press a key combo… (Esc to cancel)"
-                : props.globalShortcut || "Click to set a shortcut"}
-            </button>
-            <Show when={props.globalShortcut}>
-              <button type="button" class="danger" onClick={() => props.onGlobalShortcutChange("")}>
-                Clear
-              </button>
-            </Show>
-            <Show when={props.globalShortcut !== DEFAULT_GLOBAL_SHORTCUT}>
-              <button type="button" onClick={() => props.onGlobalShortcutChange(DEFAULT_GLOBAL_SHORTCUT)}>
-                Reset
-              </button>
-            </Show>
-          </div>
-          <p class="settings-hint">
-            Opens a new window every time, like Explorer's Win+E — works even when Flurer isn't focused. Click the
-            field, then press the key combo you want.
-          </p>
-        </div>
-
-        <div class="in-app-shortcuts">
-          <span class="shortcut-label">File list shortcuts</span>
-          <For each={IN_APP_SHORTCUT_ACTIONS}>
-            {(action) => (
-              <div class="shortcut-control">
-                <span class="shortcut-label">{IN_APP_SHORTCUT_LABELS[action]}</span>
-                <div class="shortcut-recorder-row">
-                  <button
-                    type="button"
-                    class="shortcut-recorder"
-                    classList={{ recording: recordingInAppAction() === action }}
-                    onClick={() => setRecordingInAppAction(action)}
-                    onKeyDown={(e) => recordingInAppAction() === action && handleInAppShortcutRecorderKeyDown(e, action)}
-                    onBlur={() => setRecordingInAppAction((cur) => (cur === action ? null : cur))}
-                  >
-                    {recordingInAppAction() === action
-                      ? "Press a key combo… (Esc to cancel)"
-                      : props.inAppShortcuts[action] || DEFAULT_IN_APP_SHORTCUTS[action]}
-                  </button>
-                  <Show when={(props.inAppShortcuts[action] || DEFAULT_IN_APP_SHORTCUTS[action]) !== DEFAULT_IN_APP_SHORTCUTS[action]}>
-                    <button type="button" onClick={() => props.onResetInAppShortcut(action)}>
-                      Reset
-                    </button>
-                  </Show>
-                </div>
-              </div>
-            )}
-          </For>
-          <p class="settings-hint">
-            No conflict checking — if two actions share a combo, whichever FileList checks first wins. Rebinding one to
-            an empty value isn't supported; use Reset to restore the default.
-          </p>
-        </div>
 
         <label class="checkbox-control">
           <input

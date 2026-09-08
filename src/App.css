@@ -2214,17 +2214,34 @@ button.sidebar-drive,
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.8em 1.2em;
+    padding: 0.9em 1.4em;
     background-color: rgba(var(--panel-rgb), var(--surface-opacity));
     backdrop-filter: blur(var(--surface-blur, 0));
     -webkit-backdrop-filter: blur(var(--surface-blur, 0));
     border-bottom: 1px solid var(--border-color);
 }
 
+.settings-header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+}
+
 .settings-panel-header h2 {
     margin: 0;
     font-size: var(--text-display);
     font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.settings-active-section-tag {
+    font-size: var(--text-caption);
+    font-weight: 500;
+    padding: 0.2em 0.6em;
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent-border);
 }
 
 .settings-panel-body {
@@ -2235,12 +2252,11 @@ button.sidebar-drive,
 }
 
 .settings-nav {
-    width: 180px;
+    width: 250px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.2em;
-    padding: 1em;
+    padding: 0.8em;
     overflow-y: auto;
     background-color: rgba(var(--panel-tint-rgb), var(--surface-opacity));
     backdrop-filter: blur(var(--surface-blur, 0));
@@ -2248,31 +2264,91 @@ button.sidebar-drive,
     border-right: 1px solid var(--border-color);
 }
 
-.settings-nav button {
-    text-align: left;
-    background: transparent;
-    border: none;
-    color: var(--text-color);
-    border-radius: var(--radius-sm);
-    white-space: nowrap;
+.settings-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
 }
 
-/* Below this the vertical nav has no room to keep full labels legible next
-   to a usable content pane — shrinking its width while keeping full-width
-   text (the old behaviour) just clipped every label instead. A horizontal,
-   scrollable tab strip keeps every label fully readable at any width: it
-   takes only as much height as one row of text, and any overflow scrolls
-   sideways instead of being cut off. */
-@media (max-width: 640px) {
+.settings-nav-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75em;
+    width: 100%;
+    padding: 0.65em 0.8em;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-color);
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.settings-nav-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.settings-nav-item.active {
+    background-color: var(--active-bg);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.settings-nav-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+}
+
+.settings-nav-item.active .settings-nav-icon {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.settings-nav-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.settings-nav-title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.settings-nav-item.active .settings-nav-title {
+    color: var(--accent);
+}
+
+.settings-nav-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.3;
+    margin-top: 0.15em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
     .settings-panel-body {
         flex-direction: column;
     }
 
     .settings-nav {
         width: 100%;
-        flex-direction: row;
-        align-items: center;
-        gap: 0.3em;
         padding: 0.5em;
         overflow-x: auto;
         overflow-y: hidden;
@@ -2280,56 +2356,124 @@ button.sidebar-drive,
         border-bottom: 1px solid var(--border-color);
     }
 
-    .settings-nav button {
+    .settings-nav-list {
+        flex-direction: row;
+        gap: 0.4em;
+    }
+
+    .settings-nav-item {
         flex-shrink: 0;
-        padding: 0.4em 0.7em;
+        width: auto;
+        padding: 0.4em 0.8em;
+    }
+
+    .settings-nav-desc {
+        display: none;
     }
 }
 
-.settings-nav button:hover {
-    background-color: var(--hover-bg);
-}
-
-.settings-nav button.active {
-    background-color: var(--active-bg);
-    color: var(--accent);
-}
-
-/* The tint lives here, once, covering the whole scrollable area — not on
-   each individual .settings-section. Sections used to each carry their own
-   background, which left the raw wallpaper visible in the gaps between
-   them (the margin between sections was never covered by anything). One
-   continuous surface behind everything means there's no gap left for the
-   background to show through, no matter how the sections inside are
-   spaced. */
 .settings-content {
     flex: 1;
-    /* Flex items default to min-width: auto, i.e. never smaller than their
-       content's intrinsic width — with non-wrapping descendants (plugin
-       action buttons, install-row inputs) that content can be wider than
-       the panel, and without this the item just pushes .settings-panel-body
-       wider instead of scrolling, which then gets silently clipped by that
-       ancestor's own overflow: hidden. min-width: 0 lets this flex item
-       actually shrink to the space it's given so its own overflow: auto
-       below can do its job. */
     min-width: 0;
     overflow: auto;
-    padding: 1em;
+    padding: 1.4em 1.8em;
     background-color: rgba(var(--panel-rgb), var(--surface-opacity));
     backdrop-filter: blur(var(--surface-blur, 0));
     -webkit-backdrop-filter: blur(var(--surface-blur, 0));
 }
 
-/* No background, no border, no blur of its own — purely a spacing/grouping
-   box now that .settings-content behind it already provides the tint. */
+.settings-content-header {
+    margin-bottom: 1.5em;
+    padding-bottom: 0.8em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-content-header h3 {
+    margin: 0;
+    font-size: 1.35em;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.settings-content-subtitle {
+    margin: 0.3em 0 0;
+    font-size: var(--text-secondary);
+    color: var(--text-secondary);
+}
+
 .settings-section {
-    margin-bottom: 1em;
-    padding: 0.75em 1em;
+    margin-bottom: 1.5em;
+    padding: 1.1em 1.3em;
     border-radius: var(--radius-md);
+    background-color: var(--control-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
 }
 
 .settings-section h3 {
-    margin: 0 0 0.5em;
+    margin: 0 0 0.4em;
+    font-size: 1.05em;
+    font-weight: 600;
+}
+
+/* Shortcuts Redesign */
+.shortcuts-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.shortcut-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.75em;
+    margin-top: 0.8em;
+}
+
+.shortcut-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.6em;
+    padding: 0.85em 1em;
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-secondary, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--border-color);
+    transition: all 0.15s ease;
+}
+
+.shortcut-card:hover {
+    border-color: var(--accent-border);
+}
+
+.shortcut-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+}
+
+.shortcut-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.shortcut-description {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.shortcut-default-hint {
+    font-size: 11px;
+    font-family: var(--text-mono);
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.shortcut-reset-btn {
+    padding: 0.25em 0.6em !important;
+    font-size: 11px !important;
 }
 
 .option-group {
