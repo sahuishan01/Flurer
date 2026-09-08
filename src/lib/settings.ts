@@ -98,6 +98,8 @@ export type Settings = {
   // Empty means the index is unused and search falls back to walking the
   // tree per query (see searchindex/mod.rs).
   searchIndexRoots: string[];
+  // Automatically poll for updates on startup & periodically and install them when available
+  autoCheckUpdates: boolean;
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -150,6 +152,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
   searchIndexRoots: [],
+  autoCheckUpdates: true,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

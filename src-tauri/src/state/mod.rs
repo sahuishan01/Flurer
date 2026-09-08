@@ -197,6 +197,12 @@ pub struct Settings {
     // file from before this field existed just defaults to that.
     #[serde(default)]
     pub search_index_roots: Vec<String>,
+    #[serde(default = "default_auto_check_updates")]
+    pub auto_check_updates: bool,
+}
+
+fn default_auto_check_updates() -> bool {
+    true
 }
 
 fn default_global_shortcut() -> String {
@@ -262,6 +268,7 @@ impl Default for Settings {
             window_maximized: false,
             sidebar_width: default_sidebar_width(),
             search_index_roots: Vec::new(),
+            auto_check_updates: default_auto_check_updates(),
         }
     }
 }

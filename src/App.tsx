@@ -3,6 +3,7 @@ import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
 import { CommandBar } from "./components/CommandBar";
 import { ExplorerPathBar } from "./components/ExplorerPathBar";
 import { ExplorerTabs, type ExplorerTab } from "./components/ExplorerTabs";
@@ -309,6 +310,37 @@ function App() {
     }
   });
 
+  // Background auto-update check & auto-install polling
+  onMount(() => {
+    async function autoPoll() {
+      if (!settings.autoCheckUpdates) return;
+      try {
+        const v = await getVersion();
+        const info = await invoke<{
+          hasUpdate: boolean;
+          latestVersion: string;
+          currentVersion: string;
+          downloadUrl: string;
+        }>("check_for_updates", { currentVersion: v });
+
+        if (info && info.hasUpdate && info.latestVersion !== info.currentVersion) {
+          await invoke("download_and_install_update", { url: info.downloadUrl });
+        }
+      } catch (err) {
+        console.error("Auto-update check failed:", err);
+      }
+    }
+
+    // Initial check after 10s delay to avoid startup contention, then poll every 4 hours
+    const initialTimer = setTimeout(autoPoll, 10000);
+    const interval = setInterval(autoPoll, 14400000);
+
+    onCleanup(() => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    });
+  });
+
   let saveTimeout: ReturnType<typeof setTimeout> | undefined;
   function persistSettings() {
     clearTimeout(saveTimeout);
@@ -402,6 +434,11 @@ function App() {
 
   function updateSearchIndexRoots(roots: string[]) {
     setSettings("searchIndexRoots", roots);
+    persistSettings();
+  }
+
+  function updateAutoCheckUpdates(enabled: boolean) {
+    setSettings("autoCheckUpdates", enabled);
     persistSettings();
   }
 
@@ -1488,6 +1525,8 @@ function App() {
                   onSearchIndexRootsChange={updateSearchIndexRoots}
                   recentPaths={settings.recentPaths}
                   favouritePaths={settings.favouritePaths}
+                  autoCheckUpdates={settings.autoCheckUpdates ?? true}
+                  onAutoCheckUpdatesChange={updateAutoCheckUpdates}
                 />
               </div>
             </Show>

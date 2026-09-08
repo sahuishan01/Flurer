@@ -22,7 +22,12 @@ type UpdateProgressPayload = {
   stage: string;
 };
 
-export function UpdatesView() {
+type UpdatesViewProps = {
+  autoCheckUpdates?: boolean;
+  onAutoCheckUpdatesChange?: (enabled: boolean) => void;
+};
+
+export function UpdatesView(props: UpdatesViewProps) {
   const [updateInfo, setUpdateInfo] = createSignal<UpdateInfo | null>(null);
   const [checking, setChecking] = createSignal(false);
   const [error, setError] = createSignal("");
@@ -103,6 +108,15 @@ export function UpdatesView() {
         <p class="updates-meta">
           Current version: <strong>v{appVersion()}</strong>
         </p>
+
+        <label class="settings-checkbox" style={{ "margin-bottom": "1em" }}>
+          <input
+            type="checkbox"
+            checked={props.autoCheckUpdates ?? true}
+            onChange={(e) => props.onAutoCheckUpdatesChange?.(e.currentTarget.checked)}
+          />
+          <span>Automatically check & install updates in the background</span>
+        </label>
         <div class="updates-actions">
           <button type="button" onClick={check} disabled={checking() || !appVersion() || downloading()}>
             <RefreshIcon size={14} />
