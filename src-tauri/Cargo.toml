@@ -57,6 +57,7 @@ indexmap = "2"
 tauri-plugin-dialog = "2.7.2"
 sha2 = "0.10"
 watch-protocol = { path = "watch-protocol" }
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
 # Named-pipe client to flurer-watchd only — see sizecache/watchd_client.rs.

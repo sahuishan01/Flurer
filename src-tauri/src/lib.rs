@@ -34,7 +34,7 @@ use helpers::settings::{get_settings, load_settings, save_settings, set_settings
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
 use searchindex::{clear_search_index, rebuild_search_index, search_index_query, search_index_status};
 use sizecache::{clear_folder_size_cache, get_folder_size, get_folder_size_cache_stats, recompute_folder_size};
-use tauri::{Manager, PhysicalSize};
+use tauri::{Emitter, Manager, PhysicalSize};
 use tokio::sync::Mutex;
 
 use configs::{has_unsplash_api_key, set_unsplash_api_key};
@@ -75,9 +75,9 @@ pub fn run() {
             let window_height = settings.window_height.clamp(300, 2160);
             let window_maximized = settings.window_maximized;
             // `flurer .` / `flurer <path>` — resolved once here from this
-            // process's own argv/cwd (cold start; see cli.rs's doc comment
-            // on why there's no cross-process forwarding for an
-            // already-running instance).
+            // process's own argv/cwd on cold start. Secondary invocations
+            // while Flurer is already running are handled by
+            // tauri_plugin_single_instance below, which emits "open-new-tab".
             let launch_path = std::env::current_dir()
                 .ok()
                 .and_then(|cwd| cli::resolve_launch_path(&std::env::args().collect::<Vec<_>>(), &cwd));
@@ -166,6 +166,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
         .plugin(tauri_plugin_drag::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
+                let _ = app.emit("open-new-tab", target_dir);
+            }
+            shortcuts::show_and_focus_main_window(app);
+        }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {

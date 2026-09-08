@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CommandBar } from "./components/CommandBar";
 import { ExplorerPathBar } from "./components/ExplorerPathBar";
@@ -232,12 +233,27 @@ function App() {
   // folder once, then null on every subsequent call (see AppState.launch_path
   // in the Rust side), so this only ever navigates on this window's very
   // first mount, not on remounts or other windows sharing the same process.
+  // Secondary invocations when an instance is already running are received
+  // via the "open-new-tab" event emitted by tauri-plugin-single-instance.
   onMount(async () => {
     try {
       const path = await invoke<string | null>("take_launch_path");
       if (path) navigateTo(path);
     } catch (err) {
       console.error("Failed to read launch path", err);
+    }
+
+    try {
+      const unlisten = await listen<string>("open-new-tab", (event) => {
+        if (event.payload) {
+          openTabWithPath(event.payload);
+        }
+      });
+      onCleanup(() => {
+        unlisten();
+      });
+    } catch (err) {
+      console.error("Failed to listen for open-new-tab event", err);
     }
   });
 
@@ -901,11 +917,10 @@ function App() {
     );
   });
 
-  function openNewTab() {
-    // New tab opens with a fresh single-pane view at the current path
+  function openTabWithPath(path: string) {
     const tab: ExplorerTab = {
       id: crypto.randomUUID(),
-      path: currentPath(),
+      path,
       splitPanePaths: [],
       splitCols: 1,
     };
@@ -924,6 +939,12 @@ function App() {
     setPaneHistories([]);
     setSettings("splitPanePaths", []);
     setSettings("splitCols", 1);
+    navigateTo(path);
+  }
+
+  function openNewTab() {
+    // New tab opens with a fresh single-pane view at the current path
+    openTabWithPath(currentPath());
   }
 
   function switchTab(id: string) {

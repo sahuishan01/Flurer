@@ -1,11 +1,8 @@
 //! Command-line "open this folder" support — `flurer .` or `flurer <path>`.
 //!
-//! No single-instance handling here: a second `flurer.exe` invocation
-//! already starts an independent process today (there's no
-//! tauri-plugin-single-instance in this codebase), and this deliberately
-//! doesn't change that — it only makes whichever window that new process
-//! shows open at the given folder instead of the hardcoded default,
-//! which is the part actually being asked for.
+//! Handles resolving CLI arguments on both cold start (via `take_launch_path`)
+//! and warm secondary invocations (forwarded via `tauri-plugin-single-instance`
+//! to open in a new tab of the existing window).
 
 use std::path::{Path, PathBuf};
 
