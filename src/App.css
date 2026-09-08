@@ -2706,7 +2706,7 @@ a:hover {
 }
 
 input:not([type="range"]):not([type="color"]),
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
 select {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
@@ -2724,18 +2724,18 @@ select option {
     background-color: var(--option-bg);
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
 select {
     cursor: pointer;
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):hover,
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):hover,
 select:hover {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 6%, var(--input-bg));
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):active {
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.explorer-tab-close):not(.explorer-tab-new):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):active {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 12%, var(--input-bg));
 }

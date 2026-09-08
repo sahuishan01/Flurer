@@ -78,10 +78,11 @@ export type FolderSizeResponse = { status: "ready"; size: number; error?: string
 export function cleanDirPath(path: string): string {
   const trimmed = path.trim();
   if (!trimmed) return "";
-  const normalized = trimmed.replace(/\//g, "\\");
+  const sanitized = trimmed.replace(/^([a-zA-Z])::+/, "$1:");
+  const normalized = sanitized.replace(/\//g, "\\");
   // Drive root: "C:" or "C:\"
   if (/^[a-zA-Z]:\\?$/.test(normalized)) {
-    return `${normalized.slice(0, 2)}\\`;
+    return `${normalized.slice(0, 1)}:\\`;
   }
   // UNC path root: "\\server\share" or "\\server\share\"
   if (normalized.startsWith("\\\\")) {
@@ -93,7 +94,7 @@ export function cleanDirPath(path: string): string {
     return trimmedUnc;
   }
   const stripped = normalized.replace(/[/\\]+$/, "");
-  return /^[a-zA-Z]:$/.test(stripped) ? `${stripped}\\` : stripped;
+  return /^[a-zA-Z]:$/.test(stripped) ? `${stripped.slice(0, 1)}:\\` : stripped;
 }
 
 export function parentDir(path: string): string {

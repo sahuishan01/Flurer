@@ -171,9 +171,32 @@ export function SettingsPanel(props: SettingsPanelProps) {
           <h2>Settings</h2>
           <span class="settings-active-section-tag">{activeCategory().label}</span>
         </div>
-        <button type="button" class="icon-btn" aria-label="Close settings" onClick={props.onClose}>
-          <CloseIcon />
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", "align-items": "center" }}>
+          <button
+            type="button"
+            class="option-btn"
+            title="Export Settings JSON for debugging or backup"
+            onClick={async () => {
+              try {
+                const settingsJson = await invoke("get_settings");
+                const blob = new Blob([JSON.stringify(settingsJson, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "flurer-settings.json";
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch (err) {
+                console.error("Failed to export settings", err);
+              }
+            }}
+          >
+            Export Settings JSON
+          </button>
+          <button type="button" class="icon-btn" aria-label="Close settings" onClick={props.onClose}>
+            <CloseIcon />
+          </button>
+        </div>
       </div>
 
       <div class="settings-panel-body">

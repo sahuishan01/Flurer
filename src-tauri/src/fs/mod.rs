@@ -112,12 +112,18 @@ pub(crate) fn clean_dir_path(path: &str) -> String {
     if trimmed.is_empty() {
         return String::new();
     }
-    let normalized = trimmed.replace('/', "\\");
+    // Collapse any double colons or malformed drive prefix like "C::\" or "C::" -> "C:\"
+    let sanitized = if trimmed.len() >= 3 && trimmed.as_bytes()[1] == b':' && trimmed.as_bytes()[2] == b':' {
+        format!("{}:{}", &trimmed[..1], &trimmed[3..])
+    } else {
+        trimmed.to_string()
+    };
+    let normalized = sanitized.replace('/', "\\");
     // Drive root: e.g. "C:" or "C:\"
     if (normalized.len() == 2 && normalized.as_bytes()[1] == b':')
         || (normalized.len() == 3 && normalized.as_bytes()[1] == b':' && normalized.as_bytes()[2] == b'\\')
     {
-        return format!("{}:\\", &normalized[..2]);
+        return format!("{}:\\", &normalized[..1]);
     }
     // UNC paths: e.g. "\\server\share" or "\\server\share\"
     if normalized.starts_with(r"\\") {
