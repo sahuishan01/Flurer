@@ -30,22 +30,19 @@ import "./App.css";
 const DEFAULT_PATH = "C:\\";
 const SETTINGS_SAVE_DEBOUNCE_MS = 300;
 
-type HistoryEntry = { view: MainView; path: string };
+type HistoryEntry =
+  | { type: "view"; view: Exclude<MainView, "explorer"> }
+  | { type: "explorer"; pane: number; path: string };
 
 function App() {
   const [currentPath, setCurrentPath] = createSignal(DEFAULT_PATH);
   const [pathInput, setPathInput] = createSignal(DEFAULT_PATH);
   // Which explorer pane global navigation (the top address bar, sidebar
   // clicks on a drive/favourite/recent, the search box) targets. 0 is the
-  // primary pane (currentPath, with real back/forward history and tabs);
-  // k (k >= 1) is settings.splitPanePaths[k - 1], which has neither — see
-  // navigateActivePane and activePanePath below. Owned here rather than
-  // inside ExplorerView because the CommandBar's address bar and Sidebar
-  // live outside it and need to read/target the same pane ExplorerView
-  // considers "active" for keyboard shortcuts and drops.
+  // primary pane (currentPath); k (k >= 1) is settings.splitPanePaths[k - 1].
   const [activePane, setActivePane] = createSignal(0);
   const [mainView, setMainView] = createSignal<MainView>("explorer");
-  const [history, setHistory] = createSignal<HistoryEntry[]>([{ view: "explorer", path: DEFAULT_PATH }]);
+  const [history, setHistory] = createSignal<HistoryEntry[]>([{ type: "explorer", pane: 0, path: DEFAULT_PATH }]);
   const [historyIndex, setHistoryIndex] = createSignal(0);
   const [searchQuery, setSearchQuery] = createSignal("");
   const [searchRecursive, setSearchRecursive] = createSignal(false);
@@ -216,12 +213,14 @@ function App() {
       const loaded = await invoke<Settings>("get_settings");
       setSettings(loaded);
       
-      // Load plugins on startup
-      await loadInstalledPlugins(loaded.disabledPlugins || []);
+      // Load plugins on startup in background (non-blocking)
+      loadInstalledPlugins(loaded.disabledPlugins || []).catch((err) =>
+        console.error("Plugin startup error:", err)
+      );
 
       if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
         setMainView(loaded.lastMainView);
-        setHistory([{ view: loaded.lastMainView, path: currentPath() }]);
+        setHistory([{ type: "view", view: loaded.lastMainView }]);
       }
     } catch (err) {
       console.error("Failed to load settings", err);
@@ -633,7 +632,10 @@ function App() {
     if (suppressHistoryPush) return;
     const h = history();
     const current = h[historyIndex()];
-    if (current && current.view === entry.view && current.path === entry.path) return;
+    if (current) {
+      if (current.type === "view" && entry.type === "view" && current.view === entry.view) return;
+      if (current.type === "explorer" && entry.type === "explorer" && current.pane === entry.pane && current.path === entry.path) return;
+    }
     const truncated = h.slice(0, historyIndex() + 1);
     const next = [...truncated, entry];
     setHistory(next);
@@ -643,122 +645,64 @@ function App() {
   function applyHistoryEntry(entry: HistoryEntry, index: number) {
     suppressHistoryPush = true;
     setHistoryIndex(index);
-    setMainView(entry.view);
-    setCurrentPath(entry.path);
+    if (entry.type === "view") {
+      setMainView(entry.view);
+    } else {
+      setMainView("explorer");
+      const targetPane = entry.pane;
+      const maxPane = settings.splitPanePaths.length;
+      if (targetPane === 0) {
+        setActivePane(0);
+        setCurrentPath(entry.path);
+      } else if (targetPane <= maxPane) {
+        setActivePane(targetPane);
+        const next = settings.splitPanePaths.slice();
+        next[targetPane - 1] = entry.path;
+        setSettings("splitPanePaths", next);
+      } else {
+        // Fallback if targetPane was closed
+        setActivePane(0);
+        setCurrentPath(entry.path);
+      }
+    }
     suppressHistoryPush = false;
   }
 
-  // History for secondary panes (arrIndex 0 corresponds to activePane 1, etc.)
-  // Each pane stores a list of paths and an active index.
-  const [paneHistories, setPaneHistories] = createSignal<{ paths: string[]; index: number }[]>([]);
-
-  function ensurePaneHistory(arrIndex: number, currentPanePath: string) {
-    setPaneHistories((prev) => {
-      const next = prev.slice();
-      while (next.length <= arrIndex) {
-        next.push({ paths: [], index: -1 });
-      }
-      if (next[arrIndex].paths.length === 0) {
-        next[arrIndex] = { paths: [currentPanePath], index: 0 };
-      }
-      return next;
-    });
-  }
-
-  function pushPaneHistory(arrIndex: number, newPath: string) {
-    setPaneHistories((prev) => {
-      const next = prev.slice();
-      while (next.length <= arrIndex) {
-        next.push({ paths: [], index: -1 });
-      }
-      const entry = next[arrIndex];
-      const cur = entry.paths[entry.index];
-      if (cur === newPath) return prev;
-      const truncated = entry.paths.slice(0, entry.index + 1);
-      next[arrIndex] = {
-        paths: [...truncated, newPath],
-        index: truncated.length,
-      };
-      return next;
-    });
-  }
-
   function navigateExtraPane(arrIndex: number, path: string) {
-    const curPath = settings.splitPanePaths[arrIndex] ?? currentPath();
-    ensurePaneHistory(arrIndex, curPath);
-    pushPaneHistory(arrIndex, path);
+    const cleanPath = cleanDirPath(path);
     const next = settings.splitPanePaths.slice();
-    next[arrIndex] = path;
+    next[arrIndex] = cleanPath;
     setSettings("splitPanePaths", next);
-    recordRecent(path);
+    pushHistory({ type: "explorer", pane: arrIndex + 1, path: cleanPath });
+    recordRecent(cleanPath);
   }
 
   function handleSplitPanePathsChange(paths: string[]) {
     setSettings("splitPanePaths", paths);
-    setPaneHistories((prev) => prev.slice(0, paths.length));
+    if (activePane() > paths.length) {
+      setActivePane(paths.length);
+    }
   }
 
   function canGoBack(): boolean {
-    const pane = activePane();
-    if (pane === 0) return historyIndex() > 0;
-    const arrIndex = pane - 1;
-    const hist = paneHistories()[arrIndex];
-    return hist ? hist.index > 0 : false;
+    return historyIndex() > 0;
   }
 
   function canGoForward(): boolean {
-    const pane = activePane();
-    if (pane === 0) return historyIndex() < history().length - 1;
-    const arrIndex = pane - 1;
-    const hist = paneHistories()[arrIndex];
-    return hist ? hist.index < hist.paths.length - 1 : false;
+    return historyIndex() < history().length - 1;
   }
 
   function goBack() {
-    const pane = activePane();
-    if (pane === 0) {
-      const index = historyIndex();
-      if (index <= 0) return;
-      applyHistoryEntry(history()[index - 1], index - 1);
-      return;
-    }
-    const arrIndex = pane - 1;
-    const curHist = paneHistories()[arrIndex];
-    if (!curHist || curHist.index <= 0) return;
-    const newIndex = curHist.index - 1;
-    const targetPath = curHist.paths[newIndex];
-    setPaneHistories((prev) => {
-      const next = prev.slice();
-      next[arrIndex] = { ...next[arrIndex], index: newIndex };
-      return next;
-    });
-    const nextPaths = settings.splitPanePaths.slice();
-    nextPaths[arrIndex] = targetPath;
-    setSettings("splitPanePaths", nextPaths);
+    const index = historyIndex();
+    if (index <= 0) return;
+    applyHistoryEntry(history()[index - 1], index - 1);
   }
 
   function goForward() {
-    const pane = activePane();
-    if (pane === 0) {
-      const h = history();
-      const index = historyIndex();
-      if (index >= h.length - 1) return;
-      applyHistoryEntry(h[index + 1], index + 1);
-      return;
-    }
-    const arrIndex = pane - 1;
-    const curHist = paneHistories()[arrIndex];
-    if (!curHist || curHist.index >= curHist.paths.length - 1) return;
-    const newIndex = curHist.index + 1;
-    const targetPath = curHist.paths[newIndex];
-    setPaneHistories((prev) => {
-      const next = prev.slice();
-      next[arrIndex] = { ...next[arrIndex], index: newIndex };
-      return next;
-    });
-    const nextPaths = settings.splitPanePaths.slice();
-    nextPaths[arrIndex] = targetPath;
-    setSettings("splitPanePaths", nextPaths);
+    const h = history();
+    const index = historyIndex();
+    if (index >= h.length - 1) return;
+    applyHistoryEntry(h[index + 1], index + 1);
   }
 
   // Alt+Left/Right and the mouse's side (back/forward) buttons — standard
@@ -888,7 +832,7 @@ function App() {
     const cleanPath = cleanDirPath(path);
     setCurrentPath(cleanPath);
     setMainView("explorer");
-    pushHistory({ view: "explorer", path: cleanPath });
+    pushHistory({ type: "explorer", pane: 0, path: cleanPath });
     recordRecent(cleanPath);
   }
 
@@ -907,10 +851,6 @@ function App() {
   /**
    * Routes a navigation from outside ExplorerView (top address bar,
    * sidebar drive/favourite/recent click) to whichever pane is active.
-   * Pane 0 goes through navigateTo so it keeps participating in
-   * back/forward history and tabs; any other pane is just a direct
-   * settings update, matching how ExplorerView itself navigates extra
-   * panes — they were never given history of their own (see HANDOFF.md).
    */
   function navigateActivePane(path: string) {
     const cleanPath = cleanDirPath(path);
@@ -923,8 +863,13 @@ function App() {
   }
 
   function selectView(view: MainView) {
-    setMainView(view);
-    pushHistory({ view, path: currentPath() });
+    if (view === "explorer") {
+      setMainView("explorer");
+      pushHistory({ type: "explorer", pane: activePane(), path: activePanePath() });
+    } else {
+      setMainView(view);
+      pushHistory({ type: "view", view });
+    }
   }
 
   // Explorer tabs: session bookmarks with independent folder paths and sub-pane
@@ -975,7 +920,6 @@ function App() {
     ]);
     setActiveTabId(tab.id);
     setActivePane(0);
-    setPaneHistories([]);
     setSettings("splitPanePaths", []);
     setSettings("splitCols", 1);
     navigateTo(path);
@@ -1004,7 +948,6 @@ function App() {
 
     setActiveTabId(id);
     setActivePane(0);
-    setPaneHistories([]);
     setSettings("splitPanePaths", targetTab.splitPanePaths ? targetTab.splitPanePaths.slice() : []);
     setSettings("splitCols", targetTab.splitCols ?? 1);
     navigateTo(targetTab.path);
@@ -1021,7 +964,6 @@ function App() {
       const fallback = next[Math.max(0, index - 1)];
       setActiveTabId(fallback.id);
       setActivePane(0);
-      setPaneHistories([]);
       setSettings("splitPanePaths", fallback.splitPanePaths ? fallback.splitPanePaths.slice() : []);
       setSettings("splitCols", fallback.splitCols ?? 1);
       navigateTo(fallback.path);
