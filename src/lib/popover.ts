@@ -47,7 +47,11 @@ export function createPopover() {
 
   function reposition() {
     if (!anchorEl || !panelEl) return;
-    setPos(clampPopoverPosition(anchorEl.getBoundingClientRect(), panelEl.getBoundingClientRect()));
+    const newPos = clampPopoverPosition(anchorEl.getBoundingClientRect(), panelEl.getBoundingClientRect());
+    setPos((prev) => {
+      if (prev.top === newPos.top && prev.left === newPos.left) return prev;
+      return newPos;
+    });
   }
 
   function openAt(btn: HTMLElement) {

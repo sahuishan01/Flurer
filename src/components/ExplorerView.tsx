@@ -133,32 +133,30 @@ export function ExplorerView(props: ExplorerViewProps) {
         onFocusIn={() => props.onActivePaneChange(0)}
         onPointerDown={() => props.onActivePaneChange(0)}
       >
-        <Show
-          when={isSplit()}
-          fallback={
-            <div class="explorer-pane-actions">
-              <button
-                type="button"
-                class="icon-btn"
-                title="Split view"
-                aria-label="Split view"
-                onClick={addPane}
-              >
-                <SplitPaneIcon size={16} />
-              </button>
-            </div>
-          }
-        >
-          <div class="explorer-pane-header">
-            <ExplorerPathBar
-              path={props.path}
-              pathInput={primaryPathInput()}
-              onPathInputChange={setPrimaryPathInput}
-              onNavigate={props.onNavigate}
-              favouritePaths={props.favouritePaths}
-              onToggleFavourite={props.onToggleFavourite}
-            />
-            <div class="explorer-pane-header-actions">
+        <div class="explorer-pane-header">
+          <ExplorerPathBar
+            path={props.path}
+            pathInput={primaryPathInput()}
+            onPathInputChange={setPrimaryPathInput}
+            onNavigate={props.onNavigate}
+            favouritePaths={props.favouritePaths}
+            onToggleFavourite={props.onToggleFavourite}
+          />
+          <div class="explorer-pane-header-actions">
+            <Show
+              when={isSplit()}
+              fallback={
+                <button
+                  type="button"
+                  class="icon-btn"
+                  title="Split view"
+                  aria-label="Split view"
+                  onClick={addPane}
+                >
+                  <SplitPaneIcon size={16} />
+                </button>
+              }
+            >
               <button
                 type="button"
                 class="icon-btn"
@@ -199,9 +197,9 @@ export function ExplorerView(props: ExplorerViewProps) {
               >
                 <CloseIcon size={15} />
               </button>
-            </div>
+            </Show>
           </div>
-        </Show>
+        </div>
         <FileList
           data-bg-lightness={props["data-bg-lightness"]}
           path={props.path}

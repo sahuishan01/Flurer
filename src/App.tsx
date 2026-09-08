@@ -1289,25 +1289,22 @@ function App() {
           data-bg-lightness={shellLightness()}
           canGoBack={canGoBack()}
           canGoForward={canGoForward()}
+          canGoUp={Boolean(parentDir(activePanePath()) && parentDir(activePanePath()) !== activePanePath())}
           onBack={goBack}
           onForward={goForward}
+          onUp={() => {
+            const cur = activePanePath();
+            const p = parentDir(cur);
+            if (p && p !== cur && p !== cur.replace(/[/\\]+$/, "")) {
+              navigateActivePane(p);
+            }
+          }}
           searchQuery={searchQuery()}
           onSearchQueryChange={setSearchQuery}
           searchRecursive={searchRecursive()}
           onSearchRecursiveChange={setSearchRecursive}
           showProgressWhenIdle={settings.showProgressWhenIdle}
-          viewControls={
-            <Show when={mainView() === "explorer"}>
-              <ExplorerPathBar
-                path={activePanePath()}
-                pathInput={pathInput()}
-                onPathInputChange={setPathInput}
-                onNavigate={navigateActivePane}
-                favouritePaths={settings.favouritePaths}
-                onToggleFavourite={toggleFavourite}
-              />
-            </Show>
-          }
+          viewControls={null}
         />
 
         <Show when={mainView() === "explorer"}>
