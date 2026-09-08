@@ -72,6 +72,30 @@ export type ClipboardState = {
 // value following later via a "folder-size-updated" event.
 export type FolderSizeResponse = { status: "ready"; size: number; error?: string | null } | { status: "pending" };
 
+// Normalizes directory paths, stripping redundant trailing separators from
+// non-root folders (which causes Windows error 123 in some API invocations),
+// while preserving root paths like "C:\".
+export function cleanDirPath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed) return "";
+  const normalized = trimmed.replace(/\//g, "\\");
+  // Drive root: "C:" or "C:\"
+  if (/^[a-zA-Z]:\\?$/.test(normalized)) {
+    return `${normalized.slice(0, 2)}\\`;
+  }
+  // UNC path root: "\\server\share" or "\\server\share\"
+  if (normalized.startsWith("\\\\")) {
+    const trimmedUnc = normalized.replace(/[/\\]+$/, "");
+    const parts = trimmedUnc.split(/[/\\]+/).filter(Boolean);
+    if (parts.length <= 2) {
+      return `\\\\${parts.join("\\")}`;
+    }
+    return trimmedUnc;
+  }
+  const stripped = normalized.replace(/[/\\]+$/, "");
+  return /^[a-zA-Z]:$/.test(stripped) ? `${stripped}\\` : stripped;
+}
+
 export function parentDir(path: string): string {
   const normalized = path.replace(/[/\\]+$/, "");
   const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));

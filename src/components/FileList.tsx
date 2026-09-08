@@ -21,6 +21,7 @@ import { PreviewPanel } from "./PreviewPanel";
 import { PropertiesDialog } from "./PropertiesDialog";
 import {
   ArchiveIcon,
+  CheckIcon,
   ClipboardIcon,
   CopyIcon,
   FilePlusIcon,
@@ -146,6 +147,30 @@ export function FileList(props: FileListProps) {
   const [error, setError] = createSignal("");
   const [opError, setOpError] = createSignal("");
   const [adminRelaunchError, setAdminRelaunchError] = createSignal("");
+  const [copiedErrorText, setCopiedErrorText] = createSignal<string | null>(null);
+
+  async function copyErrorToClipboard(text: string) {
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+      setCopiedErrorText(text);
+      setTimeout(() => setCopiedErrorText(null), 1800);
+    } catch (err) {
+      console.error("Failed to copy error to clipboard", err);
+    }
+  }
 
   // Shown next to any "Access denied" size/listing error — WindowsApps and
   // similar TrustedInstaller-owned folders stay out of reach even elevated
@@ -1943,7 +1968,21 @@ export function FileList(props: FileListProps) {
   return (
     <>
       <div class="file-list" onContextMenu={handleBackgroundContextMenu} data-bg-lightness={props["data-bg-lightness"]}>
-        {error() && <p class="file-list-error selectable-text">{error()}</p>}
+        {error() && (
+          <div class="file-list-error-banner">
+            <p class="file-list-error selectable-text">{error()}</p>
+            <button
+              type="button"
+              class="file-list-error-copy-btn"
+              title="Copy error"
+              aria-label="Copy error"
+              onClick={() => copyErrorToClipboard(error())}
+            >
+              {copiedErrorText() === error() ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+              <span>{copiedErrorText() === error() ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+        )}
         <Show when={unreadable() > 0}>
           <div class="file-list-notice">
             <button type="button" class="file-list-notice-toggle" onClick={() => setUnreadableExpanded((v) => !v)}>
@@ -1971,8 +2010,42 @@ export function FileList(props: FileListProps) {
             </Show>
           </div>
         </Show>
-        {adminRelaunchError() && <p class="file-list-error selectable-text">Couldn't relaunch elevated: {adminRelaunchError()}</p>}
-        {opError() && <p class="file-list-error selectable-text">{opError()}</p>}
+        {adminRelaunchError() && (
+          <div class="file-list-error-banner">
+            <p class="file-list-error selectable-text">Couldn't relaunch elevated: {adminRelaunchError()}</p>
+            <button
+              type="button"
+              class="file-list-error-copy-btn"
+              title="Copy error"
+              aria-label="Copy error"
+              onClick={() => copyErrorToClipboard(`Couldn't relaunch elevated: ${adminRelaunchError()}`)}
+            >
+              {copiedErrorText() === `Couldn't relaunch elevated: ${adminRelaunchError()}` ? (
+                <CheckIcon size={14} />
+              ) : (
+                <CopyIcon size={14} />
+              )}
+              <span>
+                {copiedErrorText() === `Couldn't relaunch elevated: ${adminRelaunchError()}` ? "Copied" : "Copy"}
+              </span>
+            </button>
+          </div>
+        )}
+        {opError() && (
+          <div class="file-list-error-banner">
+            <p class="file-list-error selectable-text">{opError()}</p>
+            <button
+              type="button"
+              class="file-list-error-copy-btn"
+              title="Copy error"
+              aria-label="Copy error"
+              onClick={() => copyErrorToClipboard(opError())}
+            >
+              {copiedErrorText() === opError() ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+              <span>{copiedErrorText() === opError() ? "Copied" : "Copy"}</span>
+            </button>
+          </div>
+        )}
         <div class="file-list-toolbar-row">
           <select
             class="group-by-select"

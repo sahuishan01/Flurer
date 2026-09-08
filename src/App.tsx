@@ -19,7 +19,7 @@ import {
   type Settings,
   type Theme,
 } from "./lib/settings";
-import type { GroupByKey, SortKey } from "./lib/fs";
+import { cleanDirPath, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
@@ -848,10 +848,11 @@ function App() {
   });
 
   function navigateTo(path: string) {
-    setCurrentPath(path);
+    const cleanPath = cleanDirPath(path);
+    setCurrentPath(cleanPath);
     setMainView("explorer");
-    pushHistory({ view: "explorer", path });
-    recordRecent(path);
+    pushHistory({ view: "explorer", path: cleanPath });
+    recordRecent(cleanPath);
   }
 
   /** Whichever pane global navigation currently targets — see activePane. */
@@ -875,12 +876,13 @@ function App() {
    * panes — they were never given history of their own (see HANDOFF.md).
    */
   function navigateActivePane(path: string) {
+    const cleanPath = cleanDirPath(path);
     const i = activePane();
     if (i === 0) {
-      navigateTo(path);
+      navigateTo(cleanPath);
       return;
     }
-    navigateExtraPane(i - 1, path);
+    navigateExtraPane(i - 1, cleanPath);
   }
 
   function selectView(view: MainView) {

@@ -103,13 +103,49 @@ pub fn list_directory(
     Ok(listing)
 }
 
+/// Normalizes a directory path before handing it to filesystem APIs.
+/// Strips redundant trailing slashes from non-root paths (e.g. `C:\foo\bar\` -> `C:\foo\bar`),
+/// which prevents Windows error 123 (`ERROR_INVALID_NAME` / "syntax is incorrect") on
+/// certain directory types, while preserving root paths like `C:\` or `\\server\share\`.
+pub(crate) fn clean_dir_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let normalized = trimmed.replace('/', "\\");
+    // Drive root: e.g. "C:" or "C:\"
+    if (normalized.len() == 2 && normalized.as_bytes()[1] == b':')
+        || (normalized.len() == 3 && normalized.as_bytes()[1] == b':' && normalized.as_bytes()[2] == b'\\')
+    {
+        return format!("{}:\\", &normalized[..2]);
+    }
+    // UNC paths: e.g. "\\server\share" or "\\server\share\"
+    if normalized.starts_with(r"\\") {
+        let trimmed_unc = normalized.trim_end_matches('\\');
+        let parts: Vec<&str> = trimmed_unc.split('\\').filter(|s| !s.is_empty()).collect();
+        if parts.len() <= 2 {
+            return format!("\\\\{trimmed_unc}");
+        }
+        return trimmed_unc.to_string();
+    }
+    // Regular directory path: strip trailing backslashes
+    let stripped = normalized.trim_end_matches('\\');
+    if stripped.len() == 2 && stripped.as_bytes()[1] == b':' {
+        format!("{stripped}\\")
+    } else {
+        stripped.to_string()
+    }
+}
+
 /// The read half of a listing: walks the directory and collects entries plus
 /// whatever couldn't be read, with no ordering applied. Split out from
 /// list_directory so the streaming variant below reuses the exact same
 /// per-entry handling — divergence here would mean a folder listed
 /// differently depending on how big it happened to be.
 fn read_dir_listing(path: &str) -> Result<DirListing, String> {
-    let read_dir = fs::read_dir(path).map_err(|e| describe_dir_error(path, &e))?;
+    let cleaned = clean_dir_path(path);
+    let target_path = if cleaned.is_empty() { path } else { &cleaned };
+    let read_dir = fs::read_dir(target_path).map_err(|e| describe_dir_error(target_path, &e))?;
 
     let mut entries = Vec::new();
     let mut unreadable = 0usize;
@@ -760,5 +796,16 @@ mod tests {
                 entry.path
             );
         }
+    }
+
+    #[test]
+    fn clean_dir_path_handles_trailing_slashes_and_roots() {
+        assert_eq!(clean_dir_path(r"C:\Program Files\debug_nonredist\"), r"C:\Program Files\debug_nonredist");
+        assert_eq!(clean_dir_path(r"C:\Program Files\debug_nonredist/"), r"C:\Program Files\debug_nonredist");
+        assert_eq!(clean_dir_path(r"C:\"), r"C:\");
+        assert_eq!(clean_dir_path(r"C:"), r"C:\");
+        assert_eq!(clean_dir_path(r"C:/"), r"C:\");
+        assert_eq!(clean_dir_path(r"\\server\share"), r"\\server\share");
+        assert_eq!(clean_dir_path(r"\\server\share\subfolder\"), r"\\server\share\subfolder");
     }
 }
