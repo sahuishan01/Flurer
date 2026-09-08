@@ -2038,21 +2038,7 @@ export function FileList(props: FileListProps) {
             </button>
           </div>
         )}
-        {opError() && (
-          <div class="file-list-error-banner">
-            <p class="file-list-error selectable-text">{opError()}</p>
-            <button
-              type="button"
-              class="file-list-error-copy-btn"
-              title="Copy error"
-              aria-label="Copy error"
-              onClick={() => copyErrorToClipboard(opError())}
-            >
-              {copiedErrorText() === opError() ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-              <span>{copiedErrorText() === opError() ? "Copied" : "Copy"}</span>
-            </button>
-          </div>
-        )}
+
         <div class="file-list-toolbar-row">
           <select
             class="group-by-select"
@@ -2242,6 +2228,29 @@ export function FileList(props: FileListProps) {
           onClose={() => setDuplicatesOpen(false)}
           onDeleted={refresh}
         />
+      )}
+
+      {opError() && (
+        <Modal title="Operation Error" onClose={() => setOpError("")}>
+          <p class="file-list-error selectable-text" style={{ "white-space": "pre-wrap", "margin-top": "0" }}>
+            {opError()}
+          </p>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="icon-btn"
+              title="Copy error"
+              aria-label="Copy error"
+              onClick={() => copyErrorToClipboard(opError())}
+            >
+              {copiedErrorText() === opError() ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+              <span>{copiedErrorText() === opError() ? "Copied" : "Copy"}</span>
+            </button>
+            <button type="button" class="btn btn-primary" onClick={() => setOpError("")}>
+              OK
+            </button>
+          </div>
+        </Modal>
       )}
 
       {undoAction() && (
