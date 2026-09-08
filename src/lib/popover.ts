@@ -52,6 +52,7 @@ export function createPopover() {
 
   function openAt(btn: HTMLElement) {
     anchorEl = btn;
+    setPos(clampPopoverPosition(btn.getBoundingClientRect(), { width: 300, height: 40, top: 0, bottom: 40, left: 0, right: 300 } as DOMRect));
     setOpen(true);
   }
 

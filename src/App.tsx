@@ -765,7 +765,7 @@ function App() {
         e.preventDefault();
         goForward();
         return;
-      } else if (bound("navParent")) {
+      } else if (bound("navParent") || (!typingInInput && !e.altKey && !e.ctrlKey && !e.metaKey && e.key === "ArrowUp")) {
         e.preventDefault();
         const cur = activePanePath();
         const p = parentDir(cur);
