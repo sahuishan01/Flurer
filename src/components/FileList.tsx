@@ -1664,6 +1664,7 @@ export function FileList(props: FileListProps) {
 
   function handleKeyDown(e: KeyboardEvent) {
     if (props.active === false) return;
+    if (document.querySelector(".modal-backdrop") !== null) return;
     if (isTypingTarget(document.activeElement) || isPreviewTextTarget(e.target) || isPreviewTextTarget(document.activeElement)) return;
     const selectionAnchor = window.getSelection()?.anchorNode;
     const selectionElement = selectionAnchor instanceof Element ? selectionAnchor : selectionAnchor?.parentElement;
@@ -1678,21 +1679,120 @@ export function FileList(props: FileListProps) {
     if (bound("delete")) {
       e.preventDefault();
       requestDelete([...selected()]);
+      return;
     } else if (bound("rename")) {
       e.preventDefault();
       if (selected().size === 1) startRename([...selected()][0]);
+      return;
     } else if (bound("copy")) {
       e.preventDefault();
       if (selected().size > 0) props.onClipboardChange({ mode: "copy", paths: [...selected()] });
+      return;
     } else if (bound("cut")) {
       e.preventDefault();
       if (selected().size > 0) props.onClipboardChange({ mode: "cut", paths: [...selected()] });
+      return;
     } else if (bound("paste")) {
       e.preventDefault();
       pasteClipboard();
+      return;
     } else if (bound("selectAll")) {
       e.preventDefault();
       setSelected(new Set(entries().map((en) => en.path)));
+      return;
+    }
+
+    const list = sortedEntries();
+    if (list.length === 0) return;
+
+    function selectAndFocusIndex(nextIdx: number, extendRange = false) {
+      const boundedIdx = Math.max(0, Math.min(list.length - 1, nextIdx));
+      const targetEntry = list[boundedIdx];
+      if (!targetEntry) return;
+
+      if (extendRange && lastClickedIndex() !== null) {
+        const start = Math.min(lastClickedIndex()!, boundedIdx);
+        const end = Math.max(lastClickedIndex()!, boundedIdx);
+        const range = list.slice(start, end + 1).map((en) => en.path);
+        setSelected(new Set(range));
+      } else {
+        setSelected(new Set([targetEntry.path]));
+        setLastClickedIndex(boundedIdx);
+      }
+
+      scrollRowIntoView(targetEntry.path);
+      queueMicrotask(() => {
+        document.querySelector<HTMLElement>(`[data-row-path="${CSS.escape(targetEntry.path)}"]`)?.focus();
+      });
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const cur = lastClickedIndex();
+      const next = cur === null ? 0 : cur + 1;
+      selectAndFocusIndex(next, e.shiftKey);
+      return;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const cur = lastClickedIndex();
+      const next = cur === null ? 0 : cur - 1;
+      selectAndFocusIndex(next, e.shiftKey);
+      return;
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      selectAndFocusIndex(0, e.shiftKey);
+      return;
+    } else if (e.key === "End") {
+      e.preventDefault();
+      selectAndFocusIndex(list.length - 1, e.shiftKey);
+      return;
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      const cur = lastClickedIndex() ?? 0;
+      selectAndFocusIndex(cur + 15, e.shiftKey);
+      return;
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      const cur = lastClickedIndex() ?? 0;
+      selectAndFocusIndex(cur - 15, e.shiftKey);
+      return;
+    } else if (e.key === " ") {
+      e.preventDefault();
+      const cur = lastClickedIndex();
+      if (cur !== null && cur >= 0 && cur < list.length) {
+        const targetEntry = list[cur];
+        if (mod) {
+          setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(targetEntry.path)) next.delete(targetEntry.path);
+            else next.add(targetEntry.path);
+            return next;
+          });
+        } else {
+          setSelected(new Set([targetEntry.path]));
+        }
+      } else {
+        selectAndFocusIndex(0);
+      }
+      return;
+    } else if (e.key === "Enter" && !mod && !e.altKey) {
+      const sel = selected();
+      if (sel.size === 1) {
+        const [path] = sel;
+        const entry = list.find((item) => item.path === path);
+        if (entry) {
+          e.preventDefault();
+          openEntry(entry);
+          return;
+        }
+      }
+    } else if (e.key === "Backspace" && !mod && !e.altKey) {
+      e.preventDefault();
+      const up = parentDir(props.path);
+      if (up && up !== props.path) {
+        props.onNavigate(up);
+      }
+      return;
     } else if (!mod && !e.altKey && e.key.length === 1 && /[\p{L}\p{N}]/u.test(e.key)) {
       // Explorer-style type-ahead: typing jumps to the next entry whose name
       // starts with what's been typed so far, same letter repeated cycles

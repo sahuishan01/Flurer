@@ -713,17 +713,113 @@ function App() {
   // wires them up for free here: this app never does real page navigation
   // (currentPath is just app state), so the webview's own browser-history
   // handling for these has nothing to act on and silently does nothing.
-  // Routed to the same goBack/goForward the command bar's buttons use.
+  // Keyboard and mouse navigation shortcuts.
+  // Alt+Left/Right & mouse side buttons: Back/Forward.
+  // Alt+Up: Go to parent folder.
+  // Ctrl+T: New tab.
+  // Ctrl+W: Close current tab.
+  // Ctrl+Tab / Ctrl+Shift+Tab: Cycle tabs.
+  // F6: Cycle split panes.
+  // Ctrl+L / Alt+D: Open & focus path bar.
+  // Ctrl+F / F3: Open & focus search bar.
   onMount(() => {
+    function isInputElement(el: Element | null): boolean {
+      if (!el) return false;
+      const tag = el.tagName.toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select" || (el as HTMLElement).isContentEditable;
+    }
+
     function handleKeyDown(e: KeyboardEvent) {
-      if (!e.altKey || e.ctrlKey || e.metaKey) return;
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goBack();
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goForward();
+      // If a modal dialog is open, do not handle background app shortcuts
+      if (document.querySelector(".modal-backdrop")) return;
+
+      const activeEl = document.activeElement;
+      const typingInInput = isInputElement(activeEl);
+
+      // --- Shortcuts that work even while an input is focused ---
+      // Alt+Left / Alt+Right: history navigation
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          goBack();
+          return;
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          goForward();
+          return;
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          const cur = activePanePath();
+          const p = parentDir(cur);
+          if (p && p !== cur && p !== cur.replace(/[/\\]+$/, "")) {
+            navigateActivePane(p);
+          }
+          return;
+        } else if (e.key.toLowerCase() === "d") {
+          // Alt+D: Focus address bar
+          e.preventDefault();
+          const pathBtn = document.querySelector(".explorer-path-bar .icon-btn") as HTMLButtonElement | null;
+          pathBtn?.click();
+          return;
+        }
       }
+
+      // Ctrl+L: Address bar focus
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        const pathBtn = document.querySelector(".explorer-path-bar .icon-btn") as HTMLButtonElement | null;
+        pathBtn?.click();
+        return;
+      }
+
+      // Ctrl+F / F3: Search
+      if (((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") || e.key === "F3") {
+        e.preventDefault();
+        const searchBtn = document.querySelector(".search-trigger .icon-btn") as HTMLButtonElement | null;
+        searchBtn?.click();
+        return;
+      }
+
+      // Tab / pane shortcuts
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key.toLowerCase() === "t" && !e.shiftKey) {
+          e.preventDefault();
+          openNewTab();
+          return;
+        }
+        if (e.key.toLowerCase() === "w" && !e.shiftKey) {
+          e.preventDefault();
+          closeTab(activeTabId());
+          return;
+        }
+        if (e.key === "Tab") {
+          e.preventDefault();
+          const currentTabs = tabs();
+          if (currentTabs.length > 1) {
+            const idx = currentTabs.findIndex((t) => t.id === activeTabId());
+            if (idx >= 0) {
+              const nextIdx = e.shiftKey
+                ? (idx - 1 + currentTabs.length) % currentTabs.length
+                : (idx + 1) % currentTabs.length;
+              switchTab(currentTabs[nextIdx].id);
+            }
+          }
+          return;
+        }
+      }
+
+      // F6: Cycle active split pane
+      if (e.key === "F6" && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        const total = 1 + settings.splitPanePaths.length;
+        if (total > 1) {
+          setActivePane((prev) => (prev + 1) % total);
+        }
+        return;
+      }
+
+      // Ignore remaining shortcuts if user is typing in an input
+      if (typingInInput) return;
     }
 
     // Mouse button indices: 3 = back (often "Mouse4"/XButton1), 4 = forward
