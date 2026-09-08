@@ -197,6 +197,8 @@ pub struct Settings {
     // file from before this field existed just defaults to that.
     #[serde(default)]
     pub search_index_roots: Vec<String>,
+    #[serde(default = "default_auto_check_updates")]
+    pub auto_check_updates: bool,
 }
 
 fn default_global_shortcut() -> String {
@@ -221,6 +223,10 @@ fn default_window_height() -> u32 {
 
 fn default_sidebar_width() -> u32 {
     220
+}
+
+fn default_auto_check_updates() -> bool {
+    true
 }
 
 fn default_split_dim() -> u8 {
@@ -262,6 +268,7 @@ impl Default for Settings {
             window_maximized: false,
             sidebar_width: default_sidebar_width(),
             search_index_roots: Vec::new(),
+            auto_check_updates: default_auto_check_updates(),
         }
     }
 }
