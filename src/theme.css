@@ -69,6 +69,10 @@
     --control-tint-rgb: 255, 255, 255;
     --control-bg: rgba(var(--control-tint-rgb), var(--control-opacity));
     
+    /* Card Materials (Settings cards, sections, popups) */
+    --card-bg: rgba(255, 255, 255, 0.45);
+    --card-bg-subtle: rgba(255, 255, 255, 0.25);
+    
     /* 1px chiseled semi-transparent border (chiseled effect using border-bottom stronger) */
     --control-border: 1px solid rgba(0, 0, 0, 0.08);
     --control-border-bottom: 1px solid rgba(0, 0, 0, 0.16);
@@ -143,6 +147,10 @@
     --control-active-bg: rgba(255, 255, 255, 0.1);
     --control-active-border: 1px solid rgba(255, 255, 255, 0.04);
     --control-active-shadow: none;
+
+    /* Card Materials - Dark Mode */
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --card-bg-subtle: rgba(255, 255, 255, 0.03);
 
     /* Text & Legibility - Dark Mode */
     --text-primary: #ffffff;

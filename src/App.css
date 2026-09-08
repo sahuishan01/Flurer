@@ -1172,9 +1172,7 @@ button.sidebar-drive,
     margin-bottom: 0.75em;
     padding: 1em;
     border-radius: var(--radius-md);
-    background-color: var(--control-bg);
-    backdrop-filter: blur(var(--control-blur));
-    -webkit-backdrop-filter: blur(var(--control-blur));
+    background-color: var(--card-bg, rgba(var(--panel-rgb), 0.2));
     border: 1px solid var(--border-color);
 }
 
@@ -1252,7 +1250,7 @@ button.sidebar-drive,
 .plugin-appearance-card {
     padding: 0.75em;
     border-radius: var(--radius-sm);
-    background-color: var(--panel-bg);
+    background-color: var(--card-bg, rgba(var(--panel-rgb), 0.25));
     border: 1px solid var(--border-color);
     margin-bottom: 0.5em;
 }
@@ -1286,7 +1284,7 @@ button.sidebar-drive,
     gap: 0.75em;
     padding: 0.75em;
     border-radius: var(--radius-sm);
-    background-color: var(--panel-bg);
+    background-color: var(--card-bg, rgba(var(--panel-rgb), 0.25));
     border: 1px solid var(--border-color);
 }
 
@@ -1751,7 +1749,8 @@ button.sidebar-drive,
     margin-top: 0.75em;
     padding: 0.6em;
     border-radius: var(--radius-md);
-    background: var(--control-bg);
+    background: var(--card-bg, rgba(var(--panel-rgb), 0.2));
+    border: 1px solid var(--border-color);
 }
 
 .in-app-shortcuts > .shortcut-label {
@@ -2403,11 +2402,11 @@ button.sidebar-drive,
 
 .settings-section {
     margin-bottom: 1.5em;
-    padding: 1.1em 1.3em;
+    padding: 1.2em 1.4em;
     border-radius: var(--radius-md);
-    background-color: var(--control-bg);
+    background-color: var(--card-bg, rgba(var(--panel-rgb), 0.3));
     border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .settings-section h3 {
@@ -2437,7 +2436,7 @@ button.sidebar-drive,
     gap: 0.6em;
     padding: 0.85em 1em;
     border-radius: var(--radius-sm);
-    background-color: var(--surface-secondary, rgba(255, 255, 255, 0.03));
+    background-color: var(--card-bg-subtle, rgba(var(--panel-rgb), 0.15));
     border: 1px solid var(--border-color);
     transition: all 0.15s ease;
 }
