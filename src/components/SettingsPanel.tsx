@@ -59,7 +59,8 @@ type SettingsPanelProps = {
   searchIndexRoots: string[];
   onSearchIndexRootsChange: (roots: string[]) => void;
   recentPaths: string[];
-  favouritePaths: string[];
+  autoCheckUpdates: boolean;
+  onAutoCheckUpdatesChange: (enabled: boolean) => void;
   "data-bg-lightness"?: string;
 };
 
@@ -311,7 +312,10 @@ export function SettingsPanel(props: SettingsPanelProps) {
           </Show>
 
           <Show when={category() === "updates"}>
-            <UpdatesView />
+            <UpdatesView
+              autoCheckUpdates={props.autoCheckUpdates}
+              onAutoCheckUpdatesChange={props.onAutoCheckUpdatesChange}
+            />
           </Show>
         </div>
       </div>
