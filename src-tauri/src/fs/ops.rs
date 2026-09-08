@@ -393,7 +393,9 @@ fn delete_items_inner(
 
     let mut result = BatchResult::new();
     for path in paths {
-        match trash::delete(&path) {
+        let clean_path = crate::fs::clean_dir_path(&path);
+        let target_path = if clean_path.is_empty() { &path } else { &clean_path };
+        match trash::delete(target_path) {
             Ok(()) => result.push_ok(path),
             Err(e) => result.push_err(path, e.to_string()),
         }
