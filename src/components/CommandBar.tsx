@@ -63,8 +63,8 @@ export function CommandBar(props: CommandBarProps) {
 
         <Show when={searchOpen()}>
           <div class="search-popover" style={pos()} ref={panelRef}>
-            <div class="search-field">
-              <SearchIcon size={15} />
+            <div class="search-popover-row">
+              <SearchIcon size={15} class="search-icon" />
               <input
                 ref={inputRef}
                 type="text"
@@ -76,22 +76,21 @@ export function CommandBar(props: CommandBarProps) {
                   if (e.key === "Enter") close();
                 }}
               />
+              <button
+                type="button"
+                class="icon-btn search-subfolder-btn"
+                classList={{ active: props.searchRecursive }}
+                title="Include subfolders"
+                aria-label="Include subfolders"
+                aria-pressed={props.searchRecursive}
+                onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
+              >
+                <RecursiveIcon size={15} />
+              </button>
             </div>
           </div>
         </Show>
       </div>
-
-      <button
-        type="button"
-        class="icon-btn"
-        classList={{ active: props.searchRecursive }}
-        title="Include subfolders"
-        aria-label="Include subfolders"
-        aria-pressed={props.searchRecursive}
-        onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
-      >
-        <RecursiveIcon size={16} />
-      </button>
 
       <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
     </div>
