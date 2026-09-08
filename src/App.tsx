@@ -215,8 +215,10 @@ function App() {
       const loaded = await invoke<Settings>("get_settings");
       setSettings(loaded);
       
-      // Load plugins on startup
-      await loadInstalledPlugins(loaded.disabledPlugins || []);
+      // Load plugins on startup in background (non-blocking)
+      loadInstalledPlugins(loaded.disabledPlugins || []).catch((err) =>
+        console.error("Plugin startup error:", err)
+      );
 
       if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
         setMainView(loaded.lastMainView);
@@ -1226,7 +1228,7 @@ function App() {
   }
 
   function appReady(): boolean {
-    return settingsLoaded() && !wallpaperPending();
+    return settingsLoaded();
   }
 
   const MIN_SIDEBAR_WIDTH = 52;
