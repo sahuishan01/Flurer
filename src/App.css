@@ -2118,6 +2118,10 @@ button.sidebar-drive,
 .file-table th,
 .file-table td {
     padding: 0.4em 0.6em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0;
 }
 
 .file-table td:not(.file-name-cell) {

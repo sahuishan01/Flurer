@@ -41,7 +41,7 @@ export type SortDirection = "ascending" | "descending";
 // "none" is a flat list (today's behavior); the others split the list into
 // labeled sections the way Windows Explorer's View > Group by does — see
 // FileList.tsx's groupedRows for the bucketing rules per key.
-export type GroupByKey = "none" | "name" | "type" | "size" | "modified";
+export type GroupByKey = "none" | "folders" | "name" | "type" | "size" | "modified";
 
 export type OpFailure = {
   path: string;

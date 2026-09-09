@@ -983,23 +983,20 @@ export function FileList(props: FileListProps) {
     const now = Date.now();
     const buckets = new Map<string, { order: number; entries: DirEntry[] }>();
     for (const entry of sortedEntries()) {
-      // Folders get pulled into their own leading section for Name/Date
-      // grouping when "Group folders first" is on — Type and Size already
-      // isolate them intrinsically (a folder's own "type" is always
-      // "File folder"; its raw size is meaningless so it buckets on real
-      // recursive size like anything else), so this only applies to the
-      // two schemes where a folder would otherwise land in the same
-      // letter/date bucket as an ordinary file.
       const group =
-        props.groupFoldersFirst && entry.isDir && (props.groupBy === "name" || props.groupBy === "modified")
-          ? { key: "Folders", order: -1 }
-          : props.groupBy === "name"
-            ? nameGroupOf(entry)
-            : props.groupBy === "type"
-              ? typeGroupOf(entry)
-              : props.groupBy === "size"
-                ? sizeGroupOf(entry)
-                : modifiedGroupOf(entry, now);
+        props.groupBy === "folders"
+          ? entry.isDir
+            ? { key: "Folders", order: 0 }
+            : { key: "Files", order: 1 }
+          : props.groupFoldersFirst && entry.isDir && (props.groupBy === "name" || props.groupBy === "modified")
+            ? { key: "Folders", order: -1 }
+            : props.groupBy === "name"
+              ? nameGroupOf(entry)
+              : props.groupBy === "type"
+                ? typeGroupOf(entry)
+                : props.groupBy === "size"
+                  ? sizeGroupOf(entry)
+                  : modifiedGroupOf(entry, now);
       if (!buckets.has(group.key)) buckets.set(group.key, { order: group.order, entries: [] });
       buckets.get(group.key)!.entries.push(entry);
     }
@@ -2048,22 +2045,12 @@ export function FileList(props: FileListProps) {
             onChange={(e) => props.onGroupByChange(e.currentTarget.value as GroupByKey)}
           >
             <option value="none">Group by: None</option>
+            <option value="folders">Group by: Folders</option>
             <option value="name">Group by: Name</option>
             <option value="type">Group by: Type</option>
             <option value="size">Group by: Size</option>
             <option value="modified">Group by: Date modified</option>
           </select>
-          <button
-            type="button"
-            class="group-folders-toggle"
-            classList={{ active: props.groupFoldersFirst }}
-            aria-pressed={props.groupFoldersFirst}
-            title="Keep folders grouped before files, even when sorting"
-            onClick={() => props.onGroupFoldersFirstChange(!props.groupFoldersFirst)}
-          >
-            <FolderIcon size={13} />
-            Group folders
-          </button>
           <Show when={entries().some((e) => props.folderColors[e.path])}>
             <button
               type="button"
