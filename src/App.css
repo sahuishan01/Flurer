@@ -2919,7 +2919,15 @@ button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn
 
 input:not([type="range"]):not([type="color"]):focus-visible,
 button:focus-visible,
-select:focus-visible {
+select:focus-visible,
+.sidebar-item:focus-visible,
+.sidebar-drive:focus-visible,
+.view-rail-item:focus-visible,
+.breadcrumb-segment:focus-visible,
+.context-menu-item:focus-visible,
+.explorer-tab-close:focus-visible,
+.explorer-tab-new:focus-visible,
+.settings-nav-item:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-color: var(--accent);
