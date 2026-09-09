@@ -405,6 +405,11 @@ function App() {
     persistSettings();
   }
 
+  function updateHeaderFontSizePx(headerFontSizePx: number) {
+    setSettings("headerFontSizePx", headerFontSizePx);
+    persistSettings();
+  }
+
   function updateSidebarTooltipDelayMs(delayMs: number) {
     setSettings("sidebarTooltipDelayMs", delayMs);
     persistSettings();
@@ -1068,6 +1073,10 @@ function App() {
   });
 
   createEffect(() => {
+    document.documentElement.style.setProperty("--header-font-size", `${settings.headerFontSizePx || 22}px`);
+  });
+
+  createEffect(() => {
     document.documentElement.style.setProperty("--sidebar-tooltip-delay", `${settings.sidebarTooltipDelayMs}ms`);
   });
 
@@ -1491,6 +1500,8 @@ function App() {
                   onFontFamilyChange={updateFontFamily}
                   fontSizePx={settings.fontSizePx}
                   onFontSizePxChange={updateFontSizePx}
+                  headerFontSizePx={settings.headerFontSizePx}
+                  onHeaderFontSizePxChange={updateHeaderFontSizePx}
                   sidebarTooltipDelayMs={settings.sidebarTooltipDelayMs}
                   onSidebarTooltipDelayMsChange={updateSidebarTooltipDelayMs}
                    showProgressWhenIdle={settings.showProgressWhenIdle}

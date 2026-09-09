@@ -69,6 +69,7 @@ export type Settings = {
   groupBy: GroupByKey;
   fontFamily: string;
   fontSizePx: number;
+  headerFontSizePx: number;
   sidebarTooltipDelayMs: number;
   showProgressWhenIdle: boolean;
   liveFolderSizeUpdates: boolean;
@@ -143,6 +144,7 @@ export const DEFAULT_SETTINGS: Settings = {
   groupBy: "none",
   fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
   fontSizePx: 16,
+  headerFontSizePx: 22,
   sidebarTooltipDelayMs: 500,
   showProgressWhenIdle: false,
   liveFolderSizeUpdates: true,
