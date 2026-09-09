@@ -98,6 +98,8 @@ type CustomizationSettingsProps = {
   onLiveFolderSizeUpdatesChange: (enabled: boolean) => void;
   maxHistoryItems: number;
   onMaxHistoryItemsChange: (limit: number) => void;
+  restoreLastStateOnReopen?: boolean;
+  onRestoreLastStateOnReopenChange?: (enabled: boolean) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -715,6 +717,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           doesn't affect anything else.
         </p>
 
+
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.restoreLastStateOnReopen ?? false}
+            onChange={(e) => props.onRestoreLastStateOnReopenChange?.(e.currentTarget.checked)}
+          />
+          Preserve last folder state on reopen
+        </label>
+        <p class="settings-hint">
+          Restores the folder location you were viewing when Flurer was last closed instead of starting at default drive.
+        </p>
 
         <label class="checkbox-control">
           <input

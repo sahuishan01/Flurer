@@ -100,6 +100,10 @@ export type Settings = {
   searchIndexRoots: string[];
   // Automatically poll for updates on startup & periodically and install them when available
   autoCheckUpdates: boolean;
+  restoreLastStateOnReopen: boolean;
+  lastPath: string;
+  autoCheckUpdateIntervalSeconds: number;
+  ignoredUpdateVersion: string | null;
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -153,6 +157,10 @@ export const DEFAULT_SETTINGS: Settings = {
   inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
   searchIndexRoots: [],
   autoCheckUpdates: true,
+  restoreLastStateOnReopen: false,
+  lastPath: "",
+  autoCheckUpdateIntervalSeconds: 14400,
+  ignoredUpdateVersion: null,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

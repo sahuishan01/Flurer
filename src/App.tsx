@@ -11,6 +11,7 @@ import { ExplorerView } from "./components/ExplorerView";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { TrashView } from "./components/TrashView";
+import { Modal } from "./components/Modal";
 import { ViewRail } from "./components/ViewRail";
 import {
   DEFAULT_SETTINGS,
@@ -228,6 +229,8 @@ function App() {
 
       if (launchPath) {
         navigateTo(launchPath);
+      } else if (loaded.restoreLastStateOnReopen && loaded.lastPath) {
+        navigateTo(loaded.lastPath);
       } else if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
         setMainView(loaded.lastMainView);
         setHistory([{ type: "view", view: loaded.lastMainView }]);
@@ -304,8 +307,31 @@ function App() {
     }
   });
 
-  // Background auto-update check & auto-install polling
-  onMount(() => {
+  const [pendingUpdateInfo, setPendingUpdateInfo] = createSignal<{
+    hasUpdate: boolean;
+    latestVersion: string;
+    currentVersion: string;
+    downloadUrl: string;
+    releaseUrl?: string;
+    releaseBody?: string;
+  } | null>(null);
+  const [installingUpdate, setInstallingUpdate] = createSignal(false);
+  const [updateModalError, setUpdateModalError] = createSignal("");
+
+  // Keep lastPath in sync when restoreLastStateOnReopen is enabled
+  createEffect(() => {
+    const p = currentPath();
+    if (settings.restoreLastStateOnReopen && p) {
+      setSettings("lastPath", p);
+      persistSettings();
+    }
+  });
+
+  // Background auto-update check with dynamic interval & confirmation popup
+  createEffect(() => {
+    if (!settings.autoCheckUpdates) return;
+    const intervalSec = Math.max(10, settings.autoCheckUpdateIntervalSeconds || 14400);
+
     async function autoPoll() {
       if (!settings.autoCheckUpdates) return;
       try {
@@ -315,19 +341,23 @@ function App() {
           latestVersion: string;
           currentVersion: string;
           downloadUrl: string;
+          releaseUrl?: string;
+          releaseBody?: string;
         }>("check_for_updates", { currentVersion: v });
 
         if (info && info.hasUpdate && info.latestVersion !== info.currentVersion) {
-          await invoke("download_and_install_update", { url: info.downloadUrl });
+          if (settings.ignoredUpdateVersion === info.latestVersion) {
+            return;
+          }
+          setPendingUpdateInfo(info);
         }
       } catch (err) {
         console.error("Auto-update check failed:", err);
       }
     }
 
-    // Initial check after 10s delay to avoid startup contention, then poll every 4 hours
     const initialTimer = setTimeout(autoPoll, 10000);
-    const interval = setInterval(autoPoll, 14400000);
+    const interval = setInterval(autoPoll, intervalSec * 1000);
 
     onCleanup(() => {
       clearTimeout(initialTimer);
@@ -433,6 +463,25 @@ function App() {
 
   function updateAutoCheckUpdates(enabled: boolean) {
     setSettings("autoCheckUpdates", enabled);
+    persistSettings();
+  }
+
+  function updateRestoreLastStateOnReopen(enabled: boolean) {
+    setSettings("restoreLastStateOnReopen", enabled);
+    if (enabled) {
+      setSettings("lastPath", currentPath());
+    }
+    persistSettings();
+  }
+
+  function updateAutoCheckUpdateIntervalSeconds(seconds: number) {
+    const clamped = Math.max(10, Math.round(seconds));
+    setSettings("autoCheckUpdateIntervalSeconds", clamped);
+    persistSettings();
+  }
+
+  function resetIgnoredUpdateVersion() {
+    setSettings("ignoredUpdateVersion", null);
     persistSettings();
   }
 
@@ -1476,12 +1525,79 @@ function App() {
                   favouritePaths={settings.favouritePaths}
                   autoCheckUpdates={settings.autoCheckUpdates ?? true}
                   onAutoCheckUpdatesChange={updateAutoCheckUpdates}
+                  restoreLastStateOnReopen={settings.restoreLastStateOnReopen ?? false}
+                  onRestoreLastStateOnReopenChange={updateRestoreLastStateOnReopen}
+                  autoCheckUpdateIntervalSeconds={settings.autoCheckUpdateIntervalSeconds ?? 14400}
+                  onAutoCheckUpdateIntervalSecondsChange={updateAutoCheckUpdateIntervalSeconds}
+                  ignoredUpdateVersion={settings.ignoredUpdateVersion}
+                  onResetIgnoredUpdateVersion={resetIgnoredUpdateVersion}
                 />
               </div>
             </Show>
           </div>
         </div>
       </div>
+      </Show>
+
+      {/* Auto-update confirmation modal */}
+      <Show when={pendingUpdateInfo()}>
+        {(info) => (
+          <Modal
+            title={`Update Available — v${info().latestVersion}`}
+            onClose={() => setPendingUpdateInfo(null)}
+          >
+            <p style={{ "margin-bottom": "1em" }}>
+              Flurer <strong>v{info().latestVersion}</strong> is available (currently running <strong>v{info().currentVersion}</strong>).
+              Would you like to update and restart now?
+            </p>
+            <Show when={info().releaseBody}>
+              <div class="updates-release-notes" style={{ "margin-bottom": "1em", "max-height": "120px", overflow: "auto" }}>
+                {info().releaseBody}
+              </div>
+            </Show>
+            <Show when={updateModalError()}>
+              <div class="settings-error-alert" style={{ "margin-bottom": "1em" }}>{updateModalError()}</div>
+            </Show>
+            <div class="modal-actions" style={{ display: "flex", gap: "8px", "justify-content": "flex-end" }}>
+              <button
+                type="button"
+                class="btn-accent"
+                disabled={installingUpdate()}
+                onClick={async () => {
+                  setInstallingUpdate(true);
+                  setUpdateModalError("");
+                  try {
+                    await invoke("download_and_install_update", { url: info().downloadUrl });
+                  } catch (err) {
+                    setUpdateModalError(String(err));
+                    setInstallingUpdate(false);
+                  }
+                }}
+              >
+                {installingUpdate() ? "Downloading & Installing…" : "Update & Restart Now"}
+              </button>
+              <button
+                type="button"
+                disabled={installingUpdate()}
+                onClick={() => setPendingUpdateInfo(null)}
+              >
+                Remind Me Later
+              </button>
+              <button
+                type="button"
+                class="danger"
+                disabled={installingUpdate()}
+                onClick={() => {
+                  setSettings("ignoredUpdateVersion", info().latestVersion);
+                  persistSettings();
+                  setPendingUpdateInfo(null);
+                }}
+              >
+                Ignore This Version
+              </button>
+            </div>
+          </Modal>
+        )}
       </Show>
     </main>
   );

@@ -25,6 +25,10 @@ type UpdateProgressPayload = {
 type UpdatesViewProps = {
   autoCheckUpdates?: boolean;
   onAutoCheckUpdatesChange?: (enabled: boolean) => void;
+  autoCheckUpdateIntervalSeconds?: number;
+  onAutoCheckUpdateIntervalSecondsChange?: (seconds: number) => void;
+  ignoredUpdateVersion?: string | null;
+  onResetIgnoredUpdateVersion?: () => void;
 };
 
 export function UpdatesView(props: UpdatesViewProps) {
@@ -115,8 +119,45 @@ export function UpdatesView(props: UpdatesViewProps) {
             checked={props.autoCheckUpdates ?? true}
             onChange={(e) => props.onAutoCheckUpdatesChange?.(e.currentTarget.checked)}
           />
-          <span>Automatically check & install updates in the background</span>
+          <span>Automatically check & prompt for updates in the background</span>
         </label>
+
+        <Show when={props.autoCheckUpdates ?? true}>
+          <div class="settings-field-group" style={{ "margin-bottom": "1em" }}>
+            <label class="settings-label">
+              <span>Auto-check Interval (seconds, min 10s):</span>
+              <input
+                type="number"
+                class="settings-number-input"
+                min="10"
+                step="5"
+                value={props.autoCheckUpdateIntervalSeconds ?? 14400}
+                onInput={(e) => {
+                  const val = parseInt(e.currentTarget.value, 10);
+                  if (!isNaN(val)) {
+                    props.onAutoCheckUpdateIntervalSecondsChange?.(Math.max(10, val));
+                  }
+                }}
+              />
+            </label>
+            <p class="settings-hint">Changing this value resets the update check timer immediately.</p>
+          </div>
+        </Show>
+
+        <Show when={props.ignoredUpdateVersion}>
+          <div class="settings-field-group" style={{ "margin-bottom": "1em" }}>
+            <p class="settings-hint">
+              Ignored update: <strong>v{props.ignoredUpdateVersion}</strong>
+              <button
+                type="button"
+                style={{ "margin-left": "10px", padding: "2px 8px", "font-size": "12px" }}
+                onClick={() => props.onResetIgnoredUpdateVersion?.()}
+              >
+                Clear / Reset Ignored Version
+              </button>
+            </p>
+          </div>
+        </Show>
         <div class="updates-actions">
           <button type="button" onClick={check} disabled={checking() || !appVersion() || downloading()}>
             <RefreshIcon size={14} />
