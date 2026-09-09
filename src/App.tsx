@@ -845,6 +845,34 @@ function App() {
           setActivePane((prev) => (prev + 1) % total);
         }
         return;
+      } else if (bound("newPane")) {
+        e.preventDefault();
+        if (1 + settings.splitPanePaths.length < 16) {
+          const cur = activePanePath();
+          const p = parentDir(cur);
+          const next = [...settings.splitPanePaths, (p && p !== cur ? p : cur)];
+          setSettings("splitPanePaths", next);
+          setActivePane(next.length);
+        }
+        return;
+      } else if (bound("closePane")) {
+        e.preventDefault();
+        if (settings.splitPanePaths.length > 0) {
+          const currentPane = activePane();
+          if (currentPane === 0) {
+            const firstSecondary = settings.splitPanePaths[0];
+            const remaining = settings.splitPanePaths.slice(1);
+            setCurrentPath(firstSecondary);
+            setSettings("splitPanePaths", remaining);
+            setActivePane(0);
+          } else {
+            const arrIndex = currentPane - 1;
+            const remaining = settings.splitPanePaths.filter((_, i) => i !== arrIndex);
+            setSettings("splitPanePaths", remaining);
+            setActivePane(0);
+          }
+        }
+        return;
       }
 
       // Ignore remaining shortcuts if user is typing in an input

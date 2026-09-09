@@ -2525,10 +2525,12 @@ button.sidebar-drive,
     left: 0;
     right: 0;
     z-index: 100;
-    background: var(--control-bg, #1e1e1e);
-    border: 1px solid var(--border-color, #333);
+    background: var(--option-bg, #1e1e1e);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-strong, #333);
     border-radius: var(--radius-md, 6px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     overflow: hidden;
     max-height: 280px;
     display: flex;
@@ -2995,9 +2997,11 @@ input[type="color"] {
     overflow-y: auto;
     padding: 0.3em;
     border-radius: var(--radius-md);
-    background-color: var(--panel-bg);
+    background-color: var(--option-bg, #ffffff);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--border-strong);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
 .context-menu-item {

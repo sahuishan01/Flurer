@@ -50,7 +50,9 @@ export type InAppShortcutAction =
   | "closeTab"
   | "nextTab"
   | "prevTab"
-  | "cyclePane";
+  | "cyclePane"
+  | "newPane"
+  | "closePane";
 
 export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   delete: "Delete selected item(s)",
@@ -69,6 +71,8 @@ export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   nextTab: "Switch to next tab",
   prevTab: "Switch to previous tab",
   cyclePane: "Cycle active split pane",
+  newPane: "Add split pane",
+  closePane: "Close active pane",
 };
 
 export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShortcutAction[] }[] = [
@@ -82,7 +86,7 @@ export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShort
   },
   {
     category: "Tabs & Panes",
-    actions: ["newTab", "closeTab", "nextTab", "prevTab", "cyclePane"],
+    actions: ["newTab", "closeTab", "nextTab", "prevTab", "cyclePane", "newPane", "closePane"],
   },
 ];
 
@@ -104,4 +108,6 @@ export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   nextTab: "Ctrl+Tab",
   prevTab: "Ctrl+Shift+Tab",
   cyclePane: "F6",
+  newPane: "Ctrl+Shift+D",
+  closePane: "Ctrl+Shift+W",
 };
