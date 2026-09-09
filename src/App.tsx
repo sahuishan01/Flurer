@@ -218,7 +218,17 @@ function App() {
         console.error("Plugin startup error:", err)
       );
 
-      if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
+      // Check if a CLI launch path was passed (e.g. `flurer .` or `flurer <path>`)
+      let launchPath: string | null = null;
+      try {
+        launchPath = await invoke<string | null>("take_launch_path");
+      } catch (err) {
+        console.error("Failed to read launch path", err);
+      }
+
+      if (launchPath) {
+        navigateTo(launchPath);
+      } else if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
         setMainView(loaded.lastMainView);
         setHistory([{ type: "view", view: loaded.lastMainView }]);
       }
@@ -226,21 +236,6 @@ function App() {
       console.error("Failed to load settings", err);
     } finally {
       setSettingsLoaded(true);
-    }
-  });
-
-  // `flurer .` / `flurer <path>` — take_launch_path returns the resolved
-  // folder once, then null on every subsequent call (see AppState.launch_path
-  // in the Rust side), so this only ever navigates on this window's very
-  // first mount, not on remounts or other windows sharing the same process.
-  // Secondary invocations when an instance is already running are received
-  // via the "open-new-tab" event emitted by tauri-plugin-single-instance.
-  onMount(async () => {
-    try {
-      const path = await invoke<string | null>("take_launch_path");
-      if (path) navigateTo(path);
-    } catch (err) {
-      console.error("Failed to read launch path", err);
     }
 
     try {

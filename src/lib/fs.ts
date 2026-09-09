@@ -76,8 +76,9 @@ export type FolderSizeResponse = { status: "ready"; size: number; error?: string
 // non-root folders (which causes Windows error 123 in some API invocations),
 // while preserving root paths like "C:\".
 export function cleanDirPath(path: string): string {
-  const trimmed = path.trim();
+  let trimmed = path.trim();
   if (!trimmed) return "";
+  trimmed = trimmed.replace(/[/\\]\.$/, "");
   const sanitized = trimmed.replace(/^([a-zA-Z])::+/, "$1:");
   const normalized = sanitized.replace(/\//g, "\\");
   // Drive root: "C:" or "C:\"

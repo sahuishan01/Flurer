@@ -36,7 +36,14 @@ pub fn resolve_launch_path(args: &[String], cwd: &Path) -> Option<String> {
     // Explorer's address bar.
     let dir = if resolved.is_file() { resolved.parent()?.to_path_buf() } else { resolved };
 
-    dir.is_dir().then(|| dir.to_string_lossy().to_string())
+    if !dir.is_dir() {
+        return None;
+    }
+
+    let canonical = dir.canonicalize().unwrap_or(dir);
+    let path_str = canonical.to_string_lossy().to_string();
+    let cleaned = path_str.strip_prefix(r"\\?\").unwrap_or(&path_str).to_string();
+    Some(cleaned)
 }
 
 /// Consumes (not just reads) the startup path, so a second window spawned

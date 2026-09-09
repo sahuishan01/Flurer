@@ -108,9 +108,12 @@ pub fn list_directory(
 /// which prevents Windows error 123 (`ERROR_INVALID_NAME` / "syntax is incorrect") on
 /// certain directory types, while preserving root paths like `C:\` or `\\server\share\`.
 pub(crate) fn clean_dir_path(path: &str) -> String {
-    let trimmed = path.trim();
+    let mut trimmed = path.trim();
     if trimmed.is_empty() {
         return String::new();
+    }
+    if trimmed.ends_with("/.") || trimmed.ends_with("\\.") {
+        trimmed = &trimmed[..trimmed.len() - 2];
     }
     // Collapse any double colons or malformed drive prefix like "C::\" or "C::" -> "C:\"
     let sanitized = if trimmed.len() >= 3 && trimmed.as_bytes()[1] == b':' && trimmed.as_bytes()[2] == b':' {
