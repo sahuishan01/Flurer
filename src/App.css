@@ -2160,13 +2160,30 @@ button.sidebar-drive,
    set from each row's index in the full list, so a row keeps its stripe
    regardless of where the render window happens to start. */
 .file-row {
-    transition: background-color 100ms ease, color 100ms ease, opacity 150ms ease;
+    transition: background-color 140ms ease, color 140ms ease, opacity 150ms ease, transform 120ms ease;
+    will-change: transform, background-color;
 }
 
 @media (prefers-reduced-motion: no-preference) {
     .file-row:active {
-        transform: scale(0.992);
-        transition: transform 60ms cubic-bezier(0.2, 0, 0, 1), background-color 60ms ease;
+        transform: scale(0.985);
+        transition: transform 70ms cubic-bezier(0.2, 0, 0, 1), background-color 60ms ease;
+    }
+    
+    .file-row-selected {
+        animation: row-select-pop 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+}
+
+@keyframes row-select-pop {
+    0% {
+        transform: scale(0.99);
+    }
+    50% {
+        transform: scale(1.008);
+    }
+    100% {
+        transform: scale(1);
     }
 }
 
@@ -2190,7 +2207,7 @@ button.sidebar-drive,
 .file-row-selected:hover {
     background-color: var(--active-bg);
     color: var(--accent);
-    box-shadow: inset 3px 0 0 var(--accent);
+    box-shadow: inset 4px 0 0 var(--accent);
 }
 
 .file-row:focus-visible {
@@ -2214,24 +2231,24 @@ button.sidebar-drive,
 }
 
 .rename-input {
-    padding: 0.1em 0.4em;
+    padding: 0.15em 0.5em;
     font-size: 1em;
     outline: 2px solid var(--accent);
     outline-offset: 1px;
-    box-shadow: 0 0 8px color-mix(in oklch, var(--accent) 35%, transparent);
+    box-shadow: 0 0 10px color-mix(in oklch, var(--accent) 45%, transparent);
     transition: box-shadow 150ms ease, outline 150ms ease;
 }
 
 @media (prefers-reduced-motion: no-preference) {
     .explorer-view {
-        animation: folder-view-enter 140ms cubic-bezier(0, 0, 0.2, 1);
+        animation: folder-view-enter 180ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 }
 
 @keyframes folder-view-enter {
     from {
-        opacity: 0.6;
-        transform: scale(0.99);
+        opacity: 0.4;
+        transform: scale(0.98);
     }
     to {
         opacity: 1;
