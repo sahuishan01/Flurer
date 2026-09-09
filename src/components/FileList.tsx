@@ -1962,8 +1962,8 @@ export function FileList(props: FileListProps) {
             )}
           </Show>
         </td>
-        <td>{renderSizeCell(entry)}</td>
-        <td>{formatModified(entry.modified)}</td>
+        <td class="file-size-cell">{renderSizeCell(entry)}</td>
+        <td class="file-modified-cell">{formatModified(entry.modified)}</td>
         {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
       </tr>
     );
