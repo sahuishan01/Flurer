@@ -28,8 +28,6 @@ type SettingsPanelProps = {
   onFontFamilyChange: (fontFamily: string) => void;
   fontSizePx: number;
   onFontSizePxChange: (fontSizePx: number) => void;
-  headerFontSizePx?: number;
-  onHeaderFontSizePxChange?: (headerFontSizePx: number) => void;
   sidebarTooltipDelayMs: number;
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
@@ -252,8 +250,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onFontFamilyChange={props.onFontFamilyChange}
               fontSizePx={props.fontSizePx}
               onFontSizePxChange={props.onFontSizePxChange}
-              headerFontSizePx={props.headerFontSizePx}
-              onHeaderFontSizePxChange={props.onHeaderFontSizePxChange}
               sidebarTooltipDelayMs={props.sidebarTooltipDelayMs}
               onSidebarTooltipDelayMsChange={props.onSidebarTooltipDelayMsChange}
               showProgressWhenIdle={props.showProgressWhenIdle}

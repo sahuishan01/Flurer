@@ -238,8 +238,6 @@ type CustomizationSettingsProps = {
   onFontFamilyChange: (fontFamily: string) => void;
   fontSizePx: number;
   onFontSizePxChange: (fontSizePx: number) => void;
-  headerFontSizePx?: number;
-  onHeaderFontSizePxChange?: (headerFontSizePx: number) => void;
   sidebarTooltipDelayMs: number;
   onSidebarTooltipDelayMsChange: (delayMs: number) => void;
   showProgressWhenIdle: boolean;
@@ -783,7 +781,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
         </div>
 
         <label class="opacity-control font-size-control">
-          Body Font Size:
+          UI Scaling / Font Size:
           <div class="font-size-inputs">
             <input
               type="range"
@@ -809,36 +807,6 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
             <span>px</span>
           </div>
         </label>
-
-        <Show when={props.onHeaderFontSizePxChange}>
-          <label class="opacity-control font-size-control">
-            Header Font Size:
-            <div class="font-size-inputs">
-              <input
-                type="range"
-                min={MIN_FONT_SIZE_PX}
-                max={48}
-                step="1"
-                value={props.headerFontSizePx ?? 22}
-                onInput={(e) => props.onHeaderFontSizePxChange?.(e.currentTarget.valueAsNumber)}
-              />
-              <input
-                type="number"
-                class="font-size-number-input"
-                min={MIN_FONT_SIZE_PX}
-                max={48}
-                value={props.headerFontSizePx ?? 22}
-                onInput={(e) => {
-                  const val = parseInt(e.currentTarget.value, 10);
-                  if (!isNaN(val)) {
-                    props.onHeaderFontSizePxChange?.(Math.max(MIN_FONT_SIZE_PX, Math.min(48, val)));
-                  }
-                }}
-              />
-              <span>px</span>
-            </div>
-          </label>
-        </Show>
       </section>
       )}
 

@@ -3,7 +3,6 @@
 :root {
     --font-family: var(--fluent-font);
     --font-size: 16px;
-    --header-font-size: 22px;
     font-family: var(--font-family);
     font-size: var(--font-size);
     line-height: 1.5;
@@ -17,14 +16,14 @@
     -webkit-text-size-adjust: 100%;
 
     /* Type scale */
-    --text-display: 1.35em;     /* 21.6px — page headings */
-    --text-title: 1.1em;        /* 17.6px — section headings */
-    --text-body: 1em;           /* 16px   — base body */
-    --text-label: 0.875em;      /* 14px   — buttons, inputs, controls */
-    --text-secondary: 0.875em;  /* 14px   — metadata, timestamps */
-    --text-caption: 0.75em;     /* 12px   — hints, drive text, errors */
-    --text-section: 0.7em;      /* 11px   — sidebar section labels */
-    --text-badge: 10px;         /* fixed  — progress badge count */
+    --text-display: 1.35em;     /* page headings */
+    --text-title: 1.1em;        /* section headings */
+    --text-body: 1em;           /* base body */
+    --text-label: 0.875em;      /* buttons, inputs, controls */
+    --text-secondary: 0.875em;  /* metadata, timestamps */
+    --text-caption: 0.75em;     /* hints, drive text, errors */
+    --text-section: 0.7em;      /* sidebar section labels */
+    --text-badge: 0.625em;      /* progress badge count */
 
     /* Overriding with Fluent theme token mappings */
     --bg-color: transparent;
@@ -49,10 +48,6 @@
     --shadow-md: var(--glass-shadow);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
     --text-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-h1, h2, h3, .settings-panel-header h2, .settings-content-header h3, .settings-section h3, .modal-header h3 {
-    font-size: var(--header-font-size);
 }
 
 [data-theme="dark"] {
@@ -2410,7 +2405,7 @@ button.sidebar-drive,
 }
 
 .settings-nav-title {
-    font-size: 13px;
+    font-size: var(--text-label);
     font-weight: 600;
     line-height: 1.3;
     white-space: nowrap;
@@ -2423,7 +2418,7 @@ button.sidebar-drive,
 }
 
 .settings-nav-desc {
-    font-size: 11px;
+    font-size: var(--text-caption);
     color: var(--text-secondary);
     line-height: 1.3;
     margin-top: 0.15em;
@@ -2706,6 +2701,7 @@ button.sidebar-drive,
     border: none;
     border-radius: var(--radius-sm);
     padding: 0.4em 0.8em;
+    font-size: var(--text-label);
 }
 
 .option-btn:hover {

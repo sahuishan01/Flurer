@@ -151,8 +151,6 @@ pub struct Settings {
     pub sort_direction: SortDirection,
     pub font_family: String,
     pub font_size_px: f32,
-    #[serde(default = "default_header_font_size_px")]
-    pub header_font_size_px: f32,
     pub sidebar_tooltip_delay_ms: u64,
     pub show_progress_when_idle: bool,
     // Whether filesystem changes should update cached folder sizes live.
@@ -243,10 +241,6 @@ fn default_sidebar_width() -> u32 {
     220
 }
 
-fn default_header_font_size_px() -> f32 {
-    22.0
-}
-
 fn default_split_dim() -> u8 {
     1
 }
@@ -273,7 +267,6 @@ impl Default for Settings {
             sort_direction: SortDirection::default(),
             font_family: "Inter, Avenir, Helvetica, Arial, sans-serif".to_string(),
             font_size_px: 16.0,
-            header_font_size_px: 22.0,
             sidebar_tooltip_delay_ms: 500,
             show_progress_when_idle: false,
             live_folder_size_updates: default_live_folder_size_updates(),
