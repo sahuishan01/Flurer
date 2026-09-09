@@ -179,8 +179,8 @@ export const FOLDER_COLOR_PRESETS: { label: string; hex: string }[] = [
   { label: "Purple", hex: "#8b5cf6" },
 ];
 
-export const MIN_FONT_SIZE_PX = 12;
-export const MAX_FONT_SIZE_PX = 22;
+export const MIN_FONT_SIZE_PX = 2;
+export const MAX_FONT_SIZE_PX = 32;
 
 export const MIN_HISTORY_ITEMS = 1;
 export const MAX_HISTORY_ITEMS = 100;

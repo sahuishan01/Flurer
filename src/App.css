@@ -2501,6 +2501,130 @@ button.sidebar-drive,
     font-weight: 600;
 }
 
+/* Font settings controls */
+.font-family-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    margin-bottom: 1em;
+}
+
+.font-dropdown-container {
+    position: relative;
+    width: 100%;
+}
+
+.font-search-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.font-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--control-bg, #1e1e1e);
+    border: 1px solid var(--border-color, #333);
+    border-radius: var(--radius-md, 6px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+}
+
+.font-search-header {
+    display: flex;
+    align-items: center;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.font-menu-filter-input {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-color);
+}
+
+.font-dropdown-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    padding: 0 8px;
+    cursor: pointer;
+}
+
+.font-dropdown-list {
+    overflow-y: auto;
+    max-height: 220px;
+    padding: 4px;
+}
+
+.font-dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-color);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.font-dropdown-item:hover {
+    background: var(--hover-bg, rgba(255, 255, 255, 0.1));
+}
+
+.font-dropdown-item.active {
+    background: var(--accent-soft, rgba(59, 130, 246, 0.2));
+    color: var(--accent, #3b82f6);
+}
+
+.font-dropdown-empty {
+    padding: 12px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.font-size-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+}
+
+.font-size-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+}
+
+.font-size-inputs input[type="range"] {
+    flex: 1;
+}
+
+.font-size-number-input {
+    width: 54px;
+    padding: 4px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--control-bg);
+    color: var(--text-color);
+    font-size: 12px;
+    text-align: center;
+}
+
 /* Shortcuts Redesign */
 .shortcuts-settings {
     display: flex;

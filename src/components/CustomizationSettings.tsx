@@ -76,6 +76,154 @@ function matchesQuery(query: string, keywords: string[]): boolean {
   return keywords.some((keyword) => keyword.toLowerCase().includes(q));
 }
 
+const COMMON_SYSTEM_FONTS = [
+  "Arial",
+  "Arial Black",
+  "Bahnschrift",
+  "Calibri",
+  "Cambria",
+  "Candara",
+  "Comic Sans MS",
+  "Consolas",
+  "Constantia",
+  "Corbel",
+  "Courier New",
+  "Ebrima",
+  "Franklin Gothic Medium",
+  "Gabriola",
+  "Gadugi",
+  "Georgia",
+  "Impact",
+  "Ink Free",
+  "Inter",
+  "Javanese Text",
+  "Leelawadee UI",
+  "Lucida Console",
+  "Lucida Sans Unicode",
+  "Malgun Gothic",
+  "Marlett",
+  "Microsoft Himalaya",
+  "Microsoft JhengHei",
+  "Microsoft New Tai Lue",
+  "Microsoft PhagsPa",
+  "Microsoft Sans Serif",
+  "Microsoft YaHei",
+  "Microsoft Yi Baiti",
+  "MingLiU-ExtB",
+  "Mongolian Baiti",
+  "MS Gothic",
+  "MV Boli",
+  "Myanmar Text",
+  "Nirmala UI",
+  "Palatino Linotype",
+  "Segoe MDL2 Assets",
+  "Segoe Print",
+  "Segoe Script",
+  "Segoe UI",
+  "Segoe UI Emoji",
+  "Segoe UI Historic",
+  "Segoe UI Symbol",
+  "SimSun",
+  "Sitka",
+  "Sylfaen",
+  "Symbol",
+  "Tahoma",
+  "Times New Roman",
+  "Trebuchet MS",
+  "Verdana",
+  "Webdings",
+  "Wingdings",
+  "Yu Gothic",
+  "-apple-system",
+  "system-ui",
+  "Roboto",
+  "Open Sans",
+  "Noto Sans",
+  "Fira Code",
+  "JetBrains Mono",
+];
+
+function FontSearchDropdown(props: { fontFamily: string; onFontFamilyChange: (font: string) => void }) {
+  const [fonts, setFonts] = createSignal<string[]>(COMMON_SYSTEM_FONTS);
+  const [search, setSearch] = createSignal("");
+  const [isOpen, setIsOpen] = createSignal(false);
+
+  onMount(async () => {
+    if ("queryLocalFonts" in window && typeof (window as any).queryLocalFonts === "function") {
+      try {
+        const localFonts = await (window as any).queryLocalFonts();
+        const fontFamilies = Array.from(new Set(localFonts.map((f: any) => f.family))).sort() as string[];
+        if (fontFamilies.length > 0) {
+          setFonts(fontFamilies);
+        }
+      } catch (e) {
+        console.warn("Failed to query local fonts:", e);
+      }
+    }
+  });
+
+  const filteredFonts = () => {
+    const q = search().toLowerCase().trim();
+    if (!q) return fonts();
+    return fonts().filter((f) => f.toLowerCase().includes(q));
+  };
+
+  return (
+    <div class="font-dropdown-container">
+      <input
+        type="text"
+        class="color-text-input font-search-input"
+        placeholder="Search system fonts or enter font family…"
+        value={props.fontFamily}
+        onFocus={() => setIsOpen(true)}
+        onInput={(e) => {
+          setSearch(e.currentTarget.value);
+          props.onFontFamilyChange(e.currentTarget.value);
+          setIsOpen(true);
+        }}
+      />
+      <Show when={isOpen()}>
+        <div class="font-dropdown-menu" onMouseDown={(e) => e.preventDefault()}>
+          <div class="font-search-header">
+            <input
+              type="text"
+              class="font-menu-filter-input"
+              placeholder="Filter font list…"
+              value={search()}
+              onInput={(e) => setSearch(e.currentTarget.value)}
+              autofocus
+            />
+            <button type="button" class="font-dropdown-close" onClick={() => setIsOpen(false)}>×</button>
+          </div>
+          <div class="font-dropdown-list">
+            <For each={filteredFonts().slice(0, 100)}>
+              {(font) => (
+                <button
+                  type="button"
+                  classList={{
+                    "font-dropdown-item": true,
+                    active: props.fontFamily === font || props.fontFamily.startsWith(`"${font}"`) || props.fontFamily.startsWith(`${font},`),
+                  }}
+                  style={{ "font-family": `'${font}', sans-serif` }}
+                  onClick={() => {
+                    props.onFontFamilyChange(`'${font}', sans-serif`);
+                    setIsOpen(false);
+                  }}
+                >
+                  {font}
+                </button>
+              )}
+            </For>
+            <Show when={filteredFonts().length === 0}>
+              <div class="font-dropdown-empty">No matching system fonts</div>
+            </Show>
+          </div>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 type CustomizationSettingsProps = {
   searchQuery: string;
   background: BackgroundSettings;
@@ -610,38 +758,54 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           />
         </label>
 
-        <div class="option-group">
-          <For each={FONT_FAMILY_PRESETS}>
-            {(preset) => (
-              <button
-                type="button"
-                classList={{ "option-btn": true, active: props.fontFamily === preset.value }}
-                style={{ "font-family": preset.value }}
-                onClick={() => props.onFontFamilyChange(preset.value)}
-              >
-                {preset.label}
-              </button>
-            )}
-          </For>
-        </div>
-        <input
-          type="text"
-          class="color-text-input"
-          placeholder="Custom font-family value"
-          value={props.fontFamily}
-          onChange={(e) => props.onFontFamilyChange(e.currentTarget.value)}
-        />
+        <div class="font-family-controls">
+          <div class="option-group">
+            <For each={FONT_FAMILY_PRESETS}>
+              {(preset) => (
+                <button
+                  type="button"
+                  classList={{ "option-btn": true, active: props.fontFamily === preset.value }}
+                  style={{ "font-family": preset.value }}
+                  onClick={() => props.onFontFamilyChange(preset.value)}
+                >
+                  {preset.label}
+                </button>
+              )}
+            </For>
+          </div>
 
-        <label class="opacity-control">
-          Font Size: {props.fontSizePx.toFixed(0)}px
-          <input
-            type="range"
-            min={MIN_FONT_SIZE_PX}
-            max={MAX_FONT_SIZE_PX}
-            step="1"
-            value={props.fontSizePx}
-            onInput={(e) => props.onFontSizePxChange(e.currentTarget.valueAsNumber)}
+          <FontSearchDropdown
+            fontFamily={props.fontFamily}
+            onFontFamilyChange={props.onFontFamilyChange}
           />
+        </div>
+
+        <label class="opacity-control font-size-control">
+          Font Size:
+          <div class="font-size-inputs">
+            <input
+              type="range"
+              min={MIN_FONT_SIZE_PX}
+              max={MAX_FONT_SIZE_PX}
+              step="1"
+              value={props.fontSizePx}
+              onInput={(e) => props.onFontSizePxChange(e.currentTarget.valueAsNumber)}
+            />
+            <input
+              type="number"
+              class="font-size-number-input"
+              min={MIN_FONT_SIZE_PX}
+              max={MAX_FONT_SIZE_PX}
+              value={props.fontSizePx}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val)) {
+                  props.onFontSizePxChange(Math.max(MIN_FONT_SIZE_PX, Math.min(MAX_FONT_SIZE_PX, val)));
+                }
+              }}
+            />
+            <span>px</span>
+          </div>
         </label>
       </section>
       )}
