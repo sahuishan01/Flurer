@@ -2228,6 +2228,34 @@ button.sidebar-drive,
     color: #60a5fa;
 }
 
+.file-name-cell svg.file-icon-python {
+    color: #38bdf8;
+}
+
+.file-name-cell svg.file-icon-cpp {
+    color: #2563eb;
+}
+
+.file-name-cell svg.file-icon-rust {
+    color: #f97316;
+}
+
+.file-name-cell svg.file-icon-config {
+    color: #f59e0b;
+}
+
+.file-name-cell svg.file-icon-3d {
+    color: #34d399;
+}
+
+.file-name-cell svg.file-icon-shell {
+    color: #4ade80;
+}
+
+.file-name-cell svg.file-icon-database {
+    color: #a855f7;
+}
+
 .file-name-cell svg.file-icon-pdf {
     color: #f87171;
 }

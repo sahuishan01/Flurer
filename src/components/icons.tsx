@@ -894,6 +894,156 @@ export function FontIcon(props: IconProps) {
   );
 }
 
+export function PythonIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M12 2c-4 0-4.5 1.8-4.5 3.5V8h5v1H5.5C3.8 9 2 9.8 2 13.5S3.8 18 5.5 18H7v-2.5c0-1.7 1.3-3 3-3h5c1.7 0 3 1.3 3 3V18h.5c1.7 0 3.5-.8 3.5-4.5S20.2 9 18.5 9H17V6.5C17 4.8 16 2 12 2z" />
+      <path d="M12 22c4 0 4.5-1.8 4.5-3.5V16h-5v-1h7c1.7 0 3.5-.8 3.5-4.5S20.2 6 18.5 6H17v2.5c0 1.7-1.3 3-3 3H9c-1.7 0-3-1.3-3-3V6H5.5C3.8 6 2 6.8 2 10.5S3.8 15 5.5 15H7v2.5C7 19.2 8 22 12 22z" />
+      <circle cx="9.5" cy="5.5" r=".8" fill="currentColor" />
+      <circle cx="14.5" cy="18.5" r=".8" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function CppIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M10 14.5a2.5 2.5 0 1 1 0-5" />
+      <path d="M13.5 12h3" />
+      <path d="M15 10.5v3" />
+    </svg>
+  );
+}
+
+export function RustIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+      <path d="M9 9l6 6" />
+      <path d="M15 9l-6 6" />
+    </svg>
+  );
+}
+
+export function Model3DIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+      <line x1="12" y1="22" x2="12" y2="12" />
+      <line x1="2" y1="7" x2="2" y2="17" />
+      <line x1="22" y1="7" x2="22" y2="17" />
+    </svg>
+  );
+}
+
+export function ConfigIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M8 12h.01" />
+      <path d="M12 12h.01" />
+      <path d="M16 12h.01" />
+      <path d="M8 16h8" />
+    </svg>
+  );
+}
+
+export function ShellIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 9l4 3-4 3" />
+      <line x1="13" y1="15" x2="17" y2="15" />
+    </svg>
+  );
+}
+
+export function DatabaseIcon(props: IconProps) {
+  return (
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class={props.class}
+    >
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </svg>
+  );
+}
+
 export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: number; class?: string }) {
   if (props.isDir) {
     return <FolderIcon size={props.size ?? 15} class={props.class} />;
@@ -946,41 +1096,42 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "iso":
       return <ArchiveIcon size={props.size ?? 15} class={`file-icon-archive ${props.class || ""}`} />;
 
-    case "rs":
-    case "ts":
-    case "tsx":
-    case "js":
-    case "jsx":
-    case "mjs":
-    case "cjs":
     case "py":
+    case "pyw":
+    case "ipynb":
+    case "pyc":
+      return <PythonIcon size={props.size ?? 15} class={`file-icon-python ${props.class || ""}`} />;
+
     case "c":
     case "cpp":
     case "cc":
     case "cxx":
     case "h":
     case "hpp":
-    case "cs":
-    case "go":
-    case "java":
-    case "kt":
-    case "rb":
-    case "php":
-    case "sh":
-    case "bash":
-    case "zsh":
-    case "bat":
-    case "cmd":
-    case "ps1":
-    case "css":
-    case "scss":
-    case "sass":
-    case "less":
-    case "html":
-    case "htm":
-    case "sql":
-    case "json":
+    case "hxx":
+      return <CppIcon size={props.size ?? 15} class={`file-icon-cpp ${props.class || ""}`} />;
+
+    case "rs":
+      return <RustIcon size={props.size ?? 15} class={`file-icon-rust ${props.class || ""}`} />;
+
+    case "stl":
+    case "stp":
+    case "step":
+    case "obj":
+    case "3mf":
+    case "ply":
+    case "fbx":
+    case "dae":
+    case "blend":
+    case "gcode":
+    case "igs":
+    case "iges":
+    case "dxf":
+    case "dwg":
+      return <Model3DIcon size={props.size ?? 15} class={`file-icon-3d ${props.class || ""}`} />;
+
     case "toml":
+    case "json":
     case "yaml":
     case "yml":
     case "xml":
@@ -988,6 +1139,40 @@ export function FileTypeIcon(props: { path: string; isDir?: boolean; size?: numb
     case "cfg":
     case "conf":
     case "env":
+      return <ConfigIcon size={props.size ?? 15} class={`file-icon-config ${props.class || ""}`} />;
+
+    case "sh":
+    case "bash":
+    case "zsh":
+    case "bat":
+    case "cmd":
+    case "ps1":
+      return <ShellIcon size={props.size ?? 15} class={`file-icon-shell ${props.class || ""}`} />;
+
+    case "sql":
+    case "db":
+    case "sqlite":
+    case "db3":
+      return <DatabaseIcon size={props.size ?? 15} class={`file-icon-database ${props.class || ""}`} />;
+
+    case "ts":
+    case "tsx":
+    case "js":
+    case "jsx":
+    case "mjs":
+    case "cjs":
+    case "cs":
+    case "go":
+    case "java":
+    case "kt":
+    case "rb":
+    case "php":
+    case "css":
+    case "scss":
+    case "sass":
+    case "less":
+    case "html":
+    case "htm":
       return <CodeIcon size={props.size ?? 15} class={`file-icon-code ${props.class || ""}`} />;
 
     case "pdf":
