@@ -48,6 +48,7 @@
     --shadow-md: var(--glass-shadow);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
     --text-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --font-mono: var(--font-data, var(--text-mono));
 }
 
 [data-theme="dark"] {
@@ -85,6 +86,8 @@ body,
 body {
     background-color: transparent;
     color: var(--text-color);
+    font-family: inherit;
+    font-size: inherit;
     user-select: none;
     -webkit-user-select: none;
 }
@@ -328,7 +331,7 @@ body {
     border: none;
     background: transparent;
     font-family: inherit;
-    font-size: 13px;
+    font-size: var(--text-label);
     color: var(--text-primary);
     outline: none;
 }
@@ -975,7 +978,7 @@ button.sidebar-drive,
     border: none;
     background: transparent;
     font-family: inherit;
-    font-size: 13px;
+    font-size: var(--text-label);
     color: var(--text-primary);
     outline: none;
 }
@@ -1008,7 +1011,7 @@ button.sidebar-drive,
     border-radius: var(--radius-md);
     padding: 0.4em 0.6em;
     font-family: inherit;
-    font-size: 13px;
+    font-size: var(--text-label);
     color: var(--text-primary);
     outline: none;
 }
@@ -1029,7 +1032,7 @@ button.sidebar-drive,
     gap: 0.5em;
     padding: 0.35em 0.5em;
     border-radius: var(--radius-sm);
-    font-size: 13px;
+    font-size: var(--text-label);
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
@@ -1052,7 +1055,7 @@ button.sidebar-drive,
     padding: 0.3em 0.6em;
     background: transparent;
     border: none;
-    font-size: 13px;
+    font-size: var(--text-label);
     font-weight: 500;
     color: var(--text-primary);
     border-radius: var(--radius-md);
@@ -1072,7 +1075,7 @@ button.sidebar-drive,
 .breadcrumb-sep {
     color: var(--text-secondary);
     opacity: 0.4;
-    font-size: 11px;
+    font-size: var(--text-caption);
     user-select: none;
 }
 
@@ -1348,7 +1351,7 @@ button.sidebar-drive,
 .plugin-update-badge {
     padding: 0.05em 0.5em;
     border-radius: var(--radius-sm);
-    font-size: 10px;
+    font-size: var(--text-badge);
     font-weight: 600;
     background-color: var(--accent-soft);
     color: var(--accent);
@@ -2608,7 +2611,7 @@ button.sidebar-drive,
 .font-menu-filter-input {
     flex: 1;
     padding: 4px 8px;
-    font-size: 12px;
+    font-size: var(--text-caption);
     background: transparent;
     border: 1px solid var(--border-color);
     border-radius: 4px;
@@ -2619,7 +2622,7 @@ button.sidebar-drive,
     background: transparent;
     border: none;
     color: var(--text-secondary);
-    font-size: 16px;
+    font-size: var(--text-title);
     padding: 0 8px;
     cursor: pointer;
 }
@@ -2639,7 +2642,7 @@ button.sidebar-drive,
     border: none;
     border-radius: 4px;
     color: var(--text-color);
-    font-size: 13px;
+    font-size: var(--text-label);
     cursor: pointer;
     transition: background 0.1s ease;
 }
@@ -2656,7 +2659,7 @@ button.sidebar-drive,
 .font-dropdown-empty {
     padding: 12px;
     text-align: center;
-    font-size: 12px;
+    font-size: var(--text-caption);
     color: var(--text-secondary);
 }
 
@@ -2683,7 +2686,7 @@ button.sidebar-drive,
     border-radius: var(--radius-sm, 4px);
     background: var(--control-bg);
     color: var(--text-color);
-    font-size: 12px;
+    font-size: var(--text-caption);
     text-align: center;
 }
 
@@ -2724,19 +2727,19 @@ button.sidebar-drive,
 }
 
 .shortcut-title {
-    font-size: 13px;
+    font-size: var(--text-label);
     font-weight: 600;
     color: var(--text-primary);
 }
 
 .shortcut-description {
-    font-size: 11px;
+    font-size: var(--text-caption);
     color: var(--text-secondary);
     line-height: 1.4;
 }
 
 .shortcut-default-hint {
-    font-size: 11px;
+    font-size: var(--text-caption);
     font-family: var(--text-mono);
     color: var(--text-secondary);
     opacity: 0.7;
@@ -2744,7 +2747,7 @@ button.sidebar-drive,
 
 .shortcut-reset-btn {
     padding: 0.25em 0.6em !important;
-    font-size: 11px !important;
+    font-size: var(--text-caption) !important;
 }
 
 .option-group {
@@ -2920,7 +2923,7 @@ button.sidebar-drive,
     border: none;
     background: var(--danger);
     color: #fff;
-    font-size: 12px;
+    font-size: var(--text-caption);
     line-height: 1;
     cursor: pointer;
 }
@@ -3070,6 +3073,7 @@ input[type="color"] {
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid var(--border-strong);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    font-size: var(--text-label);
 }
 
 .context-menu-item {
@@ -3082,6 +3086,8 @@ input[type="color"] {
     padding: 0.5em 0.8em;
     color: var(--text-color);
     border-radius: var(--radius-sm);
+    font-size: var(--text-label);
+    font-family: inherit;
 }
 
 .context-menu-item-icon {
@@ -3127,7 +3133,7 @@ input[type="color"] {
     -webkit-backdrop-filter: blur(var(--surface-blur, 0));
     border: 1px solid var(--border-strong);
     box-shadow: var(--shadow-md);
-    font-size: 13px;
+    font-size: var(--text-label);
     animation: undo-toast-in 0.15s ease-out;
 }
 
@@ -3181,6 +3187,7 @@ input[type="color"] {
     border: 1px solid var(--border-strong);
     box-shadow: var(--shadow-lg);
     color: var(--text-color);
+    font-size: var(--text-body);
 }
 
 .modal-header {
@@ -3987,7 +3994,7 @@ button.danger:not(.context-menu-item):hover {
     .progress-badge {
         min-width: 12px;
         height: 12px;
-        font-size: 8px;
+        font-size: var(--text-badge);
         line-height: 12px;
     }
 

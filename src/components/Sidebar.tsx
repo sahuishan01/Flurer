@@ -330,7 +330,7 @@ export function Sidebar(props: SidebarProps) {
               border: "1px solid var(--border-strong)",
               "box-shadow": "var(--shadow-md)",
               color: "var(--text-color)",
-              "font-size": "13px",
+              "font-size": "var(--text-caption)",
               "font-family": "var(--font-family)",
               "white-space": "nowrap",
               "pointer-events": "none",

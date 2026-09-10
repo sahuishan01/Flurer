@@ -150,7 +150,7 @@ export function UpdatesView(props: UpdatesViewProps) {
               Ignored update: <strong>v{props.ignoredUpdateVersion}</strong>
               <button
                 type="button"
-                style={{ "margin-left": "10px", padding: "2px 8px", "font-size": "12px" }}
+                style={{ "margin-left": "10px", padding: "2px 8px", "font-size": "var(--text-caption)" }}
                 onClick={() => props.onResetIgnoredUpdateVersion?.()}
               >
                 Clear / Reset Ignored Version
