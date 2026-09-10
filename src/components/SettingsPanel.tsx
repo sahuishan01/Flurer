@@ -82,7 +82,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         label: "Appearance & Theme",
         description: "Wallpapers, colors, translucency, fonts",
         icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
             <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
             <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
@@ -96,7 +96,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         label: "Keyboard Shortcuts",
         description: "Keybindings for actions, navigation, tabs",
         icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="4" width="20" height="16" rx="2" />
             <path d="M6 8h.001" />
             <path d="M10 8h.001" />
@@ -115,7 +115,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         label: "Plugins & Extensions",
         description: "Manage installed plugins and marketplace",
         icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2v4" />
             <path d="m16.2 7.8 2.9-2.9" />
             <path d="M18 12h4" />
@@ -132,7 +132,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         label: "Search Index",
         description: "Indexed folders and search performance",
         icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="7" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
@@ -143,7 +143,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
         label: "Updates & About",
         description: "Software version, changelog, updater",
         icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
@@ -159,7 +159,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
           label: p.name,
           description: `Settings for ${p.name}`,
           icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <path d="M9 3v18" />
             </svg>

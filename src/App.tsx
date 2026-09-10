@@ -21,7 +21,7 @@ import {
   type Settings,
   type Theme,
 } from "./lib/settings";
-import { cleanDirPath, parentDir, type GroupByKey, type SortKey } from "./lib/fs";
+import { cleanDirPath, parentDir, resolvePath, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
@@ -901,7 +901,7 @@ function App() {
   });
 
   function navigateTo(path: string) {
-    const cleanPath = cleanDirPath(path);
+    const cleanPath = resolvePath(currentPath(), path);
     setCurrentPath(cleanPath);
     setMainView("explorer");
     pushHistory({ type: "explorer", pane: 0, path: cleanPath });
@@ -925,7 +925,8 @@ function App() {
    * sidebar drive/favourite/recent click) to whichever pane is active.
    */
   function navigateActivePane(path: string) {
-    const cleanPath = cleanDirPath(path);
+    const activeCurrent = activePanePath();
+    const cleanPath = resolvePath(activeCurrent, path);
     const i = activePane();
     if (i === 0) {
       navigateTo(cleanPath);

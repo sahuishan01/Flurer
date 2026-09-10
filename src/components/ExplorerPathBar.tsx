@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { EnterIcon, FolderIcon, StarIcon } from "./icons";
-import { parentDir, pathSegments, type DirListing } from "../lib/fs";
+import { parentDir, pathSegments, resolvePath, type DirListing } from "../lib/fs";
 import { createPopover } from "../lib/popover";
 
 type ExplorerPathBarProps = {
@@ -48,13 +48,18 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
     return `${withSep}${name}\\`;
   }
 
+  function getResolvedPath(rawInput: string): string {
+    return resolvePath(props.path, rawInput);
+  }
+
   async function loadSuggestions(value: string) {
-    const parent = parentDir(value);
-    if (!parent || parent === value) {
+    const resolved = getResolvedPath(value);
+    const parent = parentDir(resolved);
+    if (!parent || parent === resolved) {
       setSuggestions([]);
       return;
     }
-    const partial = value
+    const partial = resolved
       .slice(parent.length)
       .replace(/^[\\/]+/, "")
       .toLowerCase();
@@ -76,7 +81,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
 
     // Stale response guard: the input may have moved on to a different
     // parent directory by the time this resolves.
-    if (parentDir(props.pathInput) !== parent) return;
+    if (parentDir(getResolvedPath(props.pathInput)) !== parent) return;
     const filtered = (partial ? names.filter((n) => n.toLowerCase().startsWith(partial)) : names).slice(0, 8);
     setSuggestions(filtered);
     setHighlightIndex(-1);
@@ -89,7 +94,8 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
   }
 
   function acceptSuggestion(name: string) {
-    const full = joinPath(parentDir(props.pathInput), name);
+    const resolved = getResolvedPath(props.pathInput);
+    const full = joinPath(parentDir(resolved), name);
     props.onPathInputChange(full);
     setSuggestions([]);
     props.onNavigate(full);
@@ -161,7 +167,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
                 acceptSuggestion(list[idx]);
                 return;
               }
-              props.onNavigate(props.pathInput);
+              props.onNavigate(getResolvedPath(props.pathInput));
               close();
             }}
           >

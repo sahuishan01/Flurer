@@ -1,7 +1,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
-import type { DirEntry } from "../lib/fs";
+import { resolvePath, type DirEntry } from "../lib/fs";
 import type { PhysicalDisk, VirtualDisk } from "../lib/graph";
 import { ClockIcon, DiskIcon, EnterIcon, FolderIcon, StarIcon } from "./icons";
 
@@ -158,7 +158,10 @@ export function DirectoryPickerModal(props: {
                 type="text"
                 value={currentPath()}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") loadDir((e.currentTarget as HTMLInputElement).value);
+                  if (e.key === "Enter") {
+                    const val = (e.currentTarget as HTMLInputElement).value;
+                    loadDir(resolvePath(currentPath(), val));
+                  }
                 }}
               />
             </div>

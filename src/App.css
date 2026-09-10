@@ -2400,7 +2400,7 @@ button.sidebar-drive,
 }
 
 .settings-nav {
-    width: 250px;
+    width: max(250px, 16em);
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -2424,6 +2424,8 @@ button.sidebar-drive,
     gap: 0.75em;
     width: 100%;
     padding: 0.65em 0.8em;
+    font-size: var(--text-body);
+    font-family: inherit;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
     background: transparent;
@@ -2448,12 +2450,17 @@ button.sidebar-drive,
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 2.2em;
+    height: 2.2em;
     border-radius: var(--radius-sm);
     background: var(--control-bg);
     color: var(--text-secondary);
     transition: all 0.15s ease;
+}
+
+.settings-nav-icon svg {
+    width: 1.25em;
+    height: 1.25em;
 }
 
 .settings-nav-item.active .settings-nav-icon {

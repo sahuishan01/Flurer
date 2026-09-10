@@ -98,6 +98,28 @@ export function cleanDirPath(path: string): string {
   return /^[a-zA-Z]:$/.test(stripped) ? `${stripped.slice(0, 1)}:\\` : stripped;
 }
 
+/**
+ * Resolves a path input string against a base path. If `inputPath` is absolute,
+ * returns its cleaned form. If `inputPath` is relative (e.g. "Downloads" or "\Documents"),
+ * appends it to `basePath` instead of overwriting the base path.
+ */
+export function resolvePath(basePath: string, inputPath: string): string {
+  const trimmedInput = inputPath.trim();
+  if (!trimmedInput) return cleanDirPath(basePath);
+
+  const isAbsolute = /^[a-zA-Z]:|^\\\\/.test(trimmedInput);
+  if (isAbsolute) {
+    return cleanDirPath(trimmedInput);
+  }
+
+  const baseClean = cleanDirPath(basePath);
+  const relativeSegment = trimmedInput.replace(/^[/\\]+/, "");
+  if (!relativeSegment) return baseClean;
+
+  const sep = /[\\/]$/.test(baseClean) ? "" : "\\";
+  return cleanDirPath(`${baseClean}${sep}${relativeSegment}`);
+}
+
 export function parentDir(path: string): string {
   const normalized = path.replace(/[/\\]+$/, "");
   const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
