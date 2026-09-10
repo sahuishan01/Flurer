@@ -2673,27 +2673,31 @@ button.sidebar-drive,
 .font-size-control {
     display: flex;
     flex-direction: column;
-    gap: 0.4em;
+    gap: 6px;
+    font-size: 13px !important;
 }
 
 .font-size-inputs {
     display: flex;
     align-items: center;
-    gap: 0.8em;
+    gap: 12px;
+    height: 32px;
 }
 
 .font-size-inputs input[type="range"] {
     flex: 1;
+    height: 24px;
 }
 
 .font-size-number-input {
-    width: 54px;
-    padding: 4px 6px;
+    width: 64px;
+    height: 28px;
+    padding: 2px 6px;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm, 4px);
     background: var(--control-bg);
     color: var(--text-color);
-    font-size: var(--text-caption);
+    font-size: 13px !important;
     text-align: center;
 }
 

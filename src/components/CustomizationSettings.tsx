@@ -10,6 +10,10 @@ import {
   MAX_HISTORY_ITEMS,
   MIN_FONT_SIZE_PX,
   MIN_HISTORY_ITEMS,
+  MIN_SCALE,
+  MAX_SCALE,
+  fontSizePxToScale,
+  scaleToFontSizePx,
   SOLID_COLOR_PRESETS,
 } from "../lib/settings";
 
@@ -781,30 +785,37 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
         </div>
 
         <label class="opacity-control font-size-control">
-          UI Scaling / Font Size:
+          UI Scale:
           <div class="font-size-inputs">
             <input
               type="range"
-              min={MIN_FONT_SIZE_PX}
-              max={MAX_FONT_SIZE_PX}
-              step="1"
-              value={props.fontSizePx}
-              onInput={(e) => props.onFontSizePxChange(e.currentTarget.valueAsNumber)}
+              min={MIN_SCALE}
+              max={MAX_SCALE}
+              step="0.01"
+              value={fontSizePxToScale(props.fontSizePx)}
+              onInput={(e) => {
+                const val = parseFloat(e.currentTarget.value);
+                if (!isNaN(val)) {
+                  props.onFontSizePxChange(scaleToFontSizePx(val));
+                }
+              }}
             />
             <input
               type="number"
               class="font-size-number-input"
-              min={MIN_FONT_SIZE_PX}
-              max={MAX_FONT_SIZE_PX}
-              value={props.fontSizePx}
+              min={MIN_SCALE}
+              max={MAX_SCALE}
+              step="0.01"
+              value={fontSizePxToScale(props.fontSizePx).toFixed(2)}
               onInput={(e) => {
-                const val = parseInt(e.currentTarget.value, 10);
+                const val = parseFloat(e.currentTarget.value);
                 if (!isNaN(val)) {
-                  props.onFontSizePxChange(Math.max(MIN_FONT_SIZE_PX, Math.min(MAX_FONT_SIZE_PX, val)));
+                  const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, val));
+                  props.onFontSizePxChange(scaleToFontSizePx(clamped));
                 }
               }}
             />
-            <span>px</span>
+            <span>x</span>
           </div>
         </label>
       </section>

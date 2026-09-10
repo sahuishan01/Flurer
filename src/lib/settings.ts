@@ -182,6 +182,20 @@ export const FOLDER_COLOR_PRESETS: { label: string; hex: string }[] = [
 export const MIN_FONT_SIZE_PX = 2;
 export const MAX_FONT_SIZE_PX = 32;
 
+export const MIN_SCALE = 0.5;
+export const MAX_SCALE = 2.0;
+export const DEFAULT_SCALE = 1.0;
+
+export function fontSizePxToScale(px: number): number {
+  const scale = px / 16;
+  return Math.round(scale * 100) / 100;
+}
+
+export function scaleToFontSizePx(scale: number): number {
+  const px = scale * 16;
+  return Math.round(px * 100) / 100;
+}
+
 export const MIN_HISTORY_ITEMS = 1;
 export const MAX_HISTORY_ITEMS = 100;
 
