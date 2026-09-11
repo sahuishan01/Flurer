@@ -78,9 +78,15 @@ pub fn run() {
             // process's own argv/cwd on cold start. Secondary invocations
             // while Flurer is already running are handled by
             // tauri_plugin_single_instance below, which emits "open-new-tab".
+            let args: Vec<String> = std::env::args().collect();
+            log::info!("CLI args: {:?}", args);
             let launch_path = std::env::current_dir()
                 .ok()
-                .and_then(|cwd| cli::resolve_launch_path(&std::env::args().collect::<Vec<_>>(), &cwd));
+                .and_then(|cwd| {
+                    log::info!("CLI current_dir: {:?}", cwd);
+                    cli::resolve_launch_path(&args, &cwd)
+                });
+            log::info!("Resolved launch_path: {:?}", launch_path);
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 config,
@@ -167,8 +173,12 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
         .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            log::info!("single_instance triggered: argv={:?}, cwd={:?}", argv, cwd);
             if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
+                log::info!("single_instance opening target_dir: {}", target_dir);
                 let _ = app.emit("open-new-tab", target_dir);
+            } else {
+                log::info!("single_instance no target_dir resolved");
             }
             shortcuts::show_and_focus_main_window(app);
         }))
