@@ -75,6 +75,7 @@ windows-sys = { version = "0.59", features = [
   "Win32_Storage_FileSystem",
   "Win32_System_IO",
   "Win32_Security",
+  "Win32_UI_WindowsAndMessaging",
 ] }
 # Pinned to the same version Tauri's own Windows runtime vendors (see
 # webview2-com in Cargo.lock) so ICoreWebView2Controller4 (cast target in
@@ -83,3 +84,4 @@ windows-sys = { version = "0.59", features = [
 # would make that cast silently fail at runtime instead of compiling wrong.
 webview2-com = "=0.38.2"
 windows = "=0.61.3"
+winreg = "0.55"
