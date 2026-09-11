@@ -275,6 +275,32 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   const [cacheStats, setCacheStats] = createSignal<FolderSizeCacheStats | null>(null);
   const [cacheStatsError, setCacheStatsError] = createSignal("");
   const [clearingCache, setClearingCache] = createSignal(false);
+  const [inPath, setInPath] = createSignal<boolean | null>(null);
+  const [addingToPath, setAddingToPath] = createSignal(false);
+  const [pathMessage, setPathMessage] = createSignal("");
+
+  async function checkPathStatus() {
+    try {
+      const res = await invoke<boolean>("is_in_path");
+      setInPath(res);
+    } catch (e) {
+      console.warn("Failed to check PATH status:", e);
+    }
+  }
+
+  async function handleAddToPath() {
+    setAddingToPath(true);
+    setPathMessage("");
+    try {
+      await invoke("add_to_system_path");
+      setInPath(true);
+      setPathMessage("Flurer added to user PATH successfully!");
+    } catch (err) {
+      setPathMessage(`Failed: ${String(err)}`);
+    } finally {
+      setAddingToPath(false);
+    }
+  }
 
   async function refreshCacheStats() {
     try {
@@ -285,7 +311,10 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
     }
   }
 
-  onMount(refreshCacheStats);
+  onMount(() => {
+    refreshCacheStats();
+    checkPathStatus();
+  });
 
   async function handleClearCache() {
     setClearingCache(true);
@@ -903,6 +932,33 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
         </label>
         <p class="settings-hint">
           Restores the folder location you were viewing when Flurer was last closed instead of starting at default drive.
+        </p>
+
+        <div class="cache-stats-control">
+          <span>Environment PATH</span>
+          <Show
+            when={inPath() === true}
+            fallback={
+              <button
+                type="button"
+                class="option-btn"
+                disabled={addingToPath() || inPath() === null}
+                onClick={handleAddToPath}
+              >
+                {addingToPath() ? "Adding..." : "Add Flurer to PATH"}
+              </button>
+            }
+          >
+            <span class="settings-hint" style={{ color: "var(--success-color, #4ea8de)", "font-weight": "600" }}>
+              ✓ Flurer is in user PATH
+            </span>
+          </Show>
+        </div>
+        <Show when={pathMessage()}>
+          <p class="settings-hint">{pathMessage()}</p>
+        </Show>
+        <p class="settings-hint">
+          Appends Flurer's installation directory to your user PATH environment variable so you can launch `flurer .` or `flurer &lt;folder&gt;` directly from any terminal.
         </p>
 
         <label class="checkbox-control">

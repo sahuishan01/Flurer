@@ -20,7 +20,7 @@ mod trash_bin;
 mod updater;
 
 use archive::{compress_to_zip, extract_archive};
-use cli::take_launch_path;
+use cli::{add_to_system_path, is_in_path, take_launch_path};
 use dirwatch::{unwatch_directory, watch_directory};
 use disks::get_disk_topology;
 use drag_out::set_external_drop_allowed;
@@ -253,6 +253,8 @@ pub fn run() {
             find_duplicates,
             // CLI "open this folder" support
             take_launch_path,
+            is_in_path,
+            add_to_system_path,
             // Native row drag-out (see dnd.ts)
             set_external_drop_allowed,
             // Search index

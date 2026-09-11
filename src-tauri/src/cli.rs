@@ -54,6 +54,115 @@ pub fn take_launch_path(state: tauri::State<'_, crate::state::AppState>) -> Opti
     state.launch_path.lock().unwrap().take()
 }
 
+/// Checks if Flurer's executable directory is present in the user PATH.
+#[tauri::command]
+pub fn is_in_path() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_dir = exe.parent().ok_or("Cannot locate executable parent directory")?;
+        let target_dir = exe_dir.to_string_lossy().to_lowercase();
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let env_key = hkcu.open_subkey("Environment").map_err(|e| e.to_string())?;
+        let current_path: String = env_key.get_value("Path").unwrap_or_default();
+
+        let in_user_path = current_path
+            .split(';')
+            .any(|p| p.trim().to_lowercase() == target_dir);
+
+        if in_user_path {
+            return Ok(true);
+        }
+
+        // Fallback check system PATH
+        if let Ok(sys_path) = std::env::var("PATH") {
+            if sys_path.split(';').any(|p| p.trim().to_lowercase() == target_dir) {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_dir = exe.parent().ok_or("Cannot locate executable directory")?;
+        let target_dir = exe_dir.to_string_lossy().to_string();
+
+        if let Ok(sys_path) = std::env::var("PATH") {
+            if sys_path.split(':').any(|p| p == target_dir) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+/// Appends Flurer's executable directory to the user environment PATH registry key.
+#[tauri::command]
+pub fn add_to_system_path() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_dir = exe.parent().ok_or("Cannot locate executable parent directory")?;
+        let target_dir_str = exe_dir.to_string_lossy().to_string();
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let env_key = hkcu.open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE).map_err(|e| e.to_string())?;
+        let current_path: String = env_key.get_value("Path").unwrap_or_default();
+
+        let already_present = current_path
+            .split(';')
+            .any(|p| p.trim().eq_ignore_ascii_case(&target_dir_str));
+
+        if already_present {
+            return Ok(true);
+        }
+
+        let new_path = if current_path.trim().is_empty() {
+            target_dir_str
+        } else {
+            format!("{};{}", current_path.trim_end_matches(';'), target_dir_str)
+        };
+
+        env_key.set_value("Path", &new_path).map_err(|e| e.to_string())?;
+
+        // Broadcast WM_SETTINGCHANGE so running terminal windows update their environment
+        #[cfg(target_os = "windows")]
+        unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                SendMessageTimeoutA, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+            };
+            let mut result: usize = 0;
+            let env_str = b"Environment\0";
+            SendMessageTimeoutA(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                0,
+                env_str.as_ptr() as isize,
+                SMTO_ABORTIFHUNG,
+                5000,
+                &mut result,
+            );
+        }
+
+        Ok(true)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Adding to system PATH is only supported on Windows".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
