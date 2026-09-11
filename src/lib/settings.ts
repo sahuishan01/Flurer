@@ -104,6 +104,7 @@ export type Settings = {
   lastPath: string;
   autoCheckUpdateIntervalSeconds: number;
   ignoredUpdateVersion: string | null;
+  showHiddenFiles: boolean;
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -161,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lastPath: "",
   autoCheckUpdateIntervalSeconds: 14400,
   ignoredUpdateVersion: null,
+  showHiddenFiles: false,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

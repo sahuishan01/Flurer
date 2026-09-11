@@ -38,6 +38,8 @@ type ExplorerViewProps = {
   activePane: number;
   onActivePaneChange: (pane: number) => void;
   onNavigateExtraPane?: (arrIndex: number, path: string) => void;
+  showHiddenFiles?: boolean;
+  onToggleShowHiddenFiles?: () => void;
   "data-bg-lightness"?: string;
 };
 
@@ -227,6 +229,8 @@ export function ExplorerView(props: ExplorerViewProps) {
           folderColors={props.folderColors}
           onSetFolderColor={props.onSetFolderColor}
           inAppShortcuts={props.inAppShortcuts}
+          showHiddenFiles={props.showHiddenFiles}
+          onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
         />
       </div>
 
@@ -296,6 +300,8 @@ export function ExplorerView(props: ExplorerViewProps) {
                 folderColors={props.folderColors}
                 onSetFolderColor={props.onSetFolderColor}
                 inAppShortcuts={props.inAppShortcuts}
+                showHiddenFiles={props.showHiddenFiles}
+                onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
               />
             </div>
           );

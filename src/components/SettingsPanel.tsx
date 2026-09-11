@@ -64,6 +64,8 @@ type SettingsPanelProps = {
   onAutoCheckUpdatesChange?: (enabled: boolean) => void;
   restoreLastStateOnReopen?: boolean;
   onRestoreLastStateOnReopenChange?: (enabled: boolean) => void;
+  showHiddenFiles?: boolean;
+  onShowHiddenFilesChange?: (enabled: boolean) => void;
   autoCheckUpdateIntervalSeconds?: number;
   onAutoCheckUpdateIntervalSecondsChange?: (seconds: number) => void;
   ignoredUpdateVersion?: string | null;
@@ -260,6 +262,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onMaxHistoryItemsChange={props.onMaxHistoryItemsChange}
               restoreLastStateOnReopen={props.restoreLastStateOnReopen}
               onRestoreLastStateOnReopenChange={props.onRestoreLastStateOnReopenChange}
+              showHiddenFiles={props.showHiddenFiles}
+              onShowHiddenFilesChange={props.onShowHiddenFilesChange}
               launchAtStartup={props.launchAtStartup}
               onLaunchAtStartupChange={props.onLaunchAtStartupChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}

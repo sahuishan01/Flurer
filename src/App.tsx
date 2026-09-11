@@ -1435,6 +1435,11 @@ function App() {
                   onNavigateExtraPane={navigateExtraPane}
                   activePane={activePane()}
                   onActivePaneChange={setActivePane}
+                  showHiddenFiles={settings.showHiddenFiles}
+                  onToggleShowHiddenFiles={() => {
+                    setSettings("showHiddenFiles", !settings.showHiddenFiles);
+                    persistSettings();
+                  }}
                 />
               </div>
             </Show>
@@ -1528,6 +1533,11 @@ function App() {
                    onLiveFolderSizeUpdatesChange={updateLiveFolderSizeUpdates}
                    maxHistoryItems={settings.maxHistoryItems}
                    onMaxHistoryItemsChange={updateMaxHistoryItems}
+                   showHiddenFiles={settings.showHiddenFiles}
+                   onShowHiddenFilesChange={(enabled) => {
+                     setSettings("showHiddenFiles", enabled);
+                     persistSettings();
+                   }}
                   globalShortcut={settings.globalShortcut}
                   onGlobalShortcutChange={updateGlobalShortcut}
                   inAppShortcuts={settings.inAppShortcuts}

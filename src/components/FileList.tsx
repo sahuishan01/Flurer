@@ -84,6 +84,8 @@ type FileListProps = {
   folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
   inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
+  showHiddenFiles?: boolean;
+  onToggleShowHiddenFiles?: () => void;
   /**
    * Whether this list owns the window-level interactions — keyboard
    * shortcuts and OS file drops. Both are bound to the document rather than
@@ -886,8 +888,14 @@ export function FileList(props: FileListProps) {
     return tagged.length > 0 ? [...tagged, ...untagged] : list;
   }
 
+  const visibleEntries = createMemo(() => {
+    const raw = entries();
+    if (props.showHiddenFiles) return raw;
+    return raw.filter((e) => !e.name.startsWith("."));
+  });
+
   const sortedEntries = createMemo(() => {
-    const list = entries();
+    const list = visibleEntries();
     if (props.sortKey !== "size") return pinTagged(list);
 
     const sizes = folderSizes();
@@ -1727,7 +1735,11 @@ export function FileList(props: FileListProps) {
       return;
     } else if (bound("selectAll")) {
       e.preventDefault();
-      setSelected(new Set(entries().map((en) => en.path)));
+      setSelected(new Set(visibleEntries().map((en) => en.path)));
+      return;
+    } else if (bound("toggleHiddenFiles")) {
+      e.preventDefault();
+      props.onToggleShowHiddenFiles?.();
       return;
     }
 

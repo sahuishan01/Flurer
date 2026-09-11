@@ -207,6 +207,8 @@ pub struct Settings {
     pub auto_check_update_interval_seconds: u64,
     #[serde(default)]
     pub ignored_update_version: Option<String>,
+    #[serde(default)]
+    pub show_hidden_files: bool,
 }
 
 fn default_auto_check_updates() -> bool {
@@ -285,6 +287,7 @@ impl Default for Settings {
             last_path: String::new(),
             auto_check_update_interval_seconds: default_auto_check_update_interval_seconds(),
             ignored_update_version: None,
+            show_hidden_files: false,
         }
     }
 }

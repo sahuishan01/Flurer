@@ -252,6 +252,8 @@ type CustomizationSettingsProps = {
   onMaxHistoryItemsChange: (limit: number) => void;
   restoreLastStateOnReopen?: boolean;
   onRestoreLastStateOnReopenChange?: (enabled: boolean) => void;
+  showHiddenFiles?: boolean;
+  onShowHiddenFilesChange?: (enabled: boolean) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -932,6 +934,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
         </label>
         <p class="settings-hint">
           Restores the folder location you were viewing when Flurer was last closed instead of starting at default drive.
+        </p>
+
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.showHiddenFiles ?? false}
+            onChange={(e) => props.onShowHiddenFilesChange?.(e.currentTarget.checked)}
+          />
+          Show hidden files and folders
+        </label>
+        <p class="settings-hint">
+          Shows items starting with a dot or flagged as hidden in file listings (shortcut: Ctrl+H).
         </p>
 
         <div class="cache-stats-control">

@@ -52,7 +52,8 @@ export type InAppShortcutAction =
   | "prevTab"
   | "cyclePane"
   | "newPane"
-  | "closePane";
+  | "closePane"
+  | "toggleHiddenFiles";
 
 export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   delete: "Delete selected item(s)",
@@ -73,6 +74,7 @@ export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   cyclePane: "Cycle active split pane",
   newPane: "Add split pane",
   closePane: "Close active pane",
+  toggleHiddenFiles: "Toggle hidden files",
 };
 
 export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShortcutAction[] }[] = [
@@ -82,7 +84,7 @@ export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShort
   },
   {
     category: "Navigation",
-    actions: ["navParent", "navBack", "navForward", "focusAddressBar", "focusSearch"],
+    actions: ["navParent", "navBack", "navForward", "focusAddressBar", "focusSearch", "toggleHiddenFiles"],
   },
   {
     category: "Tabs & Panes",
@@ -110,4 +112,5 @@ export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   cyclePane: "F6",
   newPane: "Ctrl+Shift+D",
   closePane: "Ctrl+Shift+W",
+  toggleHiddenFiles: "Ctrl+H",
 };
