@@ -60,6 +60,21 @@ pub fn run() {
     logging::init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            log::info!("single_instance triggered: argv={:?}, cwd={:?}", argv, cwd);
+            if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
+                log::info!("single_instance opening target_dir: {}", target_dir);
+                let _ = app.emit("open-new-tab", target_dir);
+            } else {
+                log::info!("single_instance no target_dir resolved");
+            }
+            shortcuts::show_and_focus_main_window(app);
+        }))
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
+        .plugin(tauri_plugin_drag::init())
         .setup(|app| {
             let settings = load_settings(&app.handle());
             // Settings::default() (and its serde field default) already
@@ -167,21 +182,6 @@ pub fn run() {
             });
             Ok(())
         })
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
-        .plugin(tauri_plugin_drag::init())
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            log::info!("single_instance triggered: argv={:?}, cwd={:?}", argv, cwd);
-            if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
-                log::info!("single_instance opening target_dir: {}", target_dir);
-                let _ = app.emit("open-new-tab", target_dir);
-            } else {
-                log::info!("single_instance no target_dir resolved");
-            }
-            shortcuts::show_and_focus_main_window(app);
-        }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
