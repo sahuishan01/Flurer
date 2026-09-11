@@ -12,7 +12,11 @@ use std::path::{Path, PathBuf};
 /// rather than erroring, since this exists for "open me at this folder",
 /// not a full CLI parser.
 fn find_path_arg(args: &[String]) -> Option<&str> {
-    args.iter().skip(1).map(String::as_str).find(|a| !a.starts_with('-'))
+    args.iter()
+        .skip(1)
+        .map(String::as_str)
+        .map(|s| s.trim_matches('"').trim_matches('\''))
+        .find(|a| !a.is_empty() && !a.starts_with('-'))
 }
 
 /// Resolves a raw CLI argument to an absolute, existing directory path, or
@@ -231,6 +235,16 @@ mod tests {
         let sub = cwd.path().join("sub");
         std::fs::create_dir(&sub).unwrap();
         let args = vec!["flurer.exe".to_string(), "--minimized".to_string(), "sub".to_string()];
+        let resolved = resolve_launch_path(&args, cwd.path()).unwrap();
+        assert_eq!(PathBuf::from(resolved), sub);
+    }
+
+    #[test]
+    fn quoted_path_resolves_correctly() {
+        let cwd = tempdir().unwrap();
+        let sub = cwd.path().join("sub folder");
+        std::fs::create_dir(&sub).unwrap();
+        let args = vec!["flurer.exe".to_string(), "\"sub folder\"".to_string()];
         let resolved = resolve_launch_path(&args, cwd.path()).unwrap();
         assert_eq!(PathBuf::from(resolved), sub);
     }
