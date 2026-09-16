@@ -4,6 +4,7 @@
 
 # Frontend
 - Use SolidJS for lightweight dashboard apps. Confidence: 0.70
+- Prefer blended, custom window chrome over native title bars: undecorate the windows (`decorations: false`) and carry the OS drag region plus min/max/close controls inside the app's own top bar, styled platform-fluent (Win11-fluent: flat buttons, full-height hover fills, red close hover), so no unstyleable native chrome shows above the app shell. Confidence: 0.70
 - Use React / Next.js for standard web frontends. Confidence: 0.70
 
 # Deployment
