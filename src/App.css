@@ -51,7 +51,7 @@
     --font-mono: var(--font-data, var(--text-mono));
 }
 
-[data-theme="dark"] {
+[data-mode="dark"] {
     --text-color: var(--text-primary);
     --panel-bg: var(--glass-bg);
     --border-color: rgba(255, 255, 255, 0.08);
@@ -71,7 +71,7 @@
 
 /* Dark theme: light-on-dark text needs compensation — more line-height and
    trace letter-spacing to prevent the optical thinning of light type. */
-[data-theme="dark"] body {
+[data-mode="dark"] body {
     line-height: 1.55;
     letter-spacing: 0.01em;
 }
@@ -207,7 +207,7 @@ body {
     z-index: 1;
 }
 
-[data-theme="dark"] .command-bar::before {
+[data-mode="dark"] .command-bar::before {
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -671,8 +671,8 @@ body {
     --accent-bg-soft: rgba(201, 127, 31, 0.1);
 }
 
-[data-theme="dark"] .sidebar,
-[data-theme="dark"] .command-bar {
+[data-mode="dark"] .sidebar,
+[data-mode="dark"] .command-bar {
     --accent: #E8A33D;
     --accent-hover: #F0B15C;
     --accent-active: #C97F1F;
@@ -3512,7 +3512,7 @@ button.danger:not(.context-menu-item):hover {
     border-color: var(--danger);
 }
 
-[data-theme="dark"] button.danger:not(.context-menu-item):hover {
+[data-mode="dark"] button.danger:not(.context-menu-item):hover {
     color: #fff;
 }
 

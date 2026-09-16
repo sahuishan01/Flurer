@@ -15,8 +15,10 @@ import { Modal } from "./components/Modal";
 import { ViewRail } from "./components/ViewRail";
 import {
   DEFAULT_SETTINGS,
+  isDarkTheme,
   MAX_HISTORY_ITEMS,
   MIN_HISTORY_ITEMS,
+  THEMES,
   type BackgroundSettings,
   type Settings,
   type Theme,
@@ -142,7 +144,7 @@ function App() {
     opacityVal: number | undefined | null
   ): "light" | "dark" {
     const opacity = (opacityVal !== undefined && opacityVal !== null && !isNaN(opacityVal)) ? opacityVal : 0.35;
-    const isDark = settings && settings.theme === "dark";
+    const isDark = settings && isDarkTheme(settings.theme);
     const fallbackWall = isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
     const wall = wallpaperRGB() ?? fallbackWall;
     
@@ -158,7 +160,7 @@ function App() {
 
   const shellLightness = createMemo(() => {
     if (!settings) return "light";
-    const isDark = settings.theme === "dark";
+    const isDark = isDarkTheme(settings.theme);
     const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 243, g: 243, b: 243 };
     const opacity = settings.uiTintOpacity;
     return getPanelLightness(tintRGB, opacity);
@@ -166,7 +168,7 @@ function App() {
 
   const sidebarLightness = createMemo(() => {
     if (!settings) return "light";
-    const isDark = settings.theme === "dark";
+    const isDark = isDarkTheme(settings.theme);
     const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 243, g: 243, b: 243 };
     const opacity = settings.uiTintOpacity;
     return getPanelLightness(tintRGB, opacity);
@@ -174,7 +176,7 @@ function App() {
 
   const fileListLightness = createMemo(() => {
     if (!settings) return "light";
-    const isDark = settings.theme === "dark";
+    const isDark = isDarkTheme(settings.theme);
     const tintRGB = isDark ? { r: 32, g: 32, b: 32 } : { r: 255, g: 255, b: 255 };
     const opacity = settings.uiTintOpacity;
     return getPanelLightness(tintRGB, opacity);
@@ -1077,7 +1079,9 @@ function App() {
   };
 
   createEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
+    const theme = THEMES.some((t) => t.value === settings.theme) ? settings.theme : "light";
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.mode = isDarkTheme(theme) ? "dark" : "light";
   });
 
   createEffect(() => {

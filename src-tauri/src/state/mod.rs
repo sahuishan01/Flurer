@@ -16,6 +16,12 @@ pub enum Theme {
     #[default]
     Light,
     Dark,
+    Midnight,
+    Ocean,
+    Nord,
+    Paper,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]

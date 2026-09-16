@@ -104,7 +104,11 @@
     --accent-bg-soft: rgba(0, 120, 212, 0.08);
 }
 
-[data-theme="dark"] {
+/* Dark material mode — applied by every dark-based theme (dark, midnight,
+   ocean, nord). Theme name lives on data-theme; material lightness on
+   data-mode, so per-theme accent blocks below only need to override
+   accents/tints on top of this base. */
+[data-mode="dark"] {
     --panel-rgb: 32, 32, 32;
     --panel-tint-rgb: 32, 32, 32;
     /* Windows 11 Acrylic Material (Sidebar) - Dark Mode */
@@ -166,6 +170,55 @@
     --accent-active: #0078d4;
     --accent-border: rgba(96, 205, 255, 0.2);
     --accent-bg-soft: rgba(96, 205, 255, 0.08);
+}
+
+/* Per-theme accent palettes (and any tint overrides layered on the
+   light/dark material bases above). */
+
+/* Midnight — deep violet accent on the dark base */
+[data-theme="midnight"] {
+    --accent-default: #b4a0ff;
+    --accent-hover: #c6b6ff;
+    --accent-active: #7c5cff;
+    --accent-border: rgba(180, 160, 255, 0.2);
+    --accent-bg-soft: rgba(180, 160, 255, 0.08);
+}
+
+/* Ocean — teal accent with a blue-shifted panel tint on the dark base */
+[data-theme="ocean"] {
+    --panel-rgb: 20, 30, 36;
+    --panel-tint-rgb: 20, 30, 36;
+    --acrylic-tint-rgb: 20, 30, 36;
+    --mica-tint-rgb: 20, 30, 36;
+    --glass-tint-rgb: 20, 30, 36;
+    --accent-default: #4fd1c5;
+    --accent-hover: #7ee0d6;
+    --accent-active: #2fa79c;
+    --accent-border: rgba(79, 209, 197, 0.2);
+    --accent-bg-soft: rgba(79, 209, 197, 0.08);
+}
+
+/* Nord — frost blue accent on the dark base */
+[data-theme="nord"] {
+    --accent-default: #88c0d0;
+    --accent-hover: #a5d2de;
+    --accent-active: #5e81ac;
+    --accent-border: rgba(136, 192, 208, 0.2);
+    --accent-bg-soft: rgba(136, 192, 208, 0.08);
+}
+
+/* Paper — warm sepia accent with a warm panel tint on the light base */
+[data-theme="paper"] {
+    --panel-rgb: 250, 246, 238;
+    --panel-tint-rgb: 250, 246, 238;
+    --acrylic-tint-rgb: 246, 241, 231;
+    --mica-tint-rgb: 246, 241, 231;
+    --glass-tint-rgb: 250, 246, 238;
+    --accent-default: #b05a1a;
+    --accent-hover: #974a12;
+    --accent-active: #7c3c0d;
+    --accent-border: rgba(176, 90, 26, 0.2);
+    --accent-bg-soft: rgba(176, 90, 26, 0.08);
 }
 
 /* Background/Panel Lightness-aware Text overrides */

@@ -26,7 +26,6 @@
 - When bumping app version, update ALL version fields consistently (Cargo.toml, package.json, tauri.conf.json). Confidence: 0.75
 
 # Workflow
-- After pushing code to GitHub, monitor the CI/build status before considering the task done. Confidence: 0.65
-
+See [workflow/taste.md](workflow/taste.md)
 # Documentation
 - Use AGENTS.md and HANDOFF.md files at project boundaries for AI coordination context. Confidence: 0.75

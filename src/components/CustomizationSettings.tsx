@@ -1,7 +1,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import type { FolderSizeCacheStats } from "../lib/fs";
-import type { BackgroundSettings, BackgroundType, Theme } from "../lib/settings";
+import { THEMES, type BackgroundSettings, type BackgroundType, type Theme } from "../lib/settings";
 import {
   FONT_FAMILY_PRESETS,
   GRADIENT_DIRECTIONS,
@@ -753,20 +753,17 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
       <section class="settings-section">
         <h3>Theme</h3>
         <div class="option-group">
-          <button
-            type="button"
-            classList={{ "option-btn": true, active: props.theme === "light" }}
-            onClick={() => props.onThemeChange("light")}
-          >
-            Light
-          </button>
-          <button
-            type="button"
-            classList={{ "option-btn": true, active: props.theme === "dark" }}
-            onClick={() => props.onThemeChange("dark")}
-          >
-            Dark
-          </button>
+          <For each={THEMES}>
+            {(t) => (
+              <button
+                type="button"
+                classList={{ "option-btn": true, active: props.theme === t.value }}
+                onClick={() => props.onThemeChange(t.value)}
+              >
+                {t.label}
+              </button>
+            )}
+          </For>
         </div>
 
         <label class="opacity-control">

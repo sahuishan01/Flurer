@@ -2,7 +2,21 @@ import type { GroupByKey, SortDirection, SortKey } from "./fs";
 import { DEFAULT_IN_APP_SHORTCUTS, type InAppShortcutAction } from "./shortcuts";
 import { DEFAULT_UNSPLASH_FREQUENCY_MS } from "./unsplash";
 
-export type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "midnight" | "ocean" | "nord" | "paper";
+
+export const THEMES: { value: Theme; label: string; dark: boolean }[] = [
+  { value: "light", label: "Light", dark: false },
+  { value: "dark", label: "Dark", dark: true },
+  { value: "midnight", label: "Midnight", dark: true },
+  { value: "ocean", label: "Ocean", dark: true },
+  { value: "nord", label: "Nord", dark: true },
+  { value: "paper", label: "Paper", dark: false },
+];
+
+export function isDarkTheme(theme: Theme): boolean {
+  return THEMES.find((t) => t.value === theme)?.dark ?? false;
+}
+
 export type BackgroundType = "none" | "gradient" | "solid" | "unsplash";
 export type UnsplashMode = "fixed" | "autoRotateCategory" | "autoRotateList";
 export type LastMainView = "explorer" | "graph";
