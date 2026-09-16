@@ -1318,18 +1318,16 @@ function App() {
 
   // Startup shows last session's cached wallpaper immediately (a local disk
   // read, no network) rather than blocking on a fresh Unsplash fetch — the
-  // fetch below still runs and swaps the image in once it resolves. This
-  // only gates the very first paint: once anything (cached or fresh) is on
-  // screen, later refreshes never re-block the UI.
+  // fetch below still runs and swaps the image in once it resolves. The
+  // ONLY thing first paint waits on is that local disk read: gating on the
+  // network fetch too left the whole app stuck under a grey loading
+  // overlay (and unresponsive to drags) whenever the fetch was slow or
+  // never resolved, so the fresh image now fades in over the running UI
+  // instead of the UI waiting for it.
   function wallpaperPending(): boolean {
     const bg = settings.background;
     if (bg.backgroundType !== "unsplash") return false;
-    if (!wallpaperCacheChecked()) return true;
-    if (cachedWallpaperImage()) return false;
-    if (bg.unsplashMode === "autoRotateList") {
-      return bg.unsplashFixedList.length > 0 && !rotationImage() && !rotationError();
-    }
-    return !wallpaper() && !wallpaperError();
+    return !wallpaperCacheChecked();
   }
 
   function appReady(): boolean {
