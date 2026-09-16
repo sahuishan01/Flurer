@@ -22,6 +22,7 @@ See [frontend/taste.md](frontend/taste.md)
 - Release and version plugins independently from the main app, not as release assets in main app builds. Confidence: 0.75
 - Place all plugins under a `plugins/` directory within the main app repo, each with its own build config and package.json. Confidence: 0.75
 - When bumping app version, update ALL version fields consistently (Cargo.toml, package.json, tauri.conf.json) and stage Cargo.lock alongside them. Confidence: 0.75
+- Privilege-elevation features must fail open: with "Always run as admin" enabled, setup self-elevates (UAC via PowerShell RunAs) BEFORE building any window state, an already-elevated instance never re-prompts (token-elevation check), and a declined UAC prompt keeps the app running unelevated for that run instead of exiting; disabling only takes effect on the next normal launch. Confidence: 0.5
 
 # Workflow
 See [workflow/taste.md](workflow/taste.md)

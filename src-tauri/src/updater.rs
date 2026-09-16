@@ -380,6 +380,21 @@ fn launch_elevated_and_relaunch(path: &str, args: &[&str]) -> std::io::Result<st
 /// still runs, closing Flurer with no elevated instance to replace it.
 #[tauri::command]
 pub fn relaunch_as_admin(app: tauri::AppHandle) -> Result<(), String> {
+    // Flush the in-memory settings to disk before exiting: this command
+    // kills the process, and the frontend's debounced save may not have
+    // fired yet — without this, a freshly toggled "Always run as admin"
+    // flag could be lost and the next launch would start unelevated.
+    {
+        use crate::state::AppState;
+        use tauri::Manager;
+        if let Some(state) = app.try_state::<AppState>() {
+            if let Ok(guard) = state.settings.try_lock() {
+                if let Err(e) = crate::helpers::settings::save_settings(&app, &guard) {
+                    log::error!("relaunch_as_admin: failed to flush settings before exit: {e}");
+                }
+            }
+        }
+    }
     let current_exe = std::env::current_exe().map_err(|e| format!("Could not resolve current executable: {e}"))?;
     let command = format!("Start-Process -FilePath {} -Verb RunAs", ps_quote(&current_exe.to_string_lossy()));
 

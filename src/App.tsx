@@ -478,7 +478,12 @@ function App() {
     setSettings("launchAsAdmin", enabled);
     persistSettings();
     if (enabled) {
-      invoke("relaunch_as_admin").catch((err) => console.error("Failed to relaunch as admin", err));
+      // The relaunch command exits this process, which would kill the
+      // debounced save before it fires — persist synchronously first so
+      // the flag is on disk when the elevated instance starts.
+      invoke("set_settings", { settings: unwrap(settings) })
+        .then(() => invoke("relaunch_as_admin"))
+        .catch((err) => console.error("Failed to relaunch as admin", err));
     }
   }
 
