@@ -132,6 +132,22 @@ pub fn init() {
     );
 }
 
+// Frontend (webview) errors have no natural destination in a packaged
+// build — there's no devtools console and no terminal. This command lets
+// the frontend forward window.onerror / unhandledrejection reports (and
+// explicit breadcrumb logs) into the same file log the Rust side writes,
+// so a blank-window bug report comes with the JS stack trace that caused it.
+#[tauri::command]
+pub fn log_frontend(level: String, message: String) {
+    let level = match level.to_ascii_lowercase().as_str() {
+        "error" => Level::Error,
+        "warn" => Level::Warn,
+        "info" => Level::Info,
+        _ => Level::Debug,
+    };
+    log::log!(level, "[webview] {message}");
+}
+
 // A panic in a packaged production build has no terminal for its default
 // stderr output to land on — nothing survives once the process exits. This
 // hook writes the panic's message, source location, and a full backtrace

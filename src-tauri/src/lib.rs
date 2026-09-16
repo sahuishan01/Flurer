@@ -195,6 +195,7 @@ pub fn run() {
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
+            logging::log_frontend,
             get_wallpaper,
             fetch_wallpaper_image,
             get_cached_wallpaper_image,

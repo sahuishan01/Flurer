@@ -1,6 +1,8 @@
 # Workflow
 - After pushing code to GitHub, monitor the CI/build status before considering the task done. Confidence: 0.65
 - Do not commit/push automatically — wait for explicit user approval, then run the full commit → push → watch CI → version bump flow. Confidence: 0.60
+- Release sequencing for auto-build: push the feature commit to main first (no bump), watch Build CI to green, then bump the version, commit locally, and push ONLY the annotated tag (e.g., `git tag -a v0.4.163 && git push origin v0.4.163`) to trigger Release CI; after Release CI passes, push the version-bump commit to main and verify the published release assets. Confidence: 0.75
+- Write Conventional Commits (`feat(scope): …`, `chore(release): vX.Y.Z`) with a `Co-authored-by: CommandCodeBot <noreply@commandcode.ai>` trailer; releases are annotated tags `vX.Y.Z`. Confidence: 0.70
 - On task completion, send a summary notification to ntfy (https://ntfy.algosculptor.com/agent-tasks, Title "<project> (<hostname>)") with a short bullet list of what was done. Confidence: 0.60
 - Agent tokens/credentials (e.g., ntfy bearer token) are canonically stored in `~/.dotfiles/agent-profile/PROFILE.md`; when a token embedded in project files like AGENTS.md fails or looks stale, check there first. Confidence: 0.80
 - When typecheck/build reports errors, verify they are pre-existing (e.g., git stash, re-run, stash pop) before claiming the change introduced none — report pre-existing counts separately. Confidence: 0.70

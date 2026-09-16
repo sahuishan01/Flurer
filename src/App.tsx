@@ -241,6 +241,10 @@ function App() {
       console.error("Failed to load settings", err);
     } finally {
       setSettingsLoaded(true);
+      invoke("log_frontend", {
+        level: "info",
+        message: `settings loaded, backgroundType=${settings.background.backgroundType}`,
+      }).catch(() => {});
     }
 
     try {
