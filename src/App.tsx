@@ -323,6 +323,25 @@ function App() {
   } | null>(null);
   const [installingUpdate, setInstallingUpdate] = createSignal(false);
   const [updateModalError, setUpdateModalError] = createSignal("");
+  // Live download/install progress for the update popup — fed by the
+  // "update-progress" events the updater emits while it downloads.
+  const [updateProgress, setUpdateProgress] = createSignal<{ percent: number; stage: string } | null>(null);
+
+  onMount(async () => {
+    try {
+      const unlistenProgress = await listen<{ percent: number; stage: string }>("update-progress", (event) => {
+        if (!event.payload.stage) return;
+        if (event.payload.stage === "Failed") {
+          setUpdateProgress(null);
+          return;
+        }
+        setUpdateProgress(event.payload);
+      });
+      onCleanup(() => unlistenProgress());
+    } catch (err) {
+      console.error("Failed to listen for update progress", err);
+    }
+  });
 
   // Keep lastPath in sync when restoreLastStateOnReopen is enabled
   createEffect(() => {
@@ -1605,6 +1624,19 @@ function App() {
             <Show when={updateModalError()}>
               <div class="settings-error-alert" style={{ "margin-bottom": "1em" }}>{updateModalError()}</div>
             </Show>
+            <Show when={installingUpdate() && updateProgress()}>
+              {(progress) => (
+                <div class="update-progress-container">
+                  <div class="update-progress-info">
+                    <span>{progress().stage}</span>
+                    <span>{progress().percent.toFixed(1)}%</span>
+                  </div>
+                  <div class="update-progress-bar">
+                    <div class="update-progress-fill" style={{ width: `${Math.min(100, progress().percent)}%` }} />
+                  </div>
+                </div>
+              )}
+            </Show>
             <div class="modal-actions" style={{ display: "flex", gap: "8px", "justify-content": "flex-end" }}>
               <button
                 type="button"
@@ -1613,6 +1645,7 @@ function App() {
                 onClick={async () => {
                   setInstallingUpdate(true);
                   setUpdateModalError("");
+                  setUpdateProgress(null);
                   try {
                     await invoke("download_and_install_update", { url: info().downloadUrl });
                   } catch (err) {

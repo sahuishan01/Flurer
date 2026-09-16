@@ -13,13 +13,13 @@ function WindowControls() {
   return (
     <div class="window-controls">
       <button type="button" class="window-control-btn" aria-label="Minimize" title="Minimize" onClick={() => win.minimize()}>
-        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1" /></svg>
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 6h10" stroke="currentColor" stroke-width="1.4" /></svg>
       </button>
       <button type="button" class="window-control-btn" aria-label="Maximize" title="Maximize / Restore" onClick={() => win.toggleMaximize()}>
-        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+        <svg width="11" height="11" viewBox="0 0 10 10"><rect x="0.7" y="0.7" width="8.6" height="8.6" fill="none" stroke="currentColor" stroke-width="1.4" /></svg>
       </button>
       <button type="button" class="window-control-btn window-control-close" aria-label="Close" title="Close" onClick={() => win.close()}>
-        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1" /></svg>
+        <svg width="11" height="11" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.4" /></svg>
       </button>
     </div>
   );

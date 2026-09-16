@@ -15,7 +15,7 @@ type UpdateInfo = {
   hasUpdate: boolean;
 };
 
-type UpdateProgressPayload = {
+export type UpdateProgressPayload = {
   downloaded: number;
   total: number;
   percent: number;

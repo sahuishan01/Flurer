@@ -4,7 +4,8 @@
 
 # Frontend
 - Use SolidJS for lightweight dashboard apps. Confidence: 0.70
-- Prefer blended, custom window chrome over native title bars: undecorate the windows (`decorations: false`) and carry the OS drag region plus min/max/close controls inside the app's own top bar, styled platform-fluent (Win11-fluent: flat buttons, full-height hover fills, red close hover), so no unstyleable native chrome shows above the app shell. Confidence: 0.70
+- Prefer blended, custom window chrome over native title bars: undecorate the windows (`decorations: false`) and carry the OS drag region plus min/max/close controls inside the app's own top bar, styled platform-fluent (flat buttons, red close hover), so no unstyleable native chrome shows above the app shell. Confidence: 0.70
+- Prefer compact UI chrome over native-OS proportions: full-height Win11-style window control buttons (46px full-height blocks) were rejected as "too large"; compact rounded pills (~30×26 with a small gap) are the accepted size for in-app title bar controls. Confidence: 0.75
 - Use React / Next.js for standard web frontends. Confidence: 0.70
 
 # Deployment
