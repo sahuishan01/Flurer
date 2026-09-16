@@ -245,6 +245,54 @@ body {
     color: var(--text-primary);
 }
 
+/* Glyphs: solid filled shapes so they stay visible at small sizes. */
+.wc-glyph {
+    display: block;
+    background: currentColor;
+}
+
+.wc-min {
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+.wc-max {
+    width: 9px;
+    height: 9px;
+    border: 2px solid currentColor;
+    background: none;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+
+.wc-close {
+    width: 11px;
+    height: 11px;
+    background: none;
+    position: relative;
+}
+
+.wc-close::before,
+.wc-close::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+.wc-close::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.wc-close::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 .window-control-btn:active {
     background: rgba(0, 0, 0, 0.1);
 }

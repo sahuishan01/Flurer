@@ -8,18 +8,21 @@ import { createPopover } from "../lib/popover";
 // off) — it carries the OS drag region and the min/max/close controls so
 // the window chrome blends into the app instead of rendering as an
 // unstyleable black strip above the acrylic shell.
+// Window control glyphs are CSS-drawn solid blocks rather than stroked
+// SVGs — thin strokes render too faintly at this size on some DPIs, while
+// filled bars/boxes keep a solid, high-contrast shape.
 function WindowControls() {
   const win = getCurrentWindow();
   return (
     <div class="window-controls">
       <button type="button" class="window-control-btn" aria-label="Minimize" title="Minimize" onClick={() => win.minimize()}>
-        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1 6h10" stroke="currentColor" stroke-width="1.4" /></svg>
+        <span class="wc-glyph wc-min" />
       </button>
       <button type="button" class="window-control-btn" aria-label="Maximize" title="Maximize / Restore" onClick={() => win.toggleMaximize()}>
-        <svg width="11" height="11" viewBox="0 0 10 10"><rect x="0.7" y="0.7" width="8.6" height="8.6" fill="none" stroke="currentColor" stroke-width="1.4" /></svg>
+        <span class="wc-glyph wc-max" />
       </button>
       <button type="button" class="window-control-btn window-control-close" aria-label="Close" title="Close" onClick={() => win.close()}>
-        <svg width="11" height="11" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.4" /></svg>
+        <span class="wc-glyph wc-close" />
       </button>
     </div>
   );
