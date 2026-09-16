@@ -76,6 +76,48 @@
     letter-spacing: 0.01em;
 }
 
+/* Theme-tinted semantic tokens. The base/dark blocks above only vary by
+   material mode; these give each named theme its own border, hover, and
+   scrollbar hues so the whole UI (borders, file-list lines, buttons)
+   shifts with the theme, not just the accent. Declared after :root so
+   they win the cascade at equal specificity. */
+html[data-theme="midnight"] {
+    --border-color: rgba(180, 160, 255, 0.1);
+    --border-strong: rgba(180, 160, 255, 0.18);
+    --hover-bg: rgba(180, 160, 255, 0.08);
+    --active-bg: rgba(180, 160, 255, 0.12);
+    --scrollbar-thumb: rgba(180, 160, 255, 0.2);
+    --scrollbar-thumb-hover: rgba(180, 160, 255, 0.34);
+}
+
+html[data-theme="ocean"] {
+    --border-color: rgba(79, 209, 197, 0.1);
+    --border-strong: rgba(79, 209, 197, 0.18);
+    --hover-bg: rgba(79, 209, 197, 0.08);
+    --active-bg: rgba(79, 209, 197, 0.12);
+    --scrollbar-thumb: rgba(79, 209, 197, 0.2);
+    --scrollbar-thumb-hover: rgba(79, 209, 197, 0.34);
+}
+
+html[data-theme="nord"] {
+    --border-color: rgba(136, 192, 208, 0.12);
+    --border-strong: rgba(136, 192, 208, 0.2);
+    --hover-bg: rgba(136, 192, 208, 0.08);
+    --active-bg: rgba(136, 192, 208, 0.12);
+    --scrollbar-thumb: rgba(136, 192, 208, 0.2);
+    --scrollbar-thumb-hover: rgba(136, 192, 208, 0.34);
+}
+
+html[data-theme="paper"] {
+    --border-color: rgba(92, 64, 29, 0.16);
+    --border-strong: rgba(92, 64, 29, 0.26);
+    --hover-bg: rgba(92, 64, 29, 0.06);
+    --active-bg: rgba(92, 64, 29, 0.1);
+    --option-bg: #fbf7ef;
+    --scrollbar-thumb: rgba(92, 64, 29, 0.22);
+    --scrollbar-thumb-hover: rgba(92, 64, 29, 0.36);
+}
+
 html,
 body,
 #root {

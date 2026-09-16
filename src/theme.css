@@ -233,3 +233,11 @@
     --text-secondary: #c0c0c0 !important;
     --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.5) !important;
 }
+
+/* Paper swaps the generic light text for a warm ink tone — declared after
+   the lightness overrides and with matching !important so it wins. */
+html[data-theme="paper"][data-bg-lightness="light"] {
+    --text-primary: #3b2f22 !important;
+    --text-secondary: #6f5d47 !important;
+    --text-shadow: 0 1px 1px rgba(255, 252, 245, 0.8) !important;
+}
