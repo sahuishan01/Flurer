@@ -476,6 +476,11 @@ export function FileList(props: FileListProps) {
 
   const streamKeyFor = (id: number) => `${streamId}#${id}`;
 
+  // Folders-first only applies when grouping is active — with "Group by:
+  // None" the list sorts purely by the chosen key (folders and files
+  // interleaved), matching Windows Explorer's behaviour.
+  const foldersFirstForSort = () => props.groupFoldersFirst && props.groupBy !== "none";
+
   function startStreamedListing(silent: boolean) {
     const id = ++listingRequestId;
     activeListing = { id, path: props.path, silent, nextSeq: 0, buffer: [] };
@@ -495,7 +500,7 @@ export function FileList(props: FileListProps) {
           path: props.path,
           sortKey: props.sortKey,
           sortDirection: props.sortDirection,
-          groupFoldersFirst: props.groupFoldersFirst,
+          groupFoldersFirst: foldersFirstForSort(),
         });
       })
       .catch((err) => {
@@ -693,6 +698,7 @@ export function FileList(props: FileListProps) {
     props.sortKey;
     props.sortDirection;
     props.groupFoldersFirst;
+    props.groupBy;
     props.searchQuery;
     props.searchRecursive;
     refresh();
