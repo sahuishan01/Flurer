@@ -94,6 +94,7 @@ export type Settings = {
   // Launches Flurer minimized to the tray on login, so the shortcut above
   // is live from boot instead of only after the app's been opened once.
   launchAtStartup: boolean;
+  launchAsAdmin: boolean;
   windowWidth: number;
   windowHeight: number;
   // Whether the window was maximized when last closed, so relaunch restores
@@ -165,6 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   disabledPlugins: [],
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   launchAtStartup: false,
+  launchAsAdmin: false,
   windowWidth: DEFAULT_WINDOW_WIDTH,
   windowHeight: DEFAULT_WINDOW_HEIGHT,
   windowMaximized: false,

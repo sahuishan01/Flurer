@@ -77,6 +77,29 @@ pub fn run() {
         .plugin(tauri_plugin_drag::init())
         .setup(|app| {
             let settings = load_settings(&app.handle());
+            // "Always run as admin": if the setting is on and this instance
+            // isn't elevated, hand off to an elevated copy before building
+            // any window state. Declining the UAC prompt is not fatal — the
+            // instance stays unelevated for this run instead of exiting.
+            #[cfg(target_os = "windows")]
+            if settings.launch_as_admin && !updater::is_current_process_elevated() {
+                match std::env::current_exe() {
+                    Ok(exe) => match updater::elevate_and_wait(&exe) {
+                        Ok(true) => {
+                            log::info!("launch_as_admin: elevated instance started, exiting unelevated one");
+                            app.handle().exit(0);
+                            return Ok(());
+                        }
+                        Ok(false) => {
+                            log::warn!("launch_as_admin: UAC prompt declined, continuing unelevated");
+                        }
+                        Err(e) => {
+                            log::error!("launch_as_admin: elevation attempt failed: {e}");
+                        }
+                    },
+                    Err(e) => log::error!("launch_as_admin: could not resolve current_exe: {e}"),
+                }
+            }
             // Settings::default() (and its serde field default) already
             // resolve a missing/never-saved value to shortcuts::DEFAULT_SHORTCUT
             // — an empty string here can only mean the user explicitly

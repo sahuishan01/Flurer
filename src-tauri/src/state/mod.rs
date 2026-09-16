@@ -185,6 +185,10 @@ pub struct Settings {
     // without asking.
     #[serde(default)]
     pub launch_at_startup: bool,
+    // When true, Flurer self-elevates on startup (UAC prompt) and the
+    // toggle in Settings relaunches elevated immediately.
+    #[serde(default)]
+    pub launch_as_admin: bool,
     #[serde(default = "default_window_width")]
     pub window_width: u32,
     #[serde(default = "default_window_height")]
@@ -283,6 +287,7 @@ impl Default for Settings {
             folder_sizes: HashMap::new(),
             global_shortcut: default_global_shortcut(),
             launch_at_startup: false,
+            launch_as_admin: false,
             window_width: default_window_width(),
             window_height: default_window_height(),
             window_maximized: false,

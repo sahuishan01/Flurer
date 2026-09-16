@@ -267,6 +267,63 @@ fn ps_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
+// Whether this process already runs with an elevated token. Used by the
+// "Always run as admin" startup self-elevation so an already-elevated
+// instance doesn't loop UAC prompts at itself.
+#[cfg(target_os = "windows")]
+pub fn is_current_process_elevated() -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Security::{
+        GetTokenInformation, OpenProcessToken, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    unsafe {
+        let mut token: HANDLE = std::ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
+            return false;
+        }
+        let mut elevation = TOKEN_ELEVATION { TokenIsElevated: 0 };
+        let mut returned = 0u32;
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            &mut elevation as *mut _ as *mut _,
+            std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut returned,
+        );
+        CloseHandle(token);
+        ok != 0 && elevation.TokenIsElevated != 0
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn is_current_process_elevated() -> bool {
+    false
+}
+
+// Starts an elevated copy of `exe` via PowerShell's RunAs verb and WAITS
+// for the UAC decision: returns Ok(true) if the elevated process was
+// started, Ok(false) if the user declined the prompt (PowerShell exits
+// non-zero — the caller should keep running unelevated rather than dying).
+// Waiting here is deliberate for the startup path, where setup hasn't
+// built any window state yet; the interactive relaunch_as_admin command
+// keeps its fire-and-forget spawn instead.
+#[cfg(target_os = "windows")]
+pub fn elevate_and_wait(exe: &std::path::Path) -> Result<bool, String> {
+    let command = format!("Start-Process -FilePath {} -Verb RunAs", ps_quote(&exe.to_string_lossy()));
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command]);
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let status = cmd
+        .status()
+        .map_err(|e| format!("Failed to launch elevation request: {e}"))?;
+    Ok(status.success())
+}
+
 fn launch_elevated_and_relaunch(path: &str, args: &[&str]) -> std::io::Result<std::process::Child> {
     let mut command = format!("Start-Process -FilePath {}", ps_quote(path));
     if !args.is_empty() {

@@ -256,6 +256,8 @@ type CustomizationSettingsProps = {
   onShowHiddenFilesChange?: (enabled: boolean) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
+  launchAsAdmin: boolean;
+  onLaunchAsAdminChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -970,6 +972,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
         </Show>
         <p class="settings-hint">
           Appends Flurer's installation directory to your user PATH environment variable so you can launch `flurer .` or `flurer &lt;folder&gt;` directly from any terminal.
+        </p>
+
+        <label class="checkbox-control">
+          <input
+            type="checkbox"
+            checked={props.launchAsAdmin}
+            onChange={(e) => props.onLaunchAsAdminChange(e.currentTarget.checked)}
+          />
+          Always run as administrator
+        </label>
+        <p class="settings-hint">
+          Prompts for UAC and relaunches elevated when enabled, and on every future launch. Turning it off takes effect the next time Flurer is started normally.
         </p>
 
         <label class="checkbox-control">

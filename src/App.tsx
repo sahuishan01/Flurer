@@ -470,6 +470,18 @@ function App() {
     persistSettings();
   }
 
+  // Turning "Always run as admin" on persists the flag (so future launches
+  // self-elevate in setup) and immediately hands off to an elevated copy;
+  // turning it off only affects future launches — an elevated instance
+  // can't un-elevate itself in place.
+  function updateLaunchAsAdmin(enabled: boolean) {
+    setSettings("launchAsAdmin", enabled);
+    persistSettings();
+    if (enabled) {
+      invoke("relaunch_as_admin").catch((err) => console.error("Failed to relaunch as admin", err));
+    }
+  }
+
   function updatePluginSettings(pluginId: string, patch: any) {
     const current = settings.pluginSettings?.[pluginId] ?? {};
     setSettings("pluginSettings", pluginId, { ...current, ...patch });
@@ -1572,6 +1584,8 @@ function App() {
                   onResetInAppShortcut={resetInAppShortcut}
                   launchAtStartup={settings.launchAtStartup}
                   onLaunchAtStartupChange={updateLaunchAtStartup}
+                  launchAsAdmin={settings.launchAsAdmin}
+                  onLaunchAsAdminChange={updateLaunchAsAdmin}
                   hasUnsplashApiKey={hasUnsplashApiKey()}
                   onSaveUnsplashApiKey={saveUnsplashApiKey}
                   apiKeyError={apiKeyError()}

@@ -43,6 +43,8 @@ type SettingsPanelProps = {
   onResetInAppShortcut: (action: InAppShortcutAction) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
+  launchAsAdmin: boolean;
+  onLaunchAsAdminChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
   onSaveUnsplashApiKey: (key: string) => void;
   apiKeyError: string;
@@ -266,6 +268,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onShowHiddenFilesChange={props.onShowHiddenFilesChange}
               launchAtStartup={props.launchAtStartup}
               onLaunchAtStartupChange={props.onLaunchAtStartupChange}
+              launchAsAdmin={props.launchAsAdmin}
+              onLaunchAsAdminChange={props.onLaunchAsAdminChange}
               hasUnsplashApiKey={props.hasUnsplashApiKey}
               onSaveUnsplashApiKey={props.onSaveUnsplashApiKey}
               apiKeyError={props.apiKeyError}
