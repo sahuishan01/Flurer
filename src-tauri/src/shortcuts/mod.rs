@@ -75,6 +75,11 @@ pub fn spawn_new_window(app: &AppHandle) {
         .title("flurer")
         .inner_size(800.0, 600.0)
         .transparent(true)
+        // Matches the main window: no native title bar — the command bar
+        // carries the drag region and window controls instead (a native
+        // title bar over a transparent window renders as an unstyleable
+        // black strip on Windows).
+        .decorations(false)
         .visible(true)
         .build();
 

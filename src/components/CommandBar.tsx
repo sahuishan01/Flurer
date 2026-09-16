@@ -1,7 +1,29 @@
 import { Show, type JSX } from "solid-js";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, RecursiveIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
 import { createPopover } from "../lib/popover";
+
+// Native title bar is replaced by the command bar itself (decorations are
+// off) — it carries the OS drag region and the min/max/close controls so
+// the window chrome blends into the app instead of rendering as an
+// unstyleable black strip above the acrylic shell.
+function WindowControls() {
+  const win = getCurrentWindow();
+  return (
+    <div class="window-controls">
+      <button type="button" class="window-control-btn" aria-label="Minimize" title="Minimize" onClick={() => win.minimize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1" /></svg>
+      </button>
+      <button type="button" class="window-control-btn" aria-label="Maximize" title="Maximize / Restore" onClick={() => win.toggleMaximize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+      </button>
+      <button type="button" class="window-control-btn window-control-close" aria-label="Close" title="Close" onClick={() => win.close()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1" /></svg>
+      </button>
+    </div>
+  );
+}
 
 type CommandBarProps = {
   canGoBack: boolean;
@@ -32,7 +54,7 @@ export function CommandBar(props: CommandBarProps) {
   }
 
   return (
-    <div class="command-bar" data-bg-lightness={props["data-bg-lightness"]}>
+    <div class="command-bar" data-tauri-drag-region data-bg-lightness={props["data-bg-lightness"]}>
       <div class="command-bar-nav">
         <button type="button" class="icon-btn" aria-label="Back" title="Back" disabled={!props.canGoBack} onClick={props.onBack}>
           <ArrowLeftIcon size={18} />
@@ -59,7 +81,7 @@ export function CommandBar(props: CommandBarProps) {
         </button>
       </div>
 
-      <div class="command-bar-slot">{props.viewControls}</div>
+      <div class="command-bar-slot" data-tauri-drag-region>{props.viewControls}</div>
 
       <div class="search-trigger" ref={containerRef}>
         <button
@@ -106,6 +128,7 @@ export function CommandBar(props: CommandBarProps) {
       </div>
 
       <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
+      <WindowControls />
     </div>
   );
 }
