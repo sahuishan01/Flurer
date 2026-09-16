@@ -274,9 +274,11 @@ fn ps_quote(s: &str) -> String {
 pub fn is_current_process_elevated() -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     use windows_sys::Win32::Security::{
-        GetTokenInformation, OpenProcessToken, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
     };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    // OpenProcessToken lives under Threading in windows-sys 0.59, not
+    // Security — surprising but per the crate's own module layout.
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     unsafe {
         let mut token: HANDLE = std::ptr::null_mut();
