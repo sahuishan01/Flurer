@@ -189,6 +189,13 @@ pub struct Settings {
     // toggle in Settings relaunches elevated immediately.
     #[serde(default)]
     pub launch_as_admin: bool,
+    // Sidebar section order (drives/recents/favourites/quick) and the
+    // order of the Quick access entries (by label). Missing ids/labels are
+    // appended in their default position, unknown ones dropped.
+    #[serde(default = "default_sidebar_section_order")]
+    pub sidebar_section_order: Vec<String>,
+    #[serde(default)]
+    pub quick_access_order: Vec<String>,
     #[serde(default = "default_window_width")]
     pub window_width: u32,
     #[serde(default = "default_window_height")]
@@ -245,6 +252,13 @@ fn default_window_width() -> u32 {
     800
 }
 
+fn default_sidebar_section_order() -> Vec<String> {
+    ["drives", "recents", "favourites", "quick"]
+        .into_iter()
+        .map(String::from)
+        .collect()
+}
+
 fn default_window_height() -> u32 {
     600
 }
@@ -288,6 +302,8 @@ impl Default for Settings {
             global_shortcut: default_global_shortcut(),
             launch_at_startup: false,
             launch_as_admin: false,
+            sidebar_section_order: default_sidebar_section_order(),
+            quick_access_order: Vec::new(),
             window_width: default_window_width(),
             window_height: default_window_height(),
             window_maximized: false,

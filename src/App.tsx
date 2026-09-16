@@ -21,6 +21,7 @@ import {
   THEMES,
   type BackgroundSettings,
   type Settings,
+  type SidebarSectionId,
   type Theme,
 } from "./lib/settings";
 import { cleanDirPath, parentDir, resolvePath, type GroupByKey, type SortKey } from "./lib/fs";
@@ -490,6 +491,16 @@ function App() {
   function updatePluginSettings(pluginId: string, patch: any) {
     const current = settings.pluginSettings?.[pluginId] ?? {};
     setSettings("pluginSettings", pluginId, { ...current, ...patch });
+    persistSettings();
+  }
+
+  function updateSidebarSectionOrder(order: SidebarSectionId[]) {
+    setSettings("sidebarSectionOrder", order);
+    persistSettings();
+  }
+
+  function updateQuickAccessOrder(order: string[]) {
+    setSettings("quickAccessOrder", order);
     persistSettings();
   }
 
@@ -1436,6 +1447,10 @@ function App() {
               folderColors={settings.folderColors}
               recentPaths={settings.recentPaths}
               onRemoveRecent={removeRecent}
+              sectionOrder={settings.sidebarSectionOrder}
+              onSectionOrderChange={updateSidebarSectionOrder}
+              quickAccessOrder={settings.quickAccessOrder}
+              onQuickAccessOrderChange={updateQuickAccessOrder}
               width={settings.sidebarWidth}
               customContent={activePlugin()?.sidebar?.({
                 currentPath: currentPath(),

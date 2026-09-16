@@ -4,6 +4,17 @@ import { DEFAULT_UNSPLASH_FREQUENCY_MS } from "./unsplash";
 
 export type Theme = "light" | "dark" | "midnight" | "ocean" | "nord" | "paper";
 
+// Sidebar sections the user can drag-reorder. "quick" is the Quick access
+// panel (Recycle Bin + the OS Desktop/Documents/Downloads entries).
+export type SidebarSectionId = "quick" | "drives" | "recents" | "favourites";
+
+export const DEFAULT_SIDEBAR_SECTION_ORDER: SidebarSectionId[] = [
+  "drives",
+  "recents",
+  "favourites",
+  "quick",
+];
+
 export const THEMES: { value: Theme; label: string; dark: boolean }[] = [
   { value: "light", label: "Light", dark: false },
   { value: "dark", label: "Dark", dark: true },
@@ -95,6 +106,11 @@ export type Settings = {
   // is live from boot instead of only after the app's been opened once.
   launchAtStartup: boolean;
   launchAsAdmin: boolean;
+  // Order of the sidebar's sections (drives/recents/favourites/quick) and
+  // of the Quick access entries themselves (by label, e.g. "Desktop").
+  // Entries/sections not listed keep their default relative position.
+  sidebarSectionOrder: SidebarSectionId[];
+  quickAccessOrder: string[];
   windowWidth: number;
   windowHeight: number;
   // Whether the window was maximized when last closed, so relaunch restores
@@ -167,6 +183,8 @@ export const DEFAULT_SETTINGS: Settings = {
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   launchAtStartup: false,
   launchAsAdmin: false,
+  sidebarSectionOrder: DEFAULT_SIDEBAR_SECTION_ORDER,
+  quickAccessOrder: [],
   windowWidth: DEFAULT_WINDOW_WIDTH,
   windowHeight: DEFAULT_WINDOW_HEIGHT,
   windowMaximized: false,

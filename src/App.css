@@ -904,6 +904,31 @@ body {
     opacity: 0.55;
 }
 
+/* Sections are drag-reorderable — the header is the handle. Grab cursor
+   and a drag indicator keep the affordance quiet but discoverable. */
+.sidebar-section-label[draggable="true"] {
+    cursor: grab;
+    user-select: none;
+}
+
+.sidebar-section-label[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.sidebar-section.drag-over {
+    box-shadow: inset 0 2px 0 var(--accent);
+    border-radius: var(--radius-sm);
+}
+
+.sidebar-section.drag-over > .sidebar-section-label {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.sidebar-item.drag-over {
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+
 /* A small angled notch ahead of the label — a quiet nod to a folder tab's
    cut corner, not a literal folder icon. Restrained: low opacity, tiny. */
 .sidebar-section-label::before {
