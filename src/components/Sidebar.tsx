@@ -216,6 +216,12 @@ export function Sidebar(props: SidebarProps) {
 
   function sectionDragHandlers(id: SidebarSectionId) {
     return {
+      // Dragstart bubbles up from the header span (the grab handle), so
+      // setting the payload here covers the whole section.
+      onDragStart: (e: DragEvent) => {
+        e.dataTransfer?.setData(SECTION_MIME, id);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      },
       onDragOver: (e: DragEvent) => {
         if (!e.dataTransfer?.types.includes(SECTION_MIME)) return;
         e.preventDefault();
@@ -223,6 +229,7 @@ export function Sidebar(props: SidebarProps) {
         setDragOverSection(id);
       },
       onDragLeave: () => setDragOverSection((cur) => (cur === id ? null : cur)),
+      onDragEnd: () => setDragOverSection(null),
       onDrop: (e: DragEvent) => {
         e.preventDefault();
         const from = e.dataTransfer?.getData(SECTION_MIME);
