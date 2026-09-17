@@ -173,8 +173,8 @@ export function Sidebar(props: SidebarProps) {
   // elementFromPoint hit-testing; quick access clicks are suppressed only
   // when a drag actually happened. Native file drags (tauri-plugin-drag)
   // don't produce pointerdown on these elements, so they can't collide.
-  let sectionDrag: { id: SidebarSectionId; pointerId: number; moved: boolean } | null = null;
-  let quickDrag: { label: string; pointerId: number; startX: number; startY: number; moved: boolean } | null = null;
+  let sectionDrag: { id: SidebarSectionId; moved: boolean } | null = null;
+  let quickDrag: { label: string; startX: number; startY: number; moved: boolean } | null = null;
   let suppressNextQuickClick = false;
   const [dragOverSection, setDragOverSection] = createSignal<SidebarSectionId | null>(null);
   const [dragOverQuick, setDragOverQuick] = createSignal<string | null>(null);
@@ -199,30 +199,32 @@ export function Sidebar(props: SidebarProps) {
     props.onSectionOrderChange(order);
   }
 
+  // Window-level listeners, not pointer capture: reordering re-parents the
+  // dragged element, which would release an element capture after a single
+  // swap. Window listeners keep tracking for the whole press.
   function sectionDragHandlers(id: SidebarSectionId) {
     return {
       onPointerDown: (e: PointerEvent) => {
         if (e.button !== 0) return;
-        sectionDrag = { id, pointerId: e.pointerId, moved: false };
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      },
-      onPointerMove: (e: PointerEvent) => {
-        if (!sectionDrag || sectionDrag.id !== id) return;
-        const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-section-id]") as HTMLElement | null;
-        const target = hit?.dataset.sectionId as SidebarSectionId | undefined;
-        if (target && target !== id) {
-          sectionDrag.moved = true;
-          setDragOverSection(target);
-          moveSectionLive(id, target);
-        }
-      },
-      onPointerUp: () => {
-        sectionDrag = null;
-        setDragOverSection(null);
-      },
-      onLostPointerCapture: () => {
-        sectionDrag = null;
-        setDragOverSection(null);
+        sectionDrag = { id, moved: false };
+        const onMove = (ev: PointerEvent) => {
+          if (!sectionDrag) return;
+          const hit = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-section-id]") as HTMLElement | null;
+          const target = hit?.dataset.sectionId as SidebarSectionId | undefined;
+          if (target && target !== id) {
+            sectionDrag.moved = true;
+            setDragOverSection(target);
+            moveSectionLive(id, target);
+          }
+        };
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          sectionDrag = null;
+          setDragOverSection(null);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
       },
     };
   }
@@ -231,33 +233,31 @@ export function Sidebar(props: SidebarProps) {
     return {
       onPointerDown: (e: PointerEvent) => {
         if (e.button !== 0) return;
-        quickDrag = { label, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false };
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      },
-      onPointerMove: (e: PointerEvent) => {
-        if (!quickDrag || quickDrag.label !== label) return;
-        if (!quickDrag.moved) {
-          const dx = e.clientX - quickDrag.startX;
-          const dy = e.clientY - quickDrag.startY;
-          if (Math.hypot(dx, dy) < 6) return;
-          quickDrag.moved = true;
-        }
-        const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-quick-label]") as HTMLElement | null;
-        const target = hit?.dataset.quickLabel;
-        if (target && target !== label) {
-          setDragOverQuick(target);
-          reorderQuick(label, target);
-        }
-      },
-      onPointerUp: () => {
-        if (quickDrag?.moved) suppressNextQuickClick = true;
-        quickDrag = null;
-        setDragOverQuick(null);
-      },
-      onLostPointerCapture: () => {
-        if (quickDrag?.moved) suppressNextQuickClick = true;
-        quickDrag = null;
-        setDragOverQuick(null);
+        quickDrag = { label, startX: e.clientX, startY: e.clientY, moved: false };
+        const onMove = (ev: PointerEvent) => {
+          if (!quickDrag) return;
+          if (!quickDrag.moved) {
+            const dx = ev.clientX - quickDrag.startX;
+            const dy = ev.clientY - quickDrag.startY;
+            if (Math.hypot(dx, dy) < 6) return;
+            quickDrag.moved = true;
+          }
+          const hit = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-quick-label]") as HTMLElement | null;
+          const target = hit?.dataset.quickLabel;
+          if (target && target !== label) {
+            setDragOverQuick(target);
+            reorderQuick(label, target);
+          }
+        };
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          if (quickDrag?.moved) suppressNextQuickClick = true;
+          quickDrag = null;
+          setDragOverQuick(null);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
       },
     };
   }
