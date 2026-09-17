@@ -167,12 +167,14 @@ export function Sidebar(props: SidebarProps) {
 
   // ---- Drag-to-reorder (sections and Quick access entries) --------------
   //
-  // Plain HTML5 drag confined to the sidebar: a distinct MIME marks each
-  // payload so these drags can never be confused with file drags (which
-  // are native OS drags via tauri-plugin-drag and never fire HTML5
-  // dragstart here) or with anything dropping in from outside.
-  const SECTION_MIME = "application/x-flurer-sidebar-section";
-  const QUICK_MIME = "application/x-flurer-quick-access";
+  // Plain HTML5 drag confined to the sidebar. The dragged payload is
+  // tracked in module-level variables rather than relying on
+  // DataTransfer.getData/MIME checks during dragover — same-document
+  // drags, so this is dependable across webview quirks. A distinct MIME
+  // is still set alongside for the drag ghost/data, and native file drags
+  // (tauri-plugin-drag) never fire HTML5 dragstart here.
+  let draggedSection: SidebarSectionId | null = null;
+  let draggedQuickLabel: string | null = null;
   const [dragOverSection, setDragOverSection] = createSignal<SidebarSectionId | null>(null);
   const [dragOverQuick, setDragOverQuick] = createSignal<string | null>(null);
 
@@ -217,22 +219,29 @@ export function Sidebar(props: SidebarProps) {
   function sectionDragHandlers(id: SidebarSectionId) {
     return {
       // Dragstart bubbles up from the header span (the grab handle), so
-      // setting the payload here covers the whole section.
+      // recording the payload here covers the whole section.
       onDragStart: (e: DragEvent) => {
-        e.dataTransfer?.setData(SECTION_MIME, id);
+        draggedSection = id;
+        draggedQuickLabel = null;
+        e.dataTransfer?.setData("text/plain", `flurer-section:${id}`);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        invoke("log_frontend", { level: "info", message: `[sidebar-drag] dragstart section ${id}` }).catch(() => {});
       },
       onDragOver: (e: DragEvent) => {
-        if (!e.dataTransfer?.types.includes(SECTION_MIME)) return;
+        if (draggedSection === null) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
         setDragOverSection(id);
       },
       onDragLeave: () => setDragOverSection((cur) => (cur === id ? null : cur)),
-      onDragEnd: () => setDragOverSection(null),
+      onDragEnd: () => {
+        draggedSection = null;
+        setDragOverSection(null);
+      },
       onDrop: (e: DragEvent) => {
         e.preventDefault();
-        const from = e.dataTransfer?.getData(SECTION_MIME);
+        const from = draggedSection;
+        draggedSection = null;
         setDragOverSection(null);
         if (from && from !== id) reorderSections(from, id);
       },
@@ -242,23 +251,29 @@ export function Sidebar(props: SidebarProps) {
   function quickDragHandlers(label: string) {
     return {
       onDragStart: (e: DragEvent) => {
-        e.dataTransfer?.setData(QUICK_MIME, label);
+        draggedQuickLabel = label;
+        draggedSection = null;
+        e.dataTransfer?.setData("text/plain", `flurer-quick:${label}`);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
       },
       onDragOver: (e: DragEvent) => {
-        if (!e.dataTransfer?.types.includes(QUICK_MIME)) return;
+        if (draggedQuickLabel === null) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
         setDragOverQuick(label);
       },
       onDragLeave: () => setDragOverQuick((cur) => (cur === label ? null : cur)),
+      onDragEnd: () => {
+        draggedQuickLabel = null;
+        setDragOverQuick(null);
+      },
       onDrop: (e: DragEvent) => {
         e.preventDefault();
-        const from = e.dataTransfer?.getData(QUICK_MIME);
+        const from = draggedQuickLabel;
+        draggedQuickLabel = null;
         setDragOverQuick(null);
         if (from && from !== label) reorderQuick(from, label);
       },
-      onDragEnd: () => setDragOverQuick(null),
     };
   }
 
