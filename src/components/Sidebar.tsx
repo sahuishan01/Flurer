@@ -265,7 +265,9 @@ export function Sidebar(props: SidebarProps) {
         classList={{ "drag-over": dragOverSection() === id }}
         {...sectionDragHandlers(id)}
       >
-        <span class="sidebar-section-label" draggable>{SECTION_TITLES[id]}</span>
+        {/* draggable must be explicitly true — a bare `draggable` attribute
+            renders as draggable="" which the HTML spec treats as false. */}
+        <span class="sidebar-section-label is-grab" draggable={true}>{SECTION_TITLES[id]}</span>
         {id === "drives" && (
           <For each={drives()}>
             {(volume) => (
@@ -373,7 +375,7 @@ export function Sidebar(props: SidebarProps) {
                     active: props.activeView === "explorer" && props.currentPath === entry.path,
                     "drag-over": dragOverQuick() === entry.label,
                   }}
-                  draggable
+                  draggable={true}
                   aria-label={entry.path}
                   data-tip={entry.path}
                   data-drop-path={entry.path}

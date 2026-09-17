@@ -906,12 +906,12 @@ body {
 
 /* Sections are drag-reorderable — the header is the handle. Grab cursor
    and a drag indicator keep the affordance quiet but discoverable. */
-.sidebar-section-label[draggable="true"] {
+.sidebar-section-label.is-grab {
     cursor: grab;
     user-select: none;
 }
 
-.sidebar-section-label[draggable="true"]:active {
+.sidebar-section-label.is-grab:active {
     cursor: grabbing;
 }
 
