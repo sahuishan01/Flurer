@@ -167,14 +167,15 @@ export function Sidebar(props: SidebarProps) {
 
   // ---- Drag-to-reorder (sections and Quick access entries) --------------
   //
-  // Plain HTML5 drag confined to the sidebar. The dragged payload is
-  // tracked in module-level variables rather than relying on
-  // DataTransfer.getData/MIME checks during dragover — same-document
-  // drags, so this is dependable across webview quirks. A distinct MIME
-  // is still set alongside for the drag ghost/data, and native file drags
-  // (tauri-plugin-drag) never fire HTML5 dragstart here.
-  let draggedSection: SidebarSectionId | null = null;
-  let draggedQuickLabel: string | null = null;
+  // Pointer-event based rather than HTML5 drag-and-drop: WebView2 rejects
+  // HTML5 drags (prohibited cursor, drop never accepted) no matter how the
+  // DataTransfer is populated. Press-and-drag reorders live via
+  // elementFromPoint hit-testing; quick access clicks are suppressed only
+  // when a drag actually happened. Native file drags (tauri-plugin-drag)
+  // don't produce pointerdown on these elements, so they can't collide.
+  let sectionDrag: { id: SidebarSectionId; pointerId: number; moved: boolean } | null = null;
+  let quickDrag: { label: string; pointerId: number; startX: number; startY: number; moved: boolean } | null = null;
+  let suppressNextQuickClick = false;
   const [dragOverSection, setDragOverSection] = createSignal<SidebarSectionId | null>(null);
   const [dragOverQuick, setDragOverQuick] = createSignal<string | null>(null);
 
@@ -189,13 +190,76 @@ export function Sidebar(props: SidebarProps) {
     return ordered;
   });
 
-  function reorderSections(fromId: string, toId: SidebarSectionId) {
+  function moveSectionLive(fromId: SidebarSectionId, toId: SidebarSectionId) {
     const order = [...sectionOrder()];
-    const from = order.indexOf(fromId as SidebarSectionId);
+    const from = order.indexOf(fromId);
     const to = order.indexOf(toId);
     if (from < 0 || to < 0 || from === to) return;
     order.splice(to, 0, order.splice(from, 1)[0]);
     props.onSectionOrderChange(order);
+  }
+
+  function sectionDragHandlers(id: SidebarSectionId) {
+    return {
+      onPointerDown: (e: PointerEvent) => {
+        if (e.button !== 0) return;
+        sectionDrag = { id, pointerId: e.pointerId, moved: false };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      },
+      onPointerMove: (e: PointerEvent) => {
+        if (!sectionDrag || sectionDrag.id !== id) return;
+        const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-section-id]") as HTMLElement | null;
+        const target = hit?.dataset.sectionId as SidebarSectionId | undefined;
+        if (target && target !== id) {
+          sectionDrag.moved = true;
+          setDragOverSection(target);
+          moveSectionLive(id, target);
+        }
+      },
+      onPointerUp: () => {
+        sectionDrag = null;
+        setDragOverSection(null);
+      },
+      onLostPointerCapture: () => {
+        sectionDrag = null;
+        setDragOverSection(null);
+      },
+    };
+  }
+
+  function quickDragHandlers(label: string) {
+    return {
+      onPointerDown: (e: PointerEvent) => {
+        if (e.button !== 0) return;
+        quickDrag = { label, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      },
+      onPointerMove: (e: PointerEvent) => {
+        if (!quickDrag || quickDrag.label !== label) return;
+        if (!quickDrag.moved) {
+          const dx = e.clientX - quickDrag.startX;
+          const dy = e.clientY - quickDrag.startY;
+          if (Math.hypot(dx, dy) < 6) return;
+          quickDrag.moved = true;
+        }
+        const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-quick-label]") as HTMLElement | null;
+        const target = hit?.dataset.quickLabel;
+        if (target && target !== label) {
+          setDragOverQuick(target);
+          reorderQuick(label, target);
+        }
+      },
+      onPointerUp: () => {
+        if (quickDrag?.moved) suppressNextQuickClick = true;
+        quickDrag = null;
+        setDragOverQuick(null);
+      },
+      onLostPointerCapture: () => {
+        if (quickDrag?.moved) suppressNextQuickClick = true;
+        quickDrag = null;
+        setDragOverQuick(null);
+      },
+    };
   }
 
   const quickEntries = createMemo<QuickAccessEntry[]>(() => {
@@ -216,80 +280,17 @@ export function Sidebar(props: SidebarProps) {
     props.onQuickAccessOrderChange(current);
   }
 
-  function sectionDragHandlers(id: SidebarSectionId) {
-    return {
-      // Dragstart bubbles up from the header span (the grab handle), so
-      // recording the payload here covers the whole section.
-      onDragStart: (e: DragEvent) => {
-        draggedSection = id;
-        draggedQuickLabel = null;
-        e.dataTransfer?.setData("text/plain", `flurer-section:${id}`);
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-        invoke("log_frontend", { level: "info", message: `[sidebar-drag] dragstart section ${id}` }).catch(() => {});
-      },
-      onDragOver: (e: DragEvent) => {
-        if (draggedSection === null) return;
-        e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-        setDragOverSection(id);
-      },
-      onDragLeave: () => setDragOverSection((cur) => (cur === id ? null : cur)),
-      onDragEnd: () => {
-        draggedSection = null;
-        setDragOverSection(null);
-      },
-      onDrop: (e: DragEvent) => {
-        e.preventDefault();
-        const from = draggedSection;
-        draggedSection = null;
-        setDragOverSection(null);
-        if (from && from !== id) reorderSections(from, id);
-      },
-    };
-  }
-
-  function quickDragHandlers(label: string) {
-    return {
-      onDragStart: (e: DragEvent) => {
-        draggedQuickLabel = label;
-        draggedSection = null;
-        e.dataTransfer?.setData("text/plain", `flurer-quick:${label}`);
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-      },
-      onDragOver: (e: DragEvent) => {
-        if (draggedQuickLabel === null) return;
-        e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-        setDragOverQuick(label);
-      },
-      onDragLeave: () => setDragOverQuick((cur) => (cur === label ? null : cur)),
-      onDragEnd: () => {
-        draggedQuickLabel = null;
-        setDragOverQuick(null);
-      },
-      onDrop: (e: DragEvent) => {
-        e.preventDefault();
-        const from = draggedQuickLabel;
-        draggedQuickLabel = null;
-        setDragOverQuick(null);
-        if (from && from !== label) reorderQuick(from, label);
-      },
-    };
-  }
-
-  // Each section is one reorderable block: a draggable header (the handle)
-  // plus its entries, wrapped by the drop target so the whole section —
-  // not just the thin header strip — participates in the reorder drop.
+  // Each section is one reorderable block: the header span is the press-
+  // and-drag handle, and the whole block carries the data-section-id the
+  // pointer hit-test resolves against.
   function renderSection(id: SidebarSectionId): JSX.Element {
     return (
       <div
         class="sidebar-section"
         classList={{ "drag-over": dragOverSection() === id }}
-        {...sectionDragHandlers(id)}
+        data-section-id={id}
       >
-        {/* draggable must be explicitly true — a bare `draggable` attribute
-            renders as draggable="" which the HTML spec treats as false. */}
-        <span class="sidebar-section-label is-grab" draggable={true}>{SECTION_TITLES[id]}</span>
+        <span class="sidebar-section-label is-grab" {...sectionDragHandlers(id)}>{SECTION_TITLES[id]}</span>
         {id === "drives" && (
           <For each={drives()}>
             {(volume) => (
@@ -397,11 +398,17 @@ export function Sidebar(props: SidebarProps) {
                     active: props.activeView === "explorer" && props.currentPath === entry.path,
                     "drag-over": dragOverQuick() === entry.label,
                   }}
-                  draggable={true}
                   aria-label={entry.path}
                   data-tip={entry.path}
                   data-drop-path={entry.path}
-                  onClick={() => props.onSelectPath(entry.path)}
+                  data-quick-label={entry.label}
+                  onClick={() => {
+                    if (suppressNextQuickClick) {
+                      suppressNextQuickClick = false;
+                      return;
+                    }
+                    props.onSelectPath(entry.path);
+                  }}
                   {...quickDragHandlers(entry.label)}
                 >
                   <span class="sidebar-icon">{ICONS[entry.label]?.() ?? <FolderIcon size={15} />}</span>
