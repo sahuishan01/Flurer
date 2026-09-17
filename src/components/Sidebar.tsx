@@ -280,17 +280,17 @@ export function Sidebar(props: SidebarProps) {
     props.onQuickAccessOrderChange(current);
   }
 
-  // Each section is one reorderable block: the header span is the press-
-  // and-drag handle, and the whole block carries the data-section-id the
-  // pointer hit-test resolves against.
+  // Each section is one reorderable block. The drag target is the header
+  // label itself (data-section-id lives on the span, not the whole block)
+  // so a swap only triggers when the dragged item reaches another group's
+  // title, not merely when it enters the group's body.
   function renderSection(id: SidebarSectionId): JSX.Element {
     return (
       <div
         class="sidebar-section"
         classList={{ "drag-over": dragOverSection() === id }}
-        data-section-id={id}
       >
-        <span class="sidebar-section-label is-grab" {...sectionDragHandlers(id)}>{SECTION_TITLES[id]}</span>
+        <span class="sidebar-section-label is-grab" data-section-id={id} {...sectionDragHandlers(id)}>{SECTION_TITLES[id]}</span>
         {id === "drives" && (
           <For each={drives()}>
             {(volume) => (
