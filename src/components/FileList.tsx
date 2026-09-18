@@ -1959,11 +1959,21 @@ export function FileList(props: FileListProps) {
             <input
               class="rename-input"
               value={renameValue()}
-              autofocus
+              ref={(el) => {
+                el.focus();
+                // Explorer-style: preselect the base name so typing replaces
+                // it while the extension stays untouched (folders have none).
+                const dot = el.value.lastIndexOf(".");
+                el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
+              }}
               onInput={(e) => setRenameValue(e.currentTarget.value)}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
-                e.stopPropagation();
+                // stopImmediatePropagation: our keydown listener also lives on
+                // `document` (same node as Solid's delegated handler), where a
+                // plain stopPropagation doesn't prevent it from firing — Enter
+                // would otherwise commit the rename AND open the folder.
+                e.stopImmediatePropagation();
                 if (e.key === "Enter") commitRename();
                 else if (e.key === "Escape") cancelRename();
               }}
