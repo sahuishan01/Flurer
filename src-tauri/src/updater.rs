@@ -313,7 +313,16 @@ pub fn is_current_process_elevated() -> bool {
 // keeps its fire-and-forget spawn instead.
 #[cfg(target_os = "windows")]
 pub fn elevate_and_wait(exe: &std::path::Path) -> Result<bool, String> {
-    let command = format!("Start-Process -FilePath {} -Verb RunAs", ps_quote(&exe.to_string_lossy()));
+    // The elevated copy must not race this instance's shutdown: it inherits
+    // --takeover-from and waits for our pid to exit before running the
+    // single-instance plugin check, otherwise it sees the dying unelevated
+    // instance's mutex and exits itself (observed as "no window, no crash").
+    let takeover_arg = format!("--takeover-from={}", std::process::id());
+    let command = format!(
+        "Start-Process -FilePath {} -ArgumentList {} -Verb RunAs",
+        ps_quote(&exe.to_string_lossy()),
+        ps_quote(&takeover_arg)
+    );
     let mut cmd = std::process::Command::new("powershell");
     cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command]);
     use std::os::windows::process::CommandExt;

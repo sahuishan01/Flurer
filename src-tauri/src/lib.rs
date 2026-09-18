@@ -59,6 +59,20 @@ pub fn run() {
     // lost to a terminal the packaged app doesn't have.
     logging::init();
 
+    // "Always run as admin" handoff: the unelevated instance passes
+    // --takeover-from=<its pid> to the elevated copy it spawns. The
+    // single-instance plugin runs its "is another instance alive" check
+    // during plugin init below — if the unelevated instance is still
+    // shutting down at that moment, the elevated copy sees its mutex,
+    // notifies it and exits, leaving the user with no window at all
+    // (observed on 0.4.188/0.4.189). Waiting for the old pid to die
+    // here removes that race.
+    if let Some(old_pid) = takeover_from_pid() {
+        log::info!("takeover-from={old_pid}: waiting for previous instance to exit");
+        wait_for_process_exit(old_pid, std::time::Duration::from_secs(10));
+        log::info!("takeover-from={old_pid}: previous instance gone (or wait timed out), continuing");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             log::info!("single_instance triggered: argv={:?}, cwd={:?}", argv, cwd);
@@ -329,3 +343,33 @@ pub fn run() {
             }
         });
 }
+
+// Parses the --takeover-from=<pid> argument handed over by the unelevated
+// instance on the "Always run as admin" path (see run()).
+fn takeover_from_pid() -> Option<u32> {
+    std::env::args().find_map(|arg| {
+        arg.strip_prefix("--takeover-from=").and_then(|pid| pid.parse::<u32>().ok())
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn wait_for_process_exit(pid: u32, timeout: std::time::Duration) {
+    use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
+    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject, SYNCHRONIZE};
+
+    unsafe {
+        let handle = OpenProcess(SYNCHRONIZE, 0, pid);
+        if handle.is_null() {
+            // Already gone (or inaccessible — nothing to wait for either way).
+            return;
+        }
+        let result = WaitForSingleObject(handle, timeout.as_millis() as u32);
+        CloseHandle(handle);
+        if result != WAIT_OBJECT_0 {
+            log::warn!("takeover-from={pid}: previous instance still alive after {timeout:?}");
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn wait_for_process_exit(_pid: u32, _timeout: std::time::Duration) {}
