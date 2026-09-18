@@ -355,7 +355,10 @@ fn takeover_from_pid() -> Option<u32> {
 #[cfg(target_os = "windows")]
 fn wait_for_process_exit(pid: u32, timeout: std::time::Duration) {
     use windows_sys::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0};
-    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject, SYNCHRONIZE};
+    // SYNCHRONIZE is a FILE_ACCESS_RIGHTS under Storage::FileSystem in
+    // windows-sys 0.59, not under Threading.
+    use windows_sys::Win32::Storage::FileSystem::SYNCHRONIZE;
+    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject};
 
     unsafe {
         let handle = OpenProcess(SYNCHRONIZE, 0, pid);
