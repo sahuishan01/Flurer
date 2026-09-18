@@ -1058,7 +1058,12 @@ fn spawn_autosave(app: AppHandle) {
 /// session aren't lost — losing them meant those folders recalculated on
 /// the next launch even though they'd already been walked.
 pub fn flush(app: &AppHandle) {
-    let state = app.state::<AppState>();
+    // Same guard rationale as the RunEvent::Exit settings save in lib.rs:
+    // on the "Always run as admin" path setup can exit the process before
+    // AppState is managed, and flush() runs on the Exit event.
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
     let snapshot = state.size_cache.roots.lock().unwrap().clone();
     save_persisted_sizes(app, &snapshot);
     *state.size_cache.dirty.lock().unwrap() = false;
