@@ -305,20 +305,25 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(w) = app.get_webview_window("main") {
-                    let state = app.state::<AppState>();
-                    if let Ok(mut settings) = state.settings.try_lock() {
-                        let is_max = w.is_maximized().unwrap_or(false);
-                        settings.window_maximized = is_max;
-                        if !is_max {
-                            if let Ok(size) = w.inner_size() {
-                                if size.width >= 400 && size.height >= 300 {
-                                    settings.window_width = size.width;
-                                    settings.window_height = size.height;
+                    // state() panics if AppState was never managed. That's
+                    // reachable on the "Always run as admin" path, where setup
+                    // exits the process (app.handle().exit(0)) BEFORE reaching
+                    // the manage() call when the UAC prompt is accepted.
+                    if let Some(state) = app.try_state::<AppState>() {
+                        if let Ok(mut settings) = state.settings.try_lock() {
+                            let is_max = w.is_maximized().unwrap_or(false);
+                            settings.window_maximized = is_max;
+                            if !is_max {
+                                if let Ok(size) = w.inner_size() {
+                                    if size.width >= 400 && size.height >= 300 {
+                                        settings.window_width = size.width;
+                                        settings.window_height = size.height;
+                                    }
                                 }
                             }
-                        }
-                        let _ = save_settings(app, &settings);
-                    };
+                            let _ = save_settings(app, &settings);
+                        };
+                    }
                 }
                 sizecache::flush(app);
             }
