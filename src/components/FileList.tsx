@@ -293,6 +293,14 @@ export function FileList(props: FileListProps) {
     setPreviewDismissed(false);
   });
 
+  // TEMPORARY diagnostics for the "rename editor closes immediately" report —
+  // remove once the root cause is confirmed. Logged via log_frontend so it
+  // lands in the Rust file log (the packaged webview has no console).
+  function renameDebug(msg: string) {
+    console.log(`[rename-debug] ${msg}`);
+    invoke("log_frontend", { level: "info", message: `[rename-debug] ${msg}` }).catch(() => {});
+  }
+
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = createSignal<string | null>(null);
   const [renameValue, setRenameValue] = createSignal("");
@@ -520,6 +528,7 @@ export function FileList(props: FileListProps) {
     // silently double-appending a chunk would be near-impossible to spot.
     if (chunk.seq !== listing.nextSeq) return;
     listing.nextSeq += 1;
+    if (renamingPath()) renameDebug(`chunk seq=${chunk.seq} silent=${listing.silent} n=${chunk.entries.length}`);
 
     if (chunk.error) {
       activeListing = null;
@@ -1304,10 +1313,11 @@ export function FileList(props: FileListProps) {
     setRenameValue(entry.name);
   }
 
-  async function commitRename() {
+  async function commitRename(reason = "unknown") {
     const path = renamingPath();
     if (!path) return;
     const newName = renameValue().trim();
+    renameDebug(`commit(${reason}) path=${path} newName="${newName}"`);
     setRenamingPath(null);
     if (!newName) return;
 
@@ -1325,6 +1335,7 @@ export function FileList(props: FileListProps) {
   }
 
   function cancelRename() {
+    renameDebug("cancel (Escape)");
     setRenamingPath(null);
   }
 
@@ -1355,8 +1366,10 @@ export function FileList(props: FileListProps) {
 
     try {
       const newPath = await invoke<string>(command, { parentDir: props.path, name });
+      renameDebug(`created ${newPath}`);
       pushUndo({ type: "create", path: newPath });
       await refresh();
+      renameDebug(`setting renamingPath=${newPath}`);
       setRenamingPath(newPath);
       setRenameValue(name);
     } catch (err) {
@@ -1972,6 +1985,7 @@ export function FileList(props: FileListProps) {
               class="rename-input"
               value={renameValue()}
               ref={(el) => {
+                renameDebug(`input ref: connected=${el.isConnected}`);
                 // Solid runs ternary refs before the node is inserted into the
                 // document, and focus() on a disconnected element is a no-op —
                 // defer one microtask so the element is attached by then.
@@ -1981,6 +1995,7 @@ export function FileList(props: FileListProps) {
                   // it while the extension stays untouched (folders have none).
                   const dot = el.value.lastIndexOf(".");
                   el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
+                  renameDebug(`focused: activeElementIsInput=${document.activeElement === el}`);
                 });
               }}
               onInput={(e) => setRenameValue(e.currentTarget.value)}
@@ -1991,7 +2006,7 @@ export function FileList(props: FileListProps) {
                 // plain stopPropagation doesn't prevent it from firing — Enter
                 // would otherwise commit the rename AND open the folder.
                 e.stopImmediatePropagation();
-                if (e.key === "Enter") commitRename();
+                if (e.key === "Enter") commitRename("enter");
                 else if (e.key === "Escape") cancelRename();
               }}
               onBlur={(e) => {
@@ -1999,7 +2014,10 @@ export function FileList(props: FileListProps) {
                 // the DOM (e.g. a live relist rebuilding this row). A blur
                 // from unmount is not the user clicking away — only commit
                 // when the input is still connected.
-                if (e.currentTarget.isConnected) commitRename();
+                renameDebug(
+                  `blur connected=${e.currentTarget.isConnected} activeElement=${document.activeElement?.tagName}`,
+                );
+                if (e.currentTarget.isConnected) commitRename("blur");
               }}
             />
           ) : (
