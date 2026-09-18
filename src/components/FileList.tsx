@@ -1960,11 +1960,16 @@ export function FileList(props: FileListProps) {
               class="rename-input"
               value={renameValue()}
               ref={(el) => {
-                el.focus();
-                // Explorer-style: preselect the base name so typing replaces
-                // it while the extension stays untouched (folders have none).
-                const dot = el.value.lastIndexOf(".");
-                el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
+                // Solid runs ternary refs before the node is inserted into the
+                // document, and focus() on a disconnected element is a no-op —
+                // defer one microtask so the element is attached by then.
+                queueMicrotask(() => {
+                  el.focus();
+                  // Explorer-style: preselect the base name so typing replaces
+                  // it while the extension stays untouched (folders have none).
+                  const dot = el.value.lastIndexOf(".");
+                  el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
+                });
               }}
               onInput={(e) => setRenameValue(e.currentTarget.value)}
               onClick={(e) => e.stopPropagation()}
