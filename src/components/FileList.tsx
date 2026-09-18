@@ -543,7 +543,19 @@ export function FileList(props: FileListProps) {
     setListingInFlight(false);
     if (listing.silent) {
       setError("");
-      setEntries(listing.buffer);
+      // Reuse the previous DirEntry objects when their content is unchanged:
+      // <For> keys rows by reference, so brand-new objects on every silent
+      // relist tear down and rebuild every row — which would unmount (and
+      // close) an open rename input mid-edit via its blur-commit handler.
+      const previousEntries = entries();
+      setEntries(
+        listing.buffer.map((entry) => {
+          const prev = previousEntries.find((p) => p.path === entry.path);
+          return prev && prev.name === entry.name && prev.isDir === entry.isDir && prev.size === entry.size && prev.modified === entry.modified
+            ? prev
+            : entry;
+        }),
+      );
       setContentMatches(new Map());
       setUnreadableExpanded(false);
     }
