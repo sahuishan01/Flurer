@@ -1994,7 +1994,13 @@ export function FileList(props: FileListProps) {
                 if (e.key === "Enter") commitRename();
                 else if (e.key === "Escape") cancelRename();
               }}
-              onBlur={() => commitRename()}
+              onBlur={(e) => {
+                // Chromium fires blur when a focused element is removed from
+                // the DOM (e.g. a live relist rebuilding this row). A blur
+                // from unmount is not the user clicking away — only commit
+                // when the input is still connected.
+                if (e.currentTarget.isConnected) commitRename();
+              }}
             />
           ) : (
             entry.name
