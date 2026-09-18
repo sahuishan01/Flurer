@@ -293,14 +293,6 @@ export function FileList(props: FileListProps) {
     setPreviewDismissed(false);
   });
 
-  // TEMPORARY diagnostics for the "rename editor closes immediately" report —
-  // remove once the root cause is confirmed. Logged via log_frontend so it
-  // lands in the Rust file log (the packaged webview has no console).
-  function renameDebug(msg: string) {
-    console.log(`[rename-debug] ${msg}`);
-    invoke("log_frontend", { level: "info", message: `[rename-debug] ${msg}` }).catch(() => {});
-  }
-
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = createSignal<string | null>(null);
   const [renameValue, setRenameValue] = createSignal("");
@@ -482,6 +474,26 @@ export function FileList(props: FileListProps) {
   // the user before the first chunk lands would be a lie.
   const [listingInFlight, setListingInFlight] = createSignal(false);
 
+  // Solid applies signal writes synchronously, so any row teardown a listing
+  // replacement causes — including the blur it fires on a focused rename
+  // input — happens before setEntries returns. Chromium dispatches that
+  // removal-blur while the input still reports isConnected (focus is cleared
+  // before detachment settles), so the blur handler cannot use isConnected
+  // to tell teardown apart from a genuine click-away; this flag marks the
+  // exact window instead. Every setEntries that can replace (rather than
+  // purely append to) the listing goes through here.
+  let replacingEntries = false;
+  function replaceEntries(update: DirEntry[] | ((prev: DirEntry[]) => DirEntry[])) {
+    replacingEntries = true;
+    try {
+      // The function-form cast is safe for plain arrays too: Solid's setter
+      // discriminates on typeof at runtime, and an array is never callable.
+      setEntries(update as (prev: DirEntry[]) => DirEntry[]);
+    } finally {
+      replacingEntries = false;
+    }
+  }
+
   const streamKeyFor = (id: number) => `${streamId}#${id}`;
 
   // Folders-first only applies when grouping is active — with "Group by:
@@ -528,7 +540,6 @@ export function FileList(props: FileListProps) {
     // silently double-appending a chunk would be near-impossible to spot.
     if (chunk.seq !== listing.nextSeq) return;
     listing.nextSeq += 1;
-    if (renamingPath()) renameDebug(`chunk seq=${chunk.seq} silent=${listing.silent} n=${chunk.entries.length}`);
 
     if (chunk.error) {
       activeListing = null;
@@ -543,7 +554,7 @@ export function FileList(props: FileListProps) {
       setError("");
       // Append rather than replace: refresh() has already cleared the list
       // for a non-silent request, so each chunk extends what's on screen.
-      setEntries((previous) => (chunk.seq === 0 ? chunk.entries : [...previous, ...chunk.entries]));
+      replaceEntries((previous) => (chunk.seq === 0 ? chunk.entries : [...previous, ...chunk.entries]));
     }
 
     if (!chunk.done) return;
@@ -553,11 +564,13 @@ export function FileList(props: FileListProps) {
     if (listing.silent) {
       setError("");
       // Reuse the previous DirEntry objects when their content is unchanged:
-      // <For> keys rows by reference, so brand-new objects on every silent
-      // relist tear down and rebuild every row — which would unmount (and
-      // close) an open rename input mid-edit via its blur-commit handler.
+      // <For> keys rows by item identity, so brand-new objects on every
+      // silent relist would tear down and rebuild every row. Combined with
+      // the FlatItem wrapper cache (see rowItemFor), an unchanged listing
+      // produces an identical item sequence and <For> touches nothing — so
+      // an open rename input survives the relist completely undisturbed.
       const previousEntries = entries();
-      setEntries(
+      replaceEntries(
         listing.buffer.map((entry) => {
           const prev = previousEntries.find((p) => p.path === entry.path);
           return prev && prev.name === entry.name && prev.isDir === entry.isDir && prev.size === entry.size && prev.modified === entry.modified
@@ -647,7 +660,7 @@ export function FileList(props: FileListProps) {
   });
 
   async function refresh() {
-    setEntries([]);
+    replaceEntries([]);
     setContentMatches(new Map());
     setUnreadable(0);
     setUnreadableEntries([]);
@@ -699,7 +712,7 @@ export function FileList(props: FileListProps) {
         return;
       }
       setError("");
-      setEntries(result.entries);
+      replaceEntries(result.entries);
       setContentMatches(new Map(matches.map((m) => [m.entry.path, m])));
       setUnreadable(result.unreadable);
       setUnreadableEntries(result.unreadableEntries);
@@ -727,6 +740,12 @@ export function FileList(props: FileListProps) {
 
   createEffect(() => {
     props.path;
+    // Leaving the folder replaces the listing via replaceEntries, which
+    // deliberately does not blur-commit the rename editor — so commit any
+    // in-progress rename here instead, applying the typed name rather than
+    // silently dropping it. Untracked: this effect must re-run only on
+    // navigation, not on rename state changes.
+    untrack(commitRename);
     setSelected(new Set<string>());
     setLastClickedIndex(null);
   });
@@ -1058,13 +1077,37 @@ export function FileList(props: FileListProps) {
   // its section exactly as it did when everything was rendered at once.
   type FlatItem = { kind: "header"; label: string; count: number } | { kind: "row"; entry: DirEntry };
 
+  // <For> keys rows by item identity, so the row wrappers must survive
+  // flatItems recomputes: minting fresh { kind: "row", entry } objects on
+  // every recompute makes <For> tear down and rebuild every row whenever the
+  // entries array is replaced — including the watcher's silent relist that
+  // lands ~250 ms after New folder (right after the rename input opens) and
+  // every background folder-size resolution while sorting by size. That
+  // teardown is what closed the rename editor: removing the focused input
+  // fires a blur that committed it. Keyed by the DirEntry object itself (a
+  // WeakMap, so entries dropped by future listings don't accumulate): the
+  // silent-relist path already reuses unchanged entry objects, so now the
+  // wrapper — and with it the row's DOM and any open editor — survives those
+  // relists as well. Header items are deliberately not cached: their count
+  // is read once when the row renders, so reusing them would freeze it, and
+  // rebuilding a header row is harmless (it holds no editor).
+  const rowItemCache = new WeakMap<DirEntry, FlatItem>();
+  function rowItemFor(entry: DirEntry): FlatItem {
+    let item = rowItemCache.get(entry);
+    if (!item) {
+      item = { kind: "row", entry };
+      rowItemCache.set(entry, item);
+    }
+    return item;
+  }
+
   const flatItems = createMemo<FlatItem[]>(() => {
     const sections = groupedSections();
-    if (!sections) return sortedEntries().map((entry) => ({ kind: "row", entry }) as FlatItem);
+    if (!sections) return sortedEntries().map(rowItemFor);
     const out: FlatItem[] = [];
     for (const section of sections) {
       out.push({ kind: "header", label: section.label, count: section.entries.length });
-      for (const entry of section.entries) out.push({ kind: "row", entry });
+      for (const entry of section.entries) out.push(rowItemFor(entry));
     }
     return out;
   });
@@ -1143,9 +1186,11 @@ export function FileList(props: FileListProps) {
 
   const visibleItems = createMemo(() => {
     const { start, end } = visibleRange();
-    // slice() preserves the item object identities from flatItems(), which
-    // is what lets <For> reuse row DOM across scrolls instead of tearing
-    // every row down and rebuilding it each frame.
+    // slice() preserves the item object identities from flatItems() — and
+    // flatItems() itself keeps row-item identity stable across recomputes
+    // (see rowItemFor) — which together let <For> reuse row DOM across
+    // scrolls and silent relists instead of tearing rows down and
+    // rebuilding them.
     return flatItems().slice(start, end);
   });
 
@@ -1313,16 +1358,17 @@ export function FileList(props: FileListProps) {
     setRenameValue(entry.name);
   }
 
-  async function commitRename(reason = "unknown") {
+  async function commitRename() {
     const path = renamingPath();
     if (!path) return;
     const newName = renameValue().trim();
-    renameDebug(`commit(${reason}) path=${path} newName="${newName}"`);
     setRenamingPath(null);
     if (!newName) return;
 
-    const entry = entries().find((e) => e.path === path);
-    if (entry && entry.name === newName) return;
+    // baseName(path) is the original name — checking it instead of looking
+    // the entry up in entries() keeps the no-change skip working even when
+    // the listing has already been swapped out (commit-on-navigation).
+    if (newName === baseName(path)) return;
 
     setOpError("");
     try {
@@ -1335,7 +1381,6 @@ export function FileList(props: FileListProps) {
   }
 
   function cancelRename() {
-    renameDebug("cancel (Escape)");
     setRenamingPath(null);
   }
 
@@ -1366,10 +1411,8 @@ export function FileList(props: FileListProps) {
 
     try {
       const newPath = await invoke<string>(command, { parentDir: props.path, name });
-      renameDebug(`created ${newPath}`);
       pushUndo({ type: "create", path: newPath });
       await refresh();
-      renameDebug(`setting renamingPath=${newPath}`);
       setRenamingPath(newPath);
       setRenameValue(name);
     } catch (err) {
@@ -1985,7 +2028,6 @@ export function FileList(props: FileListProps) {
               class="rename-input"
               value={renameValue()}
               ref={(el) => {
-                renameDebug(`input ref: connected=${el.isConnected}`);
                 // Solid runs ternary refs before the node is inserted into the
                 // document, and focus() on a disconnected element is a no-op —
                 // defer one microtask so the element is attached by then.
@@ -1995,7 +2037,6 @@ export function FileList(props: FileListProps) {
                   // it while the extension stays untouched (folders have none).
                   const dot = el.value.lastIndexOf(".");
                   el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
-                  renameDebug(`focused: activeElementIsInput=${document.activeElement === el}`);
                 });
               }}
               onInput={(e) => setRenameValue(e.currentTarget.value)}
@@ -2006,18 +2047,19 @@ export function FileList(props: FileListProps) {
                 // plain stopPropagation doesn't prevent it from firing — Enter
                 // would otherwise commit the rename AND open the folder.
                 e.stopImmediatePropagation();
-                if (e.key === "Enter") commitRename("enter");
+                if (e.key === "Enter") commitRename();
                 else if (e.key === "Escape") cancelRename();
               }}
-              onBlur={(e) => {
-                // Chromium fires blur when a focused element is removed from
-                // the DOM (e.g. a live relist rebuilding this row). A blur
-                // from unmount is not the user clicking away — only commit
-                // when the input is still connected.
-                renameDebug(
-                  `blur connected=${e.currentTarget.isConnected} activeElement=${document.activeElement?.tagName}`,
-                );
-                if (e.currentTarget.isConnected) commitRename("blur");
+              onBlur={() => {
+                // Row teardown (a listing replacement rebuilding this row)
+                // removes the focused input, and Chromium fires that blur
+                // while the node still reports isConnected — focus is cleared
+                // before detachment settles, so timing can't tell teardown
+                // apart from a genuine click-away. Cause can: every listing
+                // replacement goes through replaceEntries, which marks the
+                // window. Anything else is the user deliberately moving
+                // focus — the commit trigger we want.
+                if (!replacingEntries) commitRename();
               }}
             />
           ) : (
