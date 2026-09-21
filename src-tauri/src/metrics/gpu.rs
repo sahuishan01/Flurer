@@ -103,7 +103,7 @@ pub fn sample(device: &GpuDevice, state: &mut GpuState, wall_100ns: u64) -> GpuS
     unsafe {
         let mut open = D3DKMT_OPENADAPTERFROMLUID::default();
         open.AdapterLuid = device.luid;
-        if D3DKMTOpenAdapterFromLuid(&mut open) < 0 {
+        if D3DKMTOpenAdapterFromLuid(&mut open).0 < 0 {
             return sample;
         }
         let luid = open.AdapterLuid;
@@ -114,7 +114,7 @@ pub fn sample(device: &GpuDevice, state: &mut GpuState, wall_100ns: u64) -> GpuS
         let mut query = D3DKMT_QUERYSTATISTICS::default();
         query.Type = D3DKMT_QUERYSTATISTICS_ADAPTER;
         query.AdapterLuid = luid;
-        let (node_count, segment_count) = if D3DKMTQueryStatistics(&query) >= 0 {
+        let (node_count, segment_count) = if D3DKMTQueryStatistics(&query).0 >= 0 {
             let info = &query.QueryResult.AdapterInformation;
             (info.NodeCount, info.NbSegments)
         } else {
@@ -127,7 +127,7 @@ pub fn sample(device: &GpuDevice, state: &mut GpuState, wall_100ns: u64) -> GpuS
             query.Type = D3DKMT_QUERYSTATISTICS_NODE;
             query.AdapterLuid = luid;
             query.Anonymous.QueryNode = D3DKMT_QUERYSTATISTICS_QUERY_NODE { NodeId: node };
-            if D3DKMTQueryStatistics(&query) < 0 {
+            if D3DKMTQueryStatistics(&query).0 < 0 {
                 continue;
             }
             let running = query.QueryResult.NodeInformation.SystemInformation.RunningTime;
@@ -148,7 +148,7 @@ pub fn sample(device: &GpuDevice, state: &mut GpuState, wall_100ns: u64) -> GpuS
             query.Type = D3DKMT_QUERYSTATISTICS_SEGMENT;
             query.AdapterLuid = luid;
             query.Anonymous.QuerySegment = D3DKMT_QUERYSTATISTICS_QUERY_SEGMENT { SegmentId: segment };
-            if D3DKMTQueryStatistics(&query) < 0 {
+            if D3DKMTQueryStatistics(&query).0 < 0 {
                 continue;
             }
             let info = &query.QueryResult.SegmentInformation;

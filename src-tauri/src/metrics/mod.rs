@@ -105,7 +105,7 @@ pub struct MemorySample {
     pub swap_used: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriveSample {
     /// Mount point — stable per-drive id used by the settings checkboxes.
@@ -115,7 +115,7 @@ pub struct DriveSample {
     pub free: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkSample {
     pub id: String,
@@ -200,7 +200,7 @@ fn sampler(app: AppHandle) {
             networks_seeded = true;
             continue;
         }
-        disks.refresh();
+        disks.refresh(true);
 
         let cpus: Vec<CpuSample> = sys
             .cpus()
