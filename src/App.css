@@ -229,13 +229,52 @@ body {
     z-index: 100;
     display: flex;
     align-items: center;
-    gap: 0.9em;
-    padding: 0.35em 0.9em;
+    gap: 0.75em;
+    padding: 0.35em 0;
     background: linear-gradient(to bottom, rgba(var(--glass-tint-rgb), calc(var(--glass-opacity) + 0.05)), rgba(var(--glass-tint-rgb), var(--glass-opacity)));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     border-bottom: var(--glass-border);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Three fixed zones so every group has one unambiguous place: navigation on
+   the far left, the view's own controls (path) filling the middle, and all
+   tools + window controls pinned on the far right. */
+.command-bar-left,
+.command-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-shrink: 0;
+    padding: 0 0.75em;
+}
+
+.command-bar-center {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding-right: 0.5em;
+}
+
+/* Thin separator between right-zone clusters (search | metrics | progress |
+   window controls) — the visual cue that these are distinct groups. */
+.command-bar-divider {
+    width: 1px;
+    height: 1.15em;
+    flex-shrink: 0;
+    background: var(--border-color);
+    opacity: 0.6;
+}
+
+/* When many metric widgets are pinned, let the metrics row shrink and clip
+   instead of pushing the window controls off the bar — window controls and
+   navigation must never move. */
+.command-bar-right .metrics-bar {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .command-bar::before {
@@ -256,7 +295,6 @@ body {
 .command-bar-nav {
     display: flex;
     gap: 0.4em;
-    flex-shrink: 0;
 }
 
 /* Window controls (custom title bar — decorations are off). Win11-fluent:
@@ -419,13 +457,6 @@ body {
     border-color: var(--accent-border);
     border-bottom: 1px solid var(--accent);
     box-shadow: var(--control-shadow);
-}
-
-.command-bar-slot {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
 }
 
 .search-trigger {
@@ -4029,9 +4060,20 @@ button.danger:not(.context-menu-item):hover {
     }
 
     .command-bar {
-        flex-wrap: wrap;
         gap: 0.4em;
-        padding: 0.4em 0.6em;
+        padding: 0.4em 0;
+        /* Never wrap: navigation and window controls must stay pinned to
+           their edges; the center zone shrinks instead. */
+        flex-wrap: nowrap;
+    }
+
+    .command-bar-center {
+        overflow: hidden;
+    }
+
+    .command-bar-left,
+    .command-bar-right {
+        padding: 0 0.4em;
     }
 
     .breadcrumb-segment {

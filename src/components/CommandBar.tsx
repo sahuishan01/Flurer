@@ -62,81 +62,99 @@ export function CommandBar(props: CommandBarProps) {
 
   return (
     <div class="command-bar" data-tauri-drag-region data-bg-lightness={props["data-bg-lightness"]}>
-      <div class="command-bar-nav">
-        <button type="button" class="icon-btn" aria-label="Back" title="Back" disabled={!props.canGoBack} onClick={props.onBack}>
-          <ArrowLeftIcon size={18} />
-        </button>
-        <button
-          type="button"
-          class="icon-btn"
-          aria-label="Forward"
-          title="Forward"
-          disabled={!props.canGoForward}
-          onClick={props.onForward}
-        >
-          <ArrowRightIcon size={18} />
-        </button>
-        <button
-          type="button"
-          class="icon-btn"
-          aria-label="Up"
-          title="Up (Go to parent folder)"
-          disabled={!props.canGoUp}
-          onClick={props.onUp}
-        >
-          <ArrowUpIcon size={18} />
-        </button>
+      {/* Left zone — always pinned: history navigation. */}
+      <div class="command-bar-left">
+        <div class="command-bar-nav">
+          <button type="button" class="icon-btn" aria-label="Back" title="Back" disabled={!props.canGoBack} onClick={props.onBack}>
+            <ArrowLeftIcon size={18} />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Forward"
+            title="Forward"
+            disabled={!props.canGoForward}
+            onClick={props.onForward}
+          >
+            <ArrowRightIcon size={18} />
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Up"
+            title="Up (Go to parent folder)"
+            disabled={!props.canGoUp}
+            onClick={props.onUp}
+          >
+            <ArrowUpIcon size={18} />
+          </button>
+        </div>
       </div>
 
-      <div class="command-bar-slot" data-tauri-drag-region>{props.viewControls}</div>
+      {/* Center zone — the active view's own controls (path breadcrumb). Takes
+          all remaining width and can shrink/scroll independently of the
+          pinned zones on either side. */}
+      <div class="command-bar-center" data-tauri-drag-region>{props.viewControls}</div>
 
-      <div class="search-trigger" ref={containerRef}>
-        <button
-          type="button"
-          class="icon-btn"
-          classList={{ active: searchOpen() || props.searchQuery.length > 0 }}
-          title="Search"
-          aria-label="Search"
-          aria-expanded={searchOpen()}
-          onClick={(e) => openSearch(e.currentTarget)}
-        >
-          <SearchIcon size={16} />
-        </button>
+      {/* Right zone — tools, then window controls hard-pinned at the far
+          right edge. Thin dividers separate each cluster so the groups read
+          as distinct things rather than one crowded row. */}
+      <div class="command-bar-right">
+        <div class="search-trigger" ref={containerRef}>
+          <button
+            type="button"
+            class="icon-btn"
+            classList={{ active: searchOpen() || props.searchQuery.length > 0 }}
+            title="Search"
+            aria-label="Search"
+            aria-expanded={searchOpen()}
+            onClick={(e) => openSearch(e.currentTarget)}
+          >
+            <SearchIcon size={16} />
+          </button>
 
-        <Show when={searchOpen()}>
-          <div class="search-popover" style={pos()} ref={panelRef}>
-            <div class="search-popover-row">
-              <SearchIcon size={15} class="search-icon" />
-              <input
-                ref={inputRef}
-                type="text"
-                class="search-input"
-                placeholder="Search…"
-                value={props.searchQuery}
-                onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") close();
-                }}
-              />
-              <button
-                type="button"
-                class="icon-btn search-subfolder-btn"
-                classList={{ active: props.searchRecursive }}
-                title="Include subfolders"
-                aria-label="Include subfolders"
-                aria-pressed={props.searchRecursive}
-                onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
-              >
-                <RecursiveIcon size={15} />
-              </button>
+          <Show when={searchOpen()}>
+            <div class="search-popover" style={pos()} ref={panelRef}>
+              <div class="search-popover-row">
+                <SearchIcon size={15} class="search-icon" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  class="search-input"
+                  placeholder="Search…"
+                  value={props.searchQuery}
+                  onInput={(e) => props.onSearchQueryChange(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") close();
+                  }}
+                />
+                <button
+                  type="button"
+                  class="icon-btn search-subfolder-btn"
+                  classList={{ active: props.searchRecursive }}
+                  title="Include subfolders"
+                  aria-label="Include subfolders"
+                  aria-pressed={props.searchRecursive}
+                  onClick={() => props.onSearchRecursiveChange(!props.searchRecursive)}
+                >
+                  <RecursiveIcon size={15} />
+                </button>
+              </div>
             </div>
-          </div>
-        </Show>
-      </div>
+          </Show>
+        </div>
 
-      {props.rightExtras}
-      <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
-      <WindowControls />
+        <Show when={props.rightExtras}>
+          <span class="command-bar-divider" />
+          {props.rightExtras}
+        </Show>
+
+        <span class="command-bar-divider" />
+        <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
+
+        <span class="command-bar-divider" />
+        <WindowControls />
+      </div>
     </div>
   );
 }
