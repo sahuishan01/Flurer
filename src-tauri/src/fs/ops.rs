@@ -427,11 +427,9 @@ pub async fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchRes
     .await
     .map_err(|e| format!("Background task failed: {e}"))?;
     log_batch("delete_items", &result);
-    if let Ok(batch) = &result {
-        if !batch.succeeded.is_empty() {
-            let deleted: Vec<PathBuf> = batch.succeeded.iter().map(PathBuf::from).collect();
-            crate::sizecache::refresh_after_app_delete(&app, &deleted);
-        }
+    if !result.succeeded.is_empty() {
+        let deleted: Vec<PathBuf> = result.succeeded.iter().map(PathBuf::from).collect();
+        crate::sizecache::refresh_after_app_delete(&app, &deleted);
     }
     cleanup_task(task_id);
     Ok(result)
@@ -489,11 +487,9 @@ pub async fn delete_items_forever(app: AppHandle, paths: Vec<String>) -> Result<
     .await
     .map_err(|e| format!("Background task failed: {e}"))?;
     log_batch("delete_items_forever", &result);
-    if let Ok(batch) = &result {
-        if !batch.succeeded.is_empty() {
-            let deleted: Vec<PathBuf> = batch.succeeded.iter().map(PathBuf::from).collect();
-            crate::sizecache::refresh_after_app_delete(&app, &deleted);
-        }
+    if !result.succeeded.is_empty() {
+        let deleted: Vec<PathBuf> = result.succeeded.iter().map(PathBuf::from).collect();
+        crate::sizecache::refresh_after_app_delete(&app, &deleted);
     }
     cleanup_task(task_id);
     Ok(result)
