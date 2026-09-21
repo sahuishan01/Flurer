@@ -26,7 +26,8 @@ use disks::get_disk_topology;
 use drag_out::set_external_drop_allowed;
 use duplicates::find_duplicates;
 use fs::{
-    cancel_operation, copy_items, create_file, create_folder, delete_items, get_file_preview, get_path_metadata,
+    cancel_operation, copy_items, create_file, create_folder, delete_items, delete_items_forever, get_file_preview,
+    get_path_metadata,
     get_quick_access, list_directory, list_directory_streamed, list_graph_children, move_items,
     open_file_with_default, open_terminal_here, pick_folder, rename_item, search_content, search_directory,
 };
@@ -245,6 +246,7 @@ pub fn run() {
             copy_items,
             move_items,
             delete_items,
+            delete_items_forever,
             rename_item,
             create_folder,
             create_file,

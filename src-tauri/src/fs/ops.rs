@@ -427,6 +427,74 @@ pub async fn delete_items(app: AppHandle, paths: Vec<String>) -> Result<BatchRes
     .await
     .map_err(|e| format!("Background task failed: {e}"))?;
     log_batch("delete_items", &result);
+    if let Ok(batch) = &result {
+        if !batch.succeeded.is_empty() {
+            let deleted: Vec<PathBuf> = batch.succeeded.iter().map(PathBuf::from).collect();
+            crate::sizecache::refresh_after_app_delete(&app, &deleted);
+        }
+    }
+    cleanup_task(task_id);
+    Ok(result)
+}
+
+// Shift+Delete / "Delete permanently": bypasses the Recycle Bin entirely —
+// files are removed with the standard filesystem APIs, so there is no undo.
+fn delete_items_forever_inner(
+    paths: Vec<String>,
+    _cancelled: &AtomicBool,
+    _task_id: u64,
+    mut on_progress: impl FnMut(u64, u64, bool, Option<String>),
+) -> BatchResult {
+    let total = (paths.len() as u64).max(1);
+    let mut done = 0u64;
+    on_progress(0, total, false, None);
+
+    let mut result = BatchResult::new();
+    for path in paths {
+        let clean_path = crate::fs::clean_dir_path(&path);
+        let target_path = if clean_path.is_empty() { &path } else { &clean_path };
+        let outcome = match std::fs::symlink_metadata(target_path) {
+            Ok(metadata) if metadata.is_dir() => std::fs::remove_dir_all(target_path),
+            _ => std::fs::remove_file(target_path),
+        };
+        match outcome {
+            Ok(()) => result.push_ok(path),
+            Err(e) => result.push_err(path, e.to_string()),
+        }
+        done += 1;
+        on_progress(done, total, false, None);
+    }
+
+    let error = if result.failed.is_empty() {
+        None
+    } else {
+        Some(format!("{} item(s) failed", result.failed.len()))
+    };
+    on_progress(total, total, true, error);
+    result
+}
+
+#[tauri::command]
+pub async fn delete_items_forever(app: AppHandle, paths: Vec<String>) -> Result<BatchResult, String> {
+    let (task_id, cancelled) = register_task();
+    let label = operation_label("Permanently deleting", paths.len());
+    let app_clone = app.clone();
+    let label_clone = label.clone();
+    let cancelled_clone = cancelled.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        delete_items_forever_inner(paths, &cancelled_clone, task_id, |done, total, finished, error| {
+            emit_progress(&app_clone, task_id, &label_clone, done, total, finished, error, false)
+        })
+    })
+    .await
+    .map_err(|e| format!("Background task failed: {e}"))?;
+    log_batch("delete_items_forever", &result);
+    if let Ok(batch) = &result {
+        if !batch.succeeded.is_empty() {
+            let deleted: Vec<PathBuf> = batch.succeeded.iter().map(PathBuf::from).collect();
+            crate::sizecache::refresh_after_app_delete(&app, &deleted);
+        }
+    }
     cleanup_task(task_id);
     Ok(result)
 }

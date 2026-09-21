@@ -1131,6 +1131,37 @@ fn handle_file_system_event(app: &AppHandle, event: Event) {
     }
 }
 
+/// Refreshes cached ancestor sizes after items the app itself deleted
+/// (Recycle Bin delete or Shift+Delete). Deliberately ignores the
+/// live_folder_size_updates setting: the deletion happened inside Flurer, so
+/// any cached size it invalidated must be corrected immediately — without a
+/// watcher event to piggyback on, nothing else would ever fix those entries
+/// when live updates are off.
+pub fn refresh_after_app_delete(app: &AppHandle, deleted: &[PathBuf]) {
+    // Same guard rationale as flush(): setup may exit the process before
+    // AppState is managed.
+    let Some(state) = app.try_state::<AppState>() else {
+        return;
+    };
+    for path in deleted {
+        // Drop the deleted item's own cached size so it doesn't linger
+        // (and isn't persisted) for a folder that no longer exists.
+        state.size_cache.roots.lock().unwrap().shift_remove(path);
+        state.size_cache.subdirs.lock().unwrap().shift_remove(path);
+        let mut dirty: Vec<PathBuf> = Vec::new();
+        let mut current = path.parent().map(Path::to_path_buf);
+        while let Some(dir) = current {
+            if !dirty.contains(&dir) && is_cached(&state, &dir) {
+                dirty.push(dir.clone());
+            }
+            current = dir.parent().map(Path::to_path_buf);
+        }
+        for dir in dirty {
+            enqueue_watcher_recompute(&state, dir);
+        }
+    }
+}
+
 /// Folders Windows locks down structurally — owned by TrustedInstaller or
 /// reserved for the OS itself — where a size walk will always end in
 /// PermissionDenied no matter what rights the calling process has, admin

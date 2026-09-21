@@ -296,7 +296,7 @@ export function FileList(props: FileListProps) {
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = createSignal<string | null>(null);
   const [renameValue, setRenameValue] = createSignal("");
-  const [deleteTargets, setDeleteTargets] = createSignal<string[] | null>(null);
+  const [deleteTargets, setDeleteTargets] = createSignal<{ paths: string[]; permanent: boolean } | null>(null);
   const [propertiesTarget, setPropertiesTarget] = createSignal<string | null>(null);
   const [bulkRenameOpen, setBulkRenameOpen] = createSignal(false);
   const [duplicatesOpen, setDuplicatesOpen] = createSignal(false);
@@ -1420,23 +1420,24 @@ export function FileList(props: FileListProps) {
     }
   }
 
-  function requestDelete(paths: string[]) {
+  function requestDelete(paths: string[], permanent = false) {
     if (paths.length === 0) return;
-    setDeleteTargets(paths);
+    setDeleteTargets({ paths, permanent });
   }
 
   async function confirmDelete() {
-    const paths = deleteTargets();
+    const targets = deleteTargets();
     setDeleteTargets(null);
-    if (!paths) return;
+    if (!targets) return;
+    const { paths, permanent } = targets;
 
     setOpError("");
     try {
-      const result = await invoke<BatchResult>("delete_items", { paths });
+      const result = await invoke<BatchResult>(permanent ? "delete_items_forever" : "delete_items", { paths });
       if (result.failed.length > 0) {
         setOpError(result.failed.map((f) => `${f.path}: ${f.error}`).join("; "));
       }
-      if (result.succeeded.length > 0) {
+      if (result.succeeded.length > 0 && !permanent) {
         try {
           const trashEntries = await invoke<TrashEntry[]>("list_trash");
           if (trashEntries.length > 0) {
@@ -1787,9 +1788,13 @@ export function FileList(props: FileListProps) {
       return matchesKeyCombo(e, props.inAppShortcuts[action] ?? DEFAULT_IN_APP_SHORTCUTS[action]);
     }
 
-    if (bound("delete")) {
+    if (bound("deletePermanently")) {
       e.preventDefault();
-      requestDelete([...selected()]);
+      requestDelete([...selected()], true);
+      return;
+    } else if (bound("delete")) {
+      e.preventDefault();
+      requestDelete([...selected()], false);
       return;
     } else if (bound("rename")) {
       e.preventDefault();
@@ -2274,16 +2279,19 @@ export function FileList(props: FileListProps) {
       )}
 
       {deleteTargets() && (
-        <Modal title="Delete items?" onClose={() => setDeleteTargets(null)}>
+        <Modal title={deleteTargets()!.permanent ? "Permanently delete items?" : "Delete items?"} onClose={() => setDeleteTargets(null)}>
           <p>
-            {deleteTargets()!.length} item{deleteTargets()!.length > 1 ? "s" : ""} will be moved to the Recycle Bin.
+            {deleteTargets()!.paths.length} item{deleteTargets()!.paths.length > 1 ? "s" : ""}{" "}
+            {deleteTargets()!.permanent
+              ? "will be permanently deleted. This cannot be undone."
+              : "will be moved to the Recycle Bin."}
           </p>
           <div class="modal-actions">
             <button type="button" onClick={() => setDeleteTargets(null)}>
               Cancel
             </button>
             <button type="button" class="danger" onClick={confirmDelete}>
-              <TrashIcon size={14} /> Delete
+              <TrashIcon size={14} /> {deleteTargets()!.permanent ? "Delete permanently" : "Delete"}
             </button>
           </div>
         </Modal>

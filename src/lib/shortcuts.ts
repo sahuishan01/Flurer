@@ -36,6 +36,7 @@ export function matchesKeyCombo(e: KeyboardEvent, combo: string | undefined): bo
 
 export type InAppShortcutAction =
   | "delete"
+  | "deletePermanently"
   | "rename"
   | "copy"
   | "cut"
@@ -57,6 +58,7 @@ export type InAppShortcutAction =
 
 export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   delete: "Delete selected item(s)",
+  deletePermanently: "Delete selected item(s) permanently",
   rename: "Rename",
   copy: "Copy",
   cut: "Cut",
@@ -80,7 +82,7 @@ export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
 export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShortcutAction[] }[] = [
   {
     category: "File Operations",
-    actions: ["delete", "rename", "copy", "cut", "paste", "selectAll"],
+    actions: ["delete", "deletePermanently", "rename", "copy", "cut", "paste", "selectAll"],
   },
   {
     category: "Navigation",
@@ -95,6 +97,7 @@ export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShort
 // Matches the behavior hardcoded before these became configurable.
 export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   delete: "Delete",
+  deletePermanently: "Shift+Delete",
   rename: "F2",
   copy: "Ctrl+C",
   cut: "Ctrl+X",
