@@ -43,6 +43,10 @@ type CommandBarProps = {
   // path breadcrumb) — the bar itself stays generic and doesn't know what a
   // path or a breadcrumb is.
   viewControls?: JSX.Element;
+  // Self-contained widgets rendered between the progress indicator and the
+  // window controls (e.g. the top-bar system-metrics widgets) — same
+  // "bar stays generic" convention as viewControls above.
+  rightExtras?: JSX.Element;
   showProgressWhenIdle?: boolean;
   "data-bg-lightness"?: string;
 };
@@ -130,6 +134,7 @@ export function CommandBar(props: CommandBarProps) {
         </Show>
       </div>
 
+      {props.rightExtras}
       <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
       <WindowControls />
     </div>

@@ -18,11 +18,12 @@ See [frontend/taste.md](frontend/taste.md)
 - CPU-gate background heavy operations (check /proc/stat, run only when CPU idle >= 80%). Confidence: 0.70
 
 # Architecture
-- For plugin installation: support direct GitHub URL entry or ZIP file upload instead of a remote marketplace registry. Confidence: 0.70
-- Release and version plugins independently from the main app, not as release assets in main app builds. Confidence: 0.75
-- Place all plugins under a `plugins/` directory within the main app repo, each with its own build config and package.json. Confidence: 0.75
-- When bumping app version, update ALL version fields consistently (Cargo.toml, package.json, tauri.conf.json) and stage Cargo.lock alongside them. Confidence: 0.75
-- Privilege-elevation features must fail open: with "Always run as admin" enabled, setup self-elevates (UAC via PowerShell RunAs) BEFORE building any window state, an already-elevated instance never re-prompts (token-elevation check), and a declined UAC prompt keeps the app running unelevated for that run instead of exiting; disabling only takes effect on the next normal launch. Confidence: 0.5
+See [architecture/taste.md](architecture/taste.md)
+# Workflow
+See [workflow/taste.md](workflow/taste.md)
+# Documentation
+- Use AGENTS.md and HANDOFF.md files at project boundaries for AI coordination context. Confidence: 0.75
+, bounded ~10 s, treat a null handle as already-gone, `#[cfg(not(windows))]` no-op stub) BEFORE constructing the Tauri builder; when introducing a new CLI arg, verify the existing arg parser ignores flag-like args (Flurer's `cli::resolve_launch_path` does). Confidence: 0.65
 
 # Workflow
 See [workflow/taste.md](workflow/taste.md)

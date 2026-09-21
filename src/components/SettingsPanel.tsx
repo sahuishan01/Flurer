@@ -8,6 +8,7 @@ import type { BackgroundSettings, Theme } from "../lib/settings";
 import type { InAppShortcutAction } from "../lib/shortcuts";
 import type { Wallpaper } from "../lib/unsplash";
 import { registeredPlugins } from "../lib/plugins";
+import type { MetricKind, TopBarMetrics } from "../lib/settings";
 import { PluginMarketplace } from "./PluginMarketplace";
 import { PluginAppearanceSettings } from "./PluginAppearanceSettings";
 
@@ -34,6 +35,9 @@ type SettingsPanelProps = {
   onShowProgressWhenIdleChange: (show: boolean) => void;
   liveFolderSizeUpdates: boolean;
   onLiveFolderSizeUpdatesChange: (enabled: boolean) => void;
+  topBarMetrics: TopBarMetrics;
+  onTopBarMetricsChange: (patch: Partial<TopBarMetrics>) => void;
+  onToggleTopBarMetricItem: (kind: MetricKind, id: string, enabled: boolean) => void;
   maxHistoryItems: number;
   onMaxHistoryItemsChange: (limit: number) => void;
   globalShortcut: string;
@@ -260,6 +264,9 @@ export function SettingsPanel(props: SettingsPanelProps) {
               onShowProgressWhenIdleChange={props.onShowProgressWhenIdleChange}
               liveFolderSizeUpdates={props.liveFolderSizeUpdates}
               onLiveFolderSizeUpdatesChange={props.onLiveFolderSizeUpdatesChange}
+              topBarMetrics={props.topBarMetrics}
+              onTopBarMetricsChange={props.onTopBarMetricsChange}
+              onToggleTopBarMetricItem={props.onToggleTopBarMetricItem}
               maxHistoryItems={props.maxHistoryItems}
               onMaxHistoryItemsChange={props.onMaxHistoryItemsChange}
               restoreLastStateOnReopen={props.restoreLastStateOnReopen}

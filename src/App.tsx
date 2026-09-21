@@ -12,6 +12,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { TrashView } from "./components/TrashView";
 import { Modal } from "./components/Modal";
+import { MetricsBar } from "./components/MetricsBar";
 import { ViewRail } from "./components/ViewRail";
 import {
   DEFAULT_SETTINGS,
@@ -20,9 +21,11 @@ import {
   MIN_HISTORY_ITEMS,
   THEMES,
   type BackgroundSettings,
+  type MetricKind,
   type Settings,
   type SidebarSectionId,
   type Theme,
+  type TopBarMetrics,
 } from "./lib/settings";
 import { cleanDirPath, parentDir, resolvePath, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
@@ -444,6 +447,19 @@ function App() {
   function updateLiveFolderSizeUpdates(enabled: boolean) {
     setSettings("liveFolderSizeUpdates", enabled);
     persistSettings();
+  }
+
+  function updateTopBarMetrics(patch: Partial<TopBarMetrics>) {
+    setSettings("topBarMetrics", { ...unwrap(settings.topBarMetrics), ...patch });
+    persistSettings();
+  }
+
+  function toggleTopBarMetricItem(kind: MetricKind, id: string, enabled: boolean) {
+    const current = unwrap(settings.topBarMetrics.items);
+    const items = enabled
+      ? [...current, { kind, id }]
+      : current.filter((item) => !(item.kind === kind && item.id === id));
+    updateTopBarMetrics({ items });
   }
 
   function updateMaxHistoryItems(value: number) {
@@ -1425,6 +1441,11 @@ function App() {
               />
             </Show>
           }
+          rightExtras={
+            <Show when={settings.topBarMetrics.enabled}>
+              <MetricsBar items={settings.topBarMetrics.items} />
+            </Show>
+          }
         />
 
         <Show when={mainView() === "explorer"}>
@@ -1588,6 +1609,9 @@ function App() {
                    onShowProgressWhenIdleChange={updateShowProgressWhenIdle}
                    liveFolderSizeUpdates={settings.liveFolderSizeUpdates}
                    onLiveFolderSizeUpdatesChange={updateLiveFolderSizeUpdates}
+                   topBarMetrics={settings.topBarMetrics}
+                   onTopBarMetricsChange={updateTopBarMetrics}
+                   onToggleTopBarMetricItem={toggleTopBarMetricItem}
                    maxHistoryItems={settings.maxHistoryItems}
                    onMaxHistoryItemsChange={updateMaxHistoryItems}
                    showHiddenFiles={settings.showHiddenFiles}

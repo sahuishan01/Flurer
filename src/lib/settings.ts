@@ -136,6 +136,22 @@ export type Settings = {
   autoCheckUpdateIntervalSeconds: number;
   ignoredUpdateVersion: string | null;
   showHiddenFiles: boolean;
+  // Top-bar system metrics: which CPU/GPU/memory/drive/network widgets are
+  // pinned to the top bar and how often they refresh. items are
+  // { kind, id } pairs — kind is "cpu" | "memory" | "gpu" | "drive" |
+  // "network"; id is the device id from get_metric_devices ("cpu" and
+  // "memory" for the singletons).
+  topBarMetrics: TopBarMetrics;
+};
+
+export type MetricKind = "cpu" | "memory" | "gpu" | "drive" | "network";
+
+export type MetricItem = { kind: MetricKind; id: string };
+
+export type TopBarMetrics = {
+  enabled: boolean;
+  intervalSeconds: number;
+  items: MetricItem[];
 };
 
 export const DEFAULT_GLOBAL_SHORTCUT = "Ctrl+Alt+E";
@@ -197,6 +213,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCheckUpdateIntervalSeconds: 14400,
   ignoredUpdateVersion: null,
   showHiddenFiles: false,
+  topBarMetrics: { enabled: false, intervalSeconds: 2, items: [] },
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

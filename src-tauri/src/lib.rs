@@ -8,6 +8,7 @@ mod duplicates;
 mod fs;
 mod helpers;
 mod logging;
+mod metrics;
 mod network;
 mod plugins;
 mod progress;
@@ -31,6 +32,7 @@ use fs::{
     get_quick_access, list_directory, list_directory_streamed, list_graph_children, move_items,
     open_file_with_default, open_terminal_here, pick_folder, rename_item, search_content, search_directory,
 };
+use metrics::get_metric_devices;
 use helpers::settings::{get_settings, load_settings, save_settings, set_settings};
 use network::{fetch_wallpaper_image, get_cached_wallpaper_image, get_wallpaper, get_wallpaper_updated_at, search_wallpapers};
 use searchindex::{clear_search_index, rebuild_search_index, search_index_query, search_index_status};
@@ -203,6 +205,10 @@ pub fn run() {
                 shortcuts::show_and_focus_main_window(&app.handle());
             }
             sizecache::init(&app.handle());
+            metrics::init(&app.handle());
+            // The sampler starts disabled; pick up whatever the user had
+            // configured on the last run.
+            metrics::configure(&app.state::<AppState>().settings.blocking_lock().top_bar_metrics);
             // Deliberately deferred off the setup thread: this is the one
             // reintroduced feature that ever ran synchronously in .setup()
             // in the original (reverted) attempt, and it's the prime
@@ -253,6 +259,7 @@ pub fn run() {
             get_path_metadata,
             get_file_preview,
             get_quick_access,
+            get_metric_devices,
             list_graph_children,
             search_directory,
             search_content,

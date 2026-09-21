@@ -4346,3 +4346,154 @@ button.danger:not(.context-menu-item):hover {
     flex-shrink: 0;
     color: var(--accent);
 }
+
+/* --- Top-bar system metrics widgets (MetricsBar) --- */
+.metrics-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+    margin-right: 0.25em;
+}
+
+.metric-widget {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4em;
+    padding: 0.25em 0.55em;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    font-family: inherit;
+    font-size: var(--text-secondary);
+    color: inherit;
+    cursor: default;
+    white-space: nowrap;
+}
+
+.metric-widget:hover,
+.metric-widget.active {
+    background-color: var(--hover-bg);
+    border-color: var(--border-color);
+}
+
+.metric-widget-label {
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+.metric-widget-value {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.95;
+}
+
+.metric-widget-rates {
+    display: flex;
+    gap: 0.45em;
+}
+
+.rate-down {
+    color: var(--accent);
+}
+
+.rate-up {
+    opacity: 0.8;
+}
+
+.metric-na {
+    opacity: 0.5;
+}
+
+.metric-detail-panel {
+    position: fixed;
+    z-index: 9999;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55em;
+    width: min(280px, calc(100vw - 16px));
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 0.75em;
+    border-radius: var(--radius-lg);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md);
+    font-size: var(--text-secondary);
+}
+
+.metric-detail-title {
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.35em;
+}
+
+.metric-detail-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+}
+
+.metric-detail-row-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6em;
+}
+
+.metric-detail-label {
+    opacity: 0.7;
+}
+
+.metric-detail-value {
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+.metric-detail-sub {
+    opacity: 0.55;
+    font-size: 0.9em;
+}
+
+.metric-detail-bar {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.metric-detail-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background-color: var(--accent);
+    transition: width 0.2s ease;
+}
+
+.metric-detail-empty {
+    opacity: 0.6;
+}
+
+/* Settings section for the metrics bar */
+.metrics-settings-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+}
+
+.metrics-device-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    padding: 0.5em 0.65em;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.metrics-device-group-title {
+    font-weight: 600;
+    font-size: 0.95em;
+    opacity: 0.85;
+}
+
+.metrics-device-empty {
+    opacity: 0.55;
+    font-size: 0.95em;
+}

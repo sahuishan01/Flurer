@@ -226,6 +226,34 @@ pub struct Settings {
     pub ignored_update_version: Option<String>,
     #[serde(default)]
     pub show_hidden_files: bool,
+    // Top-bar system metrics (see metrics/mod.rs): which CPU/GPU/memory/
+    // drive/network widgets the user pinned, and how often they refresh.
+    // items hold { kind, id } pairs — kind is "cpu" | "memory" | "gpu" |
+    // "drive" | "network", id is the device id from get_metric_devices
+    // ("cpu" and "memory" for the singletons).
+    #[serde(default)]
+    pub top_bar_metrics: TopBarMetrics,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TopBarMetrics {
+    pub enabled: bool,
+    pub interval_seconds: u32,
+    pub items: Vec<MetricItem>,
+}
+
+impl Default for TopBarMetrics {
+    fn default() -> Self {
+        Self { enabled: false, interval_seconds: 2, items: Vec::new() }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricItem {
+    pub kind: String,
+    pub id: String,
 }
 
 fn default_auto_check_updates() -> bool {
@@ -315,6 +343,7 @@ impl Default for Settings {
             auto_check_update_interval_seconds: default_auto_check_update_interval_seconds(),
             ignored_update_version: None,
             show_hidden_files: false,
+            top_bar_metrics: TopBarMetrics::default(),
         }
     }
 }

@@ -1,7 +1,7 @@
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import type { FolderSizeCacheStats } from "../lib/fs";
-import { THEMES, type BackgroundSettings, type BackgroundType, type Theme } from "../lib/settings";
+import { THEMES, type BackgroundSettings, type BackgroundType, type MetricKind, type Theme, type TopBarMetrics } from "../lib/settings";
 import {
   FONT_FAMILY_PRESETS,
   GRADIENT_DIRECTIONS,
@@ -72,7 +72,7 @@ const THEME_KEYWORDS = [
   "text size",
 ];
 
-const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "folder size", "live update", "automatic", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background", "cache", "clear cache", "size cache", "disk usage"];
+const BEHAVIOR_KEYWORDS = ["graph", "persist", "remember", "storage graph", "layout", "behavior", "session", "history", "recent", "paths", "folder size", "live update", "automatic", "tooltip", "hover", "delay", "progress", "shortcut", "hotkey", "global shortcut", "keybind", "tray", "startup", "launch at startup", "autostart", "login", "minimize", "background", "cache", "clear cache", "size cache", "disk usage", "metrics", "system metrics", "cpu", "gpu", "memory", "network", "top bar"];
 
 function matchesQuery(query: string, keywords: string[]): boolean {
   const q = query.trim().toLowerCase();
@@ -248,6 +248,9 @@ type CustomizationSettingsProps = {
   onShowProgressWhenIdleChange: (show: boolean) => void;
   liveFolderSizeUpdates: boolean;
   onLiveFolderSizeUpdatesChange: (enabled: boolean) => void;
+  topBarMetrics: TopBarMetrics;
+  onTopBarMetricsChange: (patch: Partial<TopBarMetrics>) => void;
+  onToggleTopBarMetricItem: (kind: MetricKind, id: string, enabled: boolean) => void;
   maxHistoryItems: number;
   onMaxHistoryItemsChange: (limit: number) => void;
   restoreLastStateOnReopen?: boolean;
@@ -273,6 +276,26 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   const showBackground = () => matchesQuery(props.searchQuery, BACKGROUND_KEYWORDS);
   const showTheme = () => matchesQuery(props.searchQuery, THEME_KEYWORDS);
   const showBehavior = () => matchesQuery(props.searchQuery, BEHAVIOR_KEYWORDS);
+
+  type MetricDevices = {
+    drives: { id: string; label: string; total: number }[];
+    networks: { id: string; name: string }[];
+    gpus: { id: string; name: string; memTotal: number }[];
+  };
+  const [metricDevices, setMetricDevices] = createSignal<MetricDevices | null>(null);
+  // Device lists (drives/NICs/GPUs) only matter once the user is configuring
+  // the metrics bar — fetch lazily when the section becomes relevant rather
+  // than paying a DXGI/sysinfo walk on every Settings open.
+  createEffect(() => {
+    if (!props.topBarMetrics.enabled || metricDevices()) return;
+    invoke<MetricDevices>("get_metric_devices")
+      .then(setMetricDevices)
+      .catch((err) => console.error("get_metric_devices failed", err));
+  });
+
+  function metricItemChecked(kind: MetricKind, id: string): boolean {
+    return props.topBarMetrics.items.some((item) => item.kind === kind && item.id === id);
+  }
 
   const [apiKeyInput, setApiKeyInput] = createSignal("");
 
@@ -885,6 +908,115 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
         <p class="settings-hint">
           Uses file changes to keep cached folder sizes current. Disable this to avoid background size work while files are changing.
         </p>
+
+        <div class="metrics-settings-block">
+          <label class="checkbox-control">
+            <input
+              type="checkbox"
+              checked={props.topBarMetrics.enabled}
+              onChange={(e) => props.onTopBarMetricsChange({ enabled: e.currentTarget.checked })}
+            />
+            Show system metrics in the top bar
+          </label>
+          <p class="settings-hint">
+            Live CPU, memory, GPU, drive and network widgets. Hover a widget for details; click it to keep the panel open.
+          </p>
+
+          <Show when={props.topBarMetrics.enabled}>
+            <label class="history-limit-control">
+              <span>Refresh interval</span>
+              <select
+                value={String(props.topBarMetrics.intervalSeconds)}
+                onChange={(e) => props.onTopBarMetricsChange({ intervalSeconds: Number(e.currentTarget.value) })}
+              >
+                <For each={[1, 2, 3, 5, 10]}>{(s) => <option value={String(s)}>{s} s</option>}</For>
+              </select>
+            </label>
+
+            <div class="metrics-device-group">
+              <span class="metrics-device-group-title">Processor &amp; memory</span>
+              <label class="checkbox-control">
+                <input
+                  type="checkbox"
+                  checked={metricItemChecked("cpu", "cpu")}
+                  onChange={(e) => props.onToggleTopBarMetricItem("cpu", "cpu", e.currentTarget.checked)}
+                />
+                CPU usage
+              </label>
+              <label class="checkbox-control">
+                <input
+                  type="checkbox"
+                  checked={metricItemChecked("memory", "memory")}
+                  onChange={(e) => props.onToggleTopBarMetricItem("memory", "memory", e.currentTarget.checked)}
+                />
+                Memory usage
+              </label>
+            </div>
+
+            <div class="metrics-device-group">
+              <span class="metrics-device-group-title">GPUs</span>
+              <Show
+                when={(metricDevices()?.gpus.length ?? 0) > 0}
+                fallback={<span class="metrics-device-empty">No dedicated GPUs detected.</span>}
+              >
+                <For each={metricDevices()?.gpus ?? []}>
+                  {(gpu) => (
+                    <label class="checkbox-control">
+                      <input
+                        type="checkbox"
+                        checked={metricItemChecked("gpu", gpu.id)}
+                        onChange={(e) => props.onToggleTopBarMetricItem("gpu", gpu.id, e.currentTarget.checked)}
+                      />
+                      {gpu.name}
+                    </label>
+                  )}
+                </For>
+              </Show>
+            </div>
+
+            <div class="metrics-device-group">
+              <span class="metrics-device-group-title">Drives</span>
+              <Show
+                when={(metricDevices()?.drives.length ?? 0) > 0}
+                fallback={<span class="metrics-device-empty">No drives detected.</span>}
+              >
+                <For each={metricDevices()?.drives ?? []}>
+                  {(drive) => (
+                    <label class="checkbox-control">
+                      <input
+                        type="checkbox"
+                        checked={metricItemChecked("drive", drive.id)}
+                        onChange={(e) => props.onToggleTopBarMetricItem("drive", drive.id, e.currentTarget.checked)}
+                      />
+                      {drive.id} — {drive.label || "Local disk"}
+                    </label>
+                  )}
+                </For>
+              </Show>
+            </div>
+
+            <div class="metrics-device-group">
+              <span class="metrics-device-group-title">Network interfaces</span>
+              <Show
+                when={(metricDevices()?.networks.length ?? 0) > 0}
+                fallback={<span class="metrics-device-empty">No network interfaces detected.</span>}
+              >
+                <For each={metricDevices()?.networks ?? []}>
+                  {(net) => (
+                    <label class="checkbox-control">
+                      <input
+                        type="checkbox"
+                        checked={metricItemChecked("network", net.id)}
+                        onChange={(e) => props.onToggleTopBarMetricItem("network", net.id, e.currentTarget.checked)}
+                      />
+                      {net.name}
+                    </label>
+                  )}
+                </For>
+              </Show>
+            </div>
+          </Show>
+        </div>
 
         <label class="history-limit-control">
           <span>Maximum recent history items</span>

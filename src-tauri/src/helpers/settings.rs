@@ -210,6 +210,10 @@ pub async fn set_settings(
     if guard.live_folder_size_updates != settings.live_folder_size_updates {
         crate::sizecache::invalidate_incremental_tracking(&state);
     }
+    // Atomics only — no-op when nothing the sampler cares about changed.
+    if guard.top_bar_metrics != settings.top_bar_metrics {
+        crate::metrics::configure(&settings.top_bar_metrics);
+    }
     *guard = settings;
     Ok(())
 }

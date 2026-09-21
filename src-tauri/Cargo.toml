@@ -58,6 +58,7 @@ tauri-plugin-dialog = "2.7.2"
 sha2 = "0.10"
 watch-protocol = { path = "watch-protocol" }
 tauri-plugin-single-instance = "2"
+sysinfo = "0.33"
 
 [target.'cfg(windows)'.dependencies]
 # Named-pipe client to flurer-watchd only — see sizecache/watchd_client.rs.
@@ -83,6 +84,15 @@ windows-sys = { version = "0.59", features = [
 # drag_out.rs) is ABI-compatible with the controller handle Tauri's
 # with_webview hands back — a mismatched windows-rs/webview2-com version
 # would make that cast silently fail at runtime instead of compiling wrong.
+# GPU metrics (metrics/gpu.rs) additionally needs the features below:
+# DXGI adapter enumeration (name, LUID, dedicated VRAM) + D3DKMTQueryStatistics
+# node/segment stats for utilization and VRAM-in-use. D3DKMT lives under
+# Windows::Wdk in windows-rs, hence the Wdk features.
 webview2-com = "=0.38.2"
-windows = "=0.61.3"
+windows = { version = "=0.61.3", features = [
+  "Wdk",
+  "Wdk_Graphics_Direct3D",
+  "Win32_Foundation",
+  "Win32_Graphics_Dxgi",
+] }
 winreg = "0.55"
