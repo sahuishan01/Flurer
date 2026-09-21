@@ -4062,9 +4062,25 @@ button.danger:not(.context-menu-item):hover {
     .command-bar {
         gap: 0.4em;
         padding: 0.4em 0;
-        /* Never wrap: navigation and window controls must stay pinned to
-           their edges; the center zone shrinks instead. */
-        flex-wrap: nowrap;
+        /* Narrow widths: the tools zone (metrics/progress/search) drops to
+           its own second row instead of squeezing the first row — window
+           controls must never be pushed off or hidden. */
+        flex-wrap: wrap;
+    }
+
+    /* Full basis forces the tools zone onto row two; ordering keeps it after
+       the window controls, which stay at row one's right edge. */
+    .command-bar-right {
+        order: 5;
+        flex: 1 1 100%;
+        padding-top: 0.3em;
+        margin-top: 0.25em;
+        border-top: 1px solid var(--border-color);
+        justify-content: flex-start;
+    }
+
+    .window-controls {
+        order: 4;
     }
 
     .command-bar-center {

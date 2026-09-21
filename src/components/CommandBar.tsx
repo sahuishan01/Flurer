@@ -96,10 +96,20 @@ export function CommandBar(props: CommandBarProps) {
           pinned zones on either side. */}
       <div class="command-bar-center" data-tauri-drag-region>{props.viewControls}</div>
 
-      {/* Right zone — tools, then window controls hard-pinned at the far
-          right edge. Thin dividers separate each cluster so the groups read
-          as distinct things rather than one crowded row. */}
+      {/* Right zone — tools in a fixed order (metrics, progress, search).
+          Window controls deliberately live OUTSIDE this zone (direct child
+          of the bar): at narrow widths this zone wraps onto its own second
+          row, and the controls must stay on the first row at the top-right
+          edge no matter what. */}
       <div class="command-bar-right">
+        {props.rightExtras}
+        <Show when={props.rightExtras}>
+          <span class="command-bar-divider" />
+        </Show>
+
+        <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
+        <span class="command-bar-divider" />
+
         <div class="search-trigger" ref={containerRef}>
           <button
             type="button"
@@ -143,18 +153,9 @@ export function CommandBar(props: CommandBarProps) {
             </div>
           </Show>
         </div>
-
-        <Show when={props.rightExtras}>
-          <span class="command-bar-divider" />
-          {props.rightExtras}
-        </Show>
-
-        <span class="command-bar-divider" />
-        <ProgressIndicator showWhenIdle={props.showProgressWhenIdle} />
-
-        <span class="command-bar-divider" />
-        <WindowControls />
       </div>
+
+      <WindowControls />
     </div>
   );
 }
