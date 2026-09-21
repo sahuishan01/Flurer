@@ -239,15 +239,18 @@ body {
 }
 
 /* Three fixed zones so every group has one unambiguous place: navigation on
-   the far left, the view's own controls (path) filling the middle, and all
-   tools + window controls pinned on the far right. */
-.command-bar-left,
-.command-bar-right {
+   the far left, the view's own controls (path) filling the middle, and the
+   tools + window controls pinned on the far right. Explicit order values
+   keep the wide layout as metrics | progress | search | window controls
+   while still letting ONLY the metrics element wrap to a second row on
+   narrow widths. */
+.command-bar-left {
     display: flex;
     align-items: center;
     gap: 0.5em;
     flex-shrink: 0;
     padding: 0 0.75em;
+    order: 1;
 }
 
 .command-bar-center {
@@ -256,9 +259,34 @@ body {
     display: flex;
     align-items: center;
     padding-right: 0.5em;
+    order: 2;
 }
 
-/* Thin separator between right-zone clusters (search | metrics | progress |
+/* Metrics widgets: the one element allowed to wrap onto its own row when
+   the window is narrow. */
+.command-bar-metrics {
+    display: flex;
+    align-items: center;
+    order: 3;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.command-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-shrink: 0;
+    padding: 0 0.75em;
+    order: 4;
+}
+
+.window-controls {
+    order: 5;
+}
+
+/* Thin separator between right-zone clusters (metrics | progress | search |
    window controls) — the visual cue that these are distinct groups. */
 .command-bar-divider {
     width: 1px;
@@ -266,15 +294,6 @@ body {
     flex-shrink: 0;
     background: var(--border-color);
     opacity: 0.6;
-}
-
-/* When many metric widgets are pinned, let the metrics row shrink and clip
-   instead of pushing the window controls off the bar — window controls and
-   navigation must never move. */
-.command-bar-right .metrics-bar {
-    flex-shrink: 1;
-    min-width: 0;
-    overflow: hidden;
 }
 
 .command-bar::before {
@@ -4062,17 +4081,19 @@ button.danger:not(.context-menu-item):hover {
     .command-bar {
         gap: 0.4em;
         padding: 0.4em 0;
-        /* Narrow widths: the tools zone (metrics/progress/search) drops to
-           its own second row instead of squeezing the first row — window
-           controls must never be pushed off or hidden. */
+        /* Narrow widths: ONLY the metrics element wraps to a second row —
+           progress, search and window controls always stay on row one, and
+           window controls are never hidden. */
         flex-wrap: wrap;
     }
 
-    /* Full basis forces the tools zone onto row two; ordering keeps it after
-       the window controls, which stay at row one's right edge. */
-    .command-bar-right {
-        order: 5;
+    /* Full basis forces the metrics onto row two; ordering keeps it after
+       the window controls (row one's right edge). */
+    .command-bar-metrics {
+        order: 7;
         flex: 1 1 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
         padding-top: 0.3em;
         margin-top: 0.25em;
         border-top: 1px solid var(--border-color);
@@ -4080,11 +4101,13 @@ button.danger:not(.context-menu-item):hover {
     }
 
     .window-controls {
-        order: 4;
+        order: 6;
     }
 
     .command-bar-center {
-        overflow: hidden;
+        /* Scrollable instead of clipped when the path runs out of room. */
+        overflow-x: auto;
+        overflow-y: hidden;
     }
 
     .command-bar-left,
