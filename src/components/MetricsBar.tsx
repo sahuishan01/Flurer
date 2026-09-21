@@ -7,6 +7,7 @@
 // triggered by pointerenter instead of click; clicking a widget pins its
 // panel so it survives pointer-out.
 import { createSignal, onCleanup, onMount, For, Show } from "solid-js";
+import { createStore } from "solid-js/store";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { createPopover } from "../lib/popover";
@@ -29,6 +30,11 @@ type DeviceInventory = {
 
 const HOVER_OPEN_DELAY_MS = 250;
 const HOVER_CLOSE_DELAY_MS = 180;
+const SPARKLINE_POINTS = 40;
+// Sparkline size — deliberately tiny: the graph *is* the label, color
+// distinguishes the hardware type, and only a small percentage sits beside it.
+const SPARKLINE_W = 52;
+const SPARKLINE_H = 16;
 
 function formatBytes(bytes: number, digits = 1): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "—";
@@ -51,20 +57,39 @@ function percent(value: number): string {
   return `${Math.round(value)}%`;
 }
 
-// "C:\" → "C:", "/home/user" → "…/user" — the compact drive label.
-function shortDriveId(mountPoint: string): string {
-  const trimmed = mountPoint.replace(/[\\/]+$/, "");
-  const last = trimmed.split(/[\\/]/).pop() ?? trimmed;
-  return /^[A-Za-z]:$/.test(last) ? last : last || mountPoint;
-}
-
 type MetricsBarProps = {
   items: MetricItem[];
 };
 
+// The single metric a widget tracks: utilization % for everything except
+// network, which tracks total throughput (bytes/s) and self-scales in the
+// sparkline since bytes/s has no natural 0-100 range.
+function currentValue(metrics: SystemMetrics, item: MetricItem): number | null {
+  switch (item.kind) {
+    case "cpu":
+      return metrics.cpuOverall;
+    case "memory":
+      return metrics.memory.total > 0 ? (metrics.memory.used / metrics.memory.total) * 100 : null;
+    case "gpu":
+      return metrics.gpus.find((g) => g.id === item.id)?.usagePercent ?? null;
+    case "drive": {
+      const drive = metrics.drives.find((d) => d.id === item.id);
+      return drive && drive.total > 0 ? ((drive.total - drive.free) / drive.total) * 100 : null;
+    }
+    case "network": {
+      const net = metrics.networks.find((n) => n.id === item.id);
+      return net ? net.rxBps + net.txBps : null;
+    }
+  }
+}
+
 export function MetricsBar(props: MetricsBarProps) {
   const [latest, setLatest] = createSignal<SystemMetrics | null>(null);
   const [devices, setDevices] = createSignal<DeviceInventory | null>(null);
+  // Rolling value history per widget (keyed "kind:id") feeding the sparklines.
+  // A store (not signal-wrapped Map) so each sparkline only re-renders when
+  // its own history changes.
+  const [history, setHistory] = createStore<Record<string, number[]>>({});
   const [hoverId, setHoverId] = createSignal<string | null>(null);
   const [pinnedId, setPinnedId] = createSignal<string | null>(null);
   const { open, pos, containerRef, panelRef, openAt, close } = createPopover();
@@ -75,7 +100,19 @@ export function MetricsBar(props: MetricsBarProps) {
   onMount(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    listen<SystemMetrics>("system-metrics", (event) => setLatest(event.payload)).then((fn) => {
+    listen<SystemMetrics>("system-metrics", (event) => {
+      setLatest(event.payload);
+      const metrics = event.payload;
+      for (const item of props.items) {
+        const key = itemKey(item);
+        const value = currentValue(metrics, item);
+        if (value === null) continue;
+        const series = history[key] ?? [];
+        const next = [...series, value];
+        if (next.length > SPARKLINE_POINTS) next.shift();
+        setHistory(key, next);
+      }
+    }).then((fn) => {
       if (disposed) fn();
       else unlisten = fn;
     });
@@ -136,12 +173,17 @@ export function MetricsBar(props: MetricsBarProps) {
     return `${item.kind}:${item.id}`;
   }
 
+  function widgetText(item: MetricItem): string | null {
+    const metrics = latest();
+    if (!metrics) return null;
+    const value = currentValue(metrics, item);
+    if (value === null) return null;
+    if (item.kind === "network") return formatRate(value);
+    return `${Math.round(value)}%`;
+  }
+
   // Detail for the widget currently open (pinned one wins).
   const activeItem = () => props.items.find((item) => itemKey(item) === activeId()) ?? null;
-
-  function gpuIndex(id: string): string {
-    return id.toUpperCase();
-  }
 
   function gpuSample(id: string) {
     return latest()?.gpus.find((g) => g.id === id) ?? null;
@@ -163,46 +205,6 @@ export function MetricsBar(props: MetricsBarProps) {
     return devices()?.networks.find((n) => n.id === id)?.name ?? id;
   }
 
-  function widgetLabel(item: MetricItem): string {
-    switch (item.kind) {
-      case "cpu":
-        return "CPU";
-      case "memory":
-        return "MEM";
-      case "gpu":
-        return gpuIndex(item.id);
-      case "drive":
-        return shortDriveId(item.id);
-      case "network":
-        return networkSample(item.id)?.name ?? item.id;
-    }
-  }
-
-  function widgetValue(item: MetricItem): string | null {
-    const metrics = latest();
-    if (!metrics) return null;
-    switch (item.kind) {
-      case "cpu":
-        return percent(metrics.cpuOverall);
-      case "memory":
-        return metrics.memory.total > 0
-          ? `${formatBytes(metrics.memory.used)} / ${formatBytes(metrics.memory.total, 0)}`
-          : null;
-      case "gpu": {
-        const gpu = gpuSample(item.id);
-        if (!gpu) return null;
-        return gpu.usagePercent === null ? "N/A" : percent(gpu.usagePercent);
-      }
-      case "drive": {
-        const drive = driveSample(item.id);
-        if (!drive || drive.total === 0) return null;
-        return percent(((drive.total - drive.free) / drive.total) * 100);
-      }
-      case "network":
-        return null; // rendered as up/down rates instead of a single value
-    }
-  }
-
   return (
     <Show when={props.items.length > 0}>
       <div class="metrics-bar" ref={containerRef}>
@@ -212,31 +214,16 @@ export function MetricsBar(props: MetricsBarProps) {
               type="button"
               class="metric-widget"
               classList={{ active: activeId() === itemKey(item) }}
+              title={deviceName(item.kind, item.id)}
               aria-label={`${deviceName(item.kind, item.id)} usage`}
               onPointerEnter={(e) => enterWidget(item, e.currentTarget)}
               onPointerLeave={() => leaveWidget()}
               onClick={(e) => clickWidget(item, e.currentTarget)}
             >
-              <span class="metric-widget-label">{widgetLabel(item)}</span>
-              <Show
-                when={item.kind !== "network"}
-                fallback={
-                  <span class="metric-widget-value metric-widget-rates">
-                    <Show when={networkSample(item.id)} keyed fallback={<span class="metric-na">—</span>}>
-                      {(net) => (
-                        <>
-                          <span class="rate-down">↓ {formatRate(net.rxBps)}</span>
-                          <span class="rate-up">↑ {formatRate(net.txBps)}</span>
-                        </>
-                      )}
-                    </Show>
-                  </span>
-                }
-              >
-                <span class="metric-widget-value">
-                  {widgetValue(item) ?? <span class="metric-na">—</span>}
-                </span>
-              </Show>
+              <Sparkline values={history[itemKey(item)] ?? []} kind={item.kind} percentScale={item.kind !== "network"} />
+              <span class="metric-widget-value">
+                {widgetText(item) ?? <span class="metric-na">—</span>}
+              </span>
             </button>
           )}
         </For>
@@ -363,5 +350,36 @@ function MetricRow(props: { label: string; value: string; fill: number; sub?: st
         <div class="metric-detail-bar-fill" style={{ width: `${Math.max(0, Math.min(100, props.fill))}%` }} />
       </div>
     </div>
+  );
+}
+
+// Tiny inline line graph for one widget. Percent-based kinds scale to a
+// fixed 0-100 range so the curve is comparable over time; network
+// self-scales to its recent maximum. Newer samples sit on the right.
+function Sparkline(props: { values: number[]; kind: MetricKind; percentScale: boolean }) {
+  const points = () => {
+    const vals = props.values;
+    if (vals.length < 2) return "";
+    const max = props.percentScale ? 100 : Math.max(...vals, 1) * 1.1;
+    const step = SPARKLINE_W / (SPARKLINE_POINTS - 1);
+    const offset = (SPARKLINE_POINTS - vals.length) * step;
+    return vals
+      .map((value, index) => {
+        const x = offset + index * step;
+        const y = SPARKLINE_H - (Math.max(0, Math.min(max, value)) / max) * (SPARKLINE_H - 2) - 1;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  };
+  return (
+    <svg
+      class={`metric-spark metric-kind-${props.kind}`}
+      width={SPARKLINE_W}
+      height={SPARKLINE_H}
+      viewBox={`0 0 ${SPARKLINE_W} ${SPARKLINE_H}`}
+      aria-hidden="true"
+    >
+      <polyline class="metric-spark-line" points={points()} />
+    </svg>
   );
 }

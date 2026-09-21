@@ -4357,14 +4357,13 @@ button.danger:not(.context-menu-item):hover {
 
 .metric-widget {
     display: flex;
-    align-items: baseline;
-    gap: 0.4em;
-    padding: 0.25em 0.55em;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.15em 0.45em;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
     background: transparent;
     font-family: inherit;
-    font-size: var(--text-secondary);
     color: inherit;
     cursor: default;
     white-space: nowrap;
@@ -4376,27 +4375,39 @@ button.danger:not(.context-menu-item):hover {
     border-color: var(--border-color);
 }
 
-.metric-widget-label {
-    font-weight: 600;
-    opacity: 0.75;
-}
-
 .metric-widget-value {
     font-variant-numeric: tabular-nums;
-    opacity: 0.95;
+    font-size: 0.82em;
+    opacity: 0.85;
 }
 
-.metric-widget-rates {
-    display: flex;
-    gap: 0.45em;
+.metric-spark-line {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
 }
 
-.rate-down {
-    color: var(--accent);
+/* One color per hardware type — the color is the label, so the widgets
+   don't need any text identifier. */
+.metric-kind-cpu .metric-spark-line {
+    stroke: #4fc3f7;
 }
 
-.rate-up {
-    opacity: 0.8;
+.metric-kind-memory .metric-spark-line {
+    stroke: #ba68c8;
+}
+
+.metric-kind-gpu .metric-spark-line {
+    stroke: #81c784;
+}
+
+.metric-kind-drive .metric-spark-line {
+    stroke: #ffb74d;
+}
+
+.metric-kind-network .metric-spark-line {
+    stroke: #f06292;
 }
 
 .metric-na {
