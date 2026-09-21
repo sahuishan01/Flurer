@@ -1,13 +1,17 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-Current version: **0.4.107** (tagged, pushed). Features 1, 2, and 3 of 5
-shipped and confirmed working by the user. Feature 4 (split view) has
-gone through two rounds of user feedback since its first cut in
-v0.4.106 — an N-pane grid rework (v0.4.107, confirmed working) and a
-global-navigation routing fix (about to ship as v0.4.108, **not yet
-confirmed**). Don't treat feature 4 as done until v0.4.108 is confirmed.
-(v0.4.104 was an unrelated updater fix, not one of the 5 features — see
-git log.)
+**STATUS UPDATE (v0.4.196): all five features shipped and confirmed; the
+5-feature reintroduction project is finished.** See "Post-revert work"
+near the bottom of this file for everything shipped since v0.4.109,
+including the newest subsystems (delete flows, top-bar system metrics,
+command-bar layout). The historical story below is kept because its
+lessons (one feature per version, never guess-and-patch, Rust compiles
+only in CI) still govern how this repo is worked on.
+
+Historical context (as it stood mid-project, at v0.4.107): features 1, 2,
+and 3 of 5 shipped and confirmed. Don't treat any feature as done until
+the user confirms it. (v0.4.104 was an unrelated updater fix, not one of
+the 5 features — see git log.)
 
 If you're picking this up cold: read this whole file before touching code.
 It exists so you don't have to re-read the conversation that produced it.
@@ -260,7 +264,10 @@ signal:
   `App.tsx`), not something this fix changed. Only pane 0 participates in
   either.
 
-## Feature 5 — search index (LAST, highest risk, needs a real change)
+## Feature 5 — search index (DONE — shipped after v0.4.108)
+
+(Implemented exactly per the mitigation below: `searchindex::init` is
+spawned off the setup thread in `lib.rs`, with log markers around it.)
 
 New module: `src-tauri/src/searchindex/mod.rs` (flat in-memory `Vec` of
 indexed entries — deliberately not a database, see the module's own doc
@@ -383,10 +390,65 @@ fill it in. This was already verified working across the v0.4.96 →
 v0.4.101 revert and back; no special handling needed when adding fields
 for the remaining features.
 
+## Post-revert work (everything after feature 5, all shipped via the same ritual)
+
+Each item below shipped as its own tagged version; details live in the
+respective commit messages and release notes.
+
+- **Delete flows**: `delete_items` (Recycle Bin via the `trash` crate) plus
+  Shift+Delete permanent delete (`delete_items_forever`, std::fs removal,
+  no undo). A configurable in-app shortcut (`deletePermanently`, default
+  Shift+Delete) with its own "cannot be undone" confirm dialog.
+- **App-delete size refresh**: `sizecache::refresh_after_app_delete` runs
+  after BOTH delete commands regardless of the `live_folder_size_updates`
+  setting — it drops the deleted item's own cache entries and queues full
+  recomputes for every cached ancestor. External changes still respect the
+  setting.
+- **Top-bar system metrics** (`src-tauri/src/metrics/`, `MetricsBar.tsx`):
+  a sampler thread emits one `system-metrics` event per configurable
+  interval (1–10 s, default 2 s) — per-core CPU usage/frequency,
+  memory/swap, drives (sysinfo), GPU utilization/VRAM (DXGI enumeration +
+  D3DKMTQueryStatistics, all vendors, `#[cfg(windows)]` with a no-op stub
+  elsewhere — D3DKMT lives under `Windows::Wdk` in windows-rs). Settings
+  field `topBarMetrics { enabled, intervalSeconds, items: [{kind,id}] }`,
+  diffed into sampler atomics inside `set_settings`. `MetricsBar.tsx`
+  renders one sparkline widget per pinned device (40-sample rolling
+  history; fixed 0–100 scale except network, which self-scales) — color
+  identifies hardware type (CPU blue / memory purple / GPU green / drive
+  orange / network pink), a small percentage/rate sits beside it, hovering
+  opens a detail panel (per-core bars, RAM/swap, VRAM, drive used/free,
+  NIC rates/totals), clicking pins the panel. Configured in Settings →
+  "Top bar metrics" with per-device checkboxes fed by `get_metric_devices`.
+- **Command bar layout** (three iterations of user feedback): the bar is
+  three explicit zones — `.command-bar-left` (back/forward/up, order 1,
+  hard-pinned), `.command-bar-center` (path breadcrumb, grows, order 2),
+  then metrics (`.command-bar-metrics`, order 3), tools
+  (`.command-bar-right`: progress + search, order 4), window controls
+  (order 5), with thin `.command-bar-divider` separators. **Narrow-width
+  rule**: only `.command-bar-metrics` gets `flex: 1 1 100%` and wraps onto
+  a second row (scrollable, top-border separated) — progress, search and
+  min/max/close always stay on row one, controls hard-pinned top-right.
+  The center zone is `overflow-x: auto` (scrollable, not clipped) when
+  the path runs out of room.
+- The version-bump/tag/release ritual (below) now also includes the ntfy
+  `agent-tasks`/`agent-releases` notifications per AGENTS.md §7, and the
+  version bump commit is pushed to main only AFTER the Release workflow
+  succeeds (tag-only push triggers Release; see AGENTS.md §7.4).
+
+CI lessons from the metrics work: two Build failures were caught exactly
+where this file says they'd be — windows-only APIs (NTSTATUS comparisons
+need `.0`; `Disks::refresh` takes a `bool` on Windows but not on Unix
+sysinfo targets; serde derives needed by cross-platform command payloads).
+Treat any "compiles on my reasoning" claim about windows-cfg code as
+unverified until CI is green.
+
 ## Current git state
 
-`main` is at v0.4.107 (feature 4, N-pane grid rework). A global-navigation
-routing fix on top of that is committed and about to ship as v0.4.108 —
-still feature 4, not a new feature slot. Remaining after it's confirmed:
-feature 5 (search index), the highest-risk one. This file is the source
-of truth for what's left and in what order.
+`main` is at **v0.4.196** — all 5 reintroduced features plus the
+post-revert work listed above are shipped and tagged. Settings live in
+`~/.config/flurer/<version>/settings.json` with serde defaults bridging
+old files (see "Settings compatibility" below). The per-version ritual in
+"Release ritual" plus AGENTS.md §7 (ntfy notifications, CI watch, bump
+only after a green build, tag-only push) is the required workflow for any
+new change. This file and AGENTS.md are the source of truth for working
+on this repo.
