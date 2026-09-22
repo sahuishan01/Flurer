@@ -142,9 +142,21 @@ export type Settings = {
   // "network"; id is the device id from get_metric_devices ("cpu" and
   // "memory" for the singletons).
   topBarMetrics: TopBarMetrics;
+  // Saved explorer tab session (see SavedTab) restored on startup/reload.
+  savedTabs: SavedTab[];
+  savedActiveTabId: string | null;
 };
 
 export type MetricKind = "cpu" | "memory" | "gpu" | "drive" | "network";
+
+// One persisted explorer tab: its folder path and split-pane layout, keyed
+// by the same id the tab strip uses so the active tab survives a reload.
+export type SavedTab = {
+  id: string;
+  path: string;
+  splitPanePaths?: string[];
+  splitCols?: number;
+};
 
 export type MetricItem = { kind: MetricKind; id: string };
 
@@ -214,6 +226,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ignoredUpdateVersion: null,
   showHiddenFiles: false,
   topBarMetrics: { enabled: false, intervalSeconds: 2, items: [] },
+  savedTabs: [],
+  savedActiveTabId: null,
 };
 
 export const FONT_FAMILY_PRESETS: { label: string; value: string }[] = [

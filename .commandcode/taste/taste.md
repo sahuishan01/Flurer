@@ -23,6 +23,7 @@ See [architecture/taste.md](architecture/taste.md)
 See [workflow/taste.md](workflow/taste.md)
 # Documentation
 - Use AGENTS.md and HANDOFF.md files at project boundaries for AI coordination context. Confidence: 0.75
+- "update handoff" is a standing directive meaning: refresh the project's HANDOFF.md to current reality — mark finished items DONE right in their headings (e.g., `## Feature 5 — search index (DONE — shipped after v0.4.108)`), add a section summarizing everything shipped since the last update (preserving the hard-won lessons, e.g. "CI failures caught exactly where this file said they'd be"), and refresh the "Current git state" section to the latest tag. Keep the historical narrative — it is kept explicitly because its lessons (one feature per version, never guess-and-patch, Rust compiles only in CI) still govern how the repo is worked on; the doc states it is the source of truth for future sessions. Docs-only updates ship as a `docs:` commit (with the Co-authored-by trailer) pushed straight to main — no version bump, tag, or CI watch — but still get the ntfy agent-tasks summary. Confidence: 0.7
 , bounded ~10 s, treat a null handle as already-gone, `#[cfg(not(windows))]` no-op stub) BEFORE constructing the Tauri builder; when introducing a new CLI arg, verify the existing arg parser ignores flag-like args (Flurer's `cli::resolve_launch_path` does). Confidence: 0.65
 
 # Workflow

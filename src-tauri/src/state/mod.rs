@@ -233,6 +233,22 @@ pub struct Settings {
     // ("cpu" and "memory" for the singletons).
     #[serde(default)]
     pub top_bar_metrics: TopBarMetrics,
+    // Explorer tab session: the list of open tabs (each remembering its
+    // folder path and split-pane layout) plus which tab was active, so a
+    // reload or relaunch brings the tabs back. Empty list = no session yet.
+    #[serde(default)]
+    pub saved_tabs: Vec<SavedTab>,
+    #[serde(default)]
+    pub saved_active_tab_id: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedTab {
+    pub id: String,
+    pub path: String,
+    pub split_pane_paths: Vec<String>,
+    pub split_cols: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -344,6 +360,8 @@ impl Default for Settings {
             ignored_update_version: None,
             show_hidden_files: false,
             top_bar_metrics: TopBarMetrics::default(),
+            saved_tabs: Vec::new(),
+            saved_active_tab_id: None,
         }
     }
 }

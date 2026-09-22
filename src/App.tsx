@@ -233,11 +233,29 @@ function App() {
         console.error("Failed to read launch path", err);
       }
 
+      // Restore the saved tab session first, so a launch path or the
+      // last-state restore can then navigate on top of the right active tab.
+      let restoredTabs = false;
+      if (loaded.savedTabs && loaded.savedTabs.length > 0) {
+        const restoredList = loaded.savedTabs.map((t) => ({ ...t }));
+        setTabs(restoredList);
+        const activeId =
+          loaded.savedActiveTabId && restoredList.some((t) => t.id === loaded.savedActiveTabId)
+            ? loaded.savedActiveTabId
+            : restoredList[0].id;
+        setActiveTabId(activeId);
+        const active = restoredList.find((t) => t.id === activeId)!;
+        setSettings("splitPanePaths", active.splitPanePaths ? active.splitPanePaths.slice() : []);
+        setSettings("splitCols", active.splitCols ?? 1);
+        navigateTo(active.path);
+        restoredTabs = true;
+      }
+
       if (launchPath) {
         navigateTo(launchPath);
-      } else if (loaded.restoreLastStateOnReopen && loaded.lastPath) {
+      } else if (!restoredTabs && loaded.restoreLastStateOnReopen && loaded.lastPath) {
         navigateTo(loaded.lastPath);
-      } else if (loaded.lastMainView && loaded.lastMainView !== "explorer") {
+      } else if (!restoredTabs && loaded.lastMainView && loaded.lastMainView !== "explorer") {
         setMainView(loaded.lastMainView);
         setHistory([{ type: "view", view: loaded.lastMainView }]);
       }
@@ -1026,6 +1044,25 @@ function App() {
     },
   ]);
   const [activeTabId, setActiveTabId] = createSignal(tabs()[0].id);
+
+  // Persist the tab session (tabs + active id) so a reload (F5) or relaunch
+  // brings the tabs back. Runs whenever the tab list or active tab changes —
+  // the navigation-sync effect above keeps the active tab's entry current.
+  createEffect(() => {
+    const current = tabs();
+    const active = activeTabId();
+    setSettings(
+      "savedTabs",
+      current.map((t) => ({
+        id: t.id,
+        path: t.path,
+        splitPanePaths: t.splitPanePaths ? t.splitPanePaths.slice() : [],
+        splitCols: t.splitCols ?? 1,
+      })),
+    );
+    setSettings("savedActiveTabId", active);
+    persistSettings();
+  });
 
   // Keeps the active tab's remembered state (path, split panes, split cols) in sync
   // with normal navigation and pane layout changes.
