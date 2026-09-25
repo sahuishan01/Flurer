@@ -547,7 +547,7 @@ body {
     align-items: center;
     gap: 0.4em;
     max-width: 180px;
-    padding: 0.4em 0.5em 0.4em 0.7em;
+    padding: 0.4em 0.7em;
     border-radius: var(--radius-sm) var(--radius-sm) 0 0;
     cursor: pointer;
     color: var(--text-secondary);
@@ -556,6 +556,10 @@ body {
 
 .explorer-tab:hover {
     background-color: var(--hover-bg);
+}
+
+.explorer-tab.dragging {
+    opacity: 0.4;
 }
 
 .explorer-tab.active {

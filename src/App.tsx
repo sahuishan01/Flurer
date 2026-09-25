@@ -1132,6 +1132,16 @@ function App() {
     navigateTo(targetTab.path);
   }
 
+  function reorderTab(from: number, to: number) {
+    setTabs((prev) => {
+      if (from === to || from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
   function closeTab(id: string) {
     const list = tabs();
     if (list.length <= 1) return;
@@ -1486,7 +1496,7 @@ function App() {
         />
 
         <Show when={mainView() === "explorer"}>
-          <ExplorerTabs tabs={tabs()} activeTabId={activeTabId()} onSwitch={switchTab} onClose={closeTab} onNew={openNewTab} />
+          <ExplorerTabs tabs={tabs()} activeTabId={activeTabId()} onSwitch={switchTab} onClose={closeTab} onNew={openNewTab} onReorder={reorderTab} />
         </Show>
 
         <div class="explorer-view" style={{ "--sidebar-width": `${settings.sidebarWidth || 220}px` }}>
