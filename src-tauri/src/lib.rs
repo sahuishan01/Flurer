@@ -312,6 +312,7 @@ pub fn run() {
             get_path_metadata,
             get_file_preview,
             get_quick_access,
+            fs::get_filesystem_environment,
             get_metric_devices,
             list_graph_children,
             search_directory,

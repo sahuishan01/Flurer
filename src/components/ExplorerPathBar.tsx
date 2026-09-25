@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { EnterIcon, FolderIcon, StarIcon } from "./icons";
-import { parentDir, pathSegments, resolvePath, type DirListing } from "../lib/fs";
+import { parentDir, pathSegments, resolvePath, joinPath, isWindows, type DirListing } from "../lib/fs";
 import { createPopover } from "../lib/popover";
 
 type ExplorerPathBarProps = {
@@ -43,11 +43,6 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
   let listingCache = new Map<string, string[]>();
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function joinPath(parent: string, name: string): string {
-    const withSep = /[\\/]$/.test(parent) ? parent : `${parent}\\`;
-    return `${withSep}${name}\\`;
-  }
-
   function getResolvedPath(rawInput: string): string {
     return resolvePath(props.path, rawInput);
   }
@@ -59,10 +54,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
       setSuggestions([]);
       return;
     }
-    const partial = resolved
-      .slice(parent.length)
-      .replace(/^[\\/]+/, "")
-      .toLowerCase();
+    const partial = resolved.slice(parent.length).replace(isWindows ? /^[\\/]+/ : /^\/+/, "");
 
     let names = listingCache.get(parent);
     if (names === undefined) {
@@ -82,7 +74,7 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
     // Stale response guard: the input may have moved on to a different
     // parent directory by the time this resolves.
     if (parentDir(getResolvedPath(props.pathInput)) !== parent) return;
-    const filtered = (partial ? names.filter((n) => n.toLowerCase().startsWith(partial)) : names).slice(0, 8);
+    const filtered = (partial ? names.filter((n) => (isWindows ? n.toLowerCase().startsWith(partial.toLowerCase()) : n.startsWith(partial))) : names).slice(0, 8);
     setSuggestions(filtered);
     setHighlightIndex(-1);
   }

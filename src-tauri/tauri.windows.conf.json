@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "target/release/flurer-watchd.exe": "flurer-watchd.exe"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "installerHooks": "installer/watchd-service-hooks.nsh"
+      }
+    }
+  }
+}

@@ -1,3 +1,28 @@
+// Initialized from the Rust host before mounting the application.
+export let isWindows = false;
+export let defaultPath = "/";
+export function configureFilesystem(platform: string, homePath: string) {
+  isWindows = platform === "windows";
+  defaultPath = homePath;
+}
+export function nativeAbsolutePath(path: string): boolean {
+  return isWindows ? /^(?:[a-zA-Z]:[\\/]|\\\\)/.test(path) : path.startsWith("/");
+}
+export function pathKey(path: string): string {
+  const clean = cleanDirPath(path);
+  return isWindows ? clean.toLowerCase() : clean;
+}
+export function isPathWithin(path: string, root: string): boolean {
+  const key = pathKey(path);
+  const base = pathKey(root);
+  const separator = isWindows ? "\\" : "/";
+  return key === base || key.startsWith(base.endsWith(separator) ? base : base + separator);
+}
+export function joinPath(directory: string, name: string): string {
+  const separator = isWindows ? "\\" : "/";
+  return directory.endsWith(separator) ? directory + name : directory + separator + name;
+}
+
 export type DirEntry = {
   name: string;
   path: string;
@@ -76,7 +101,8 @@ export type FolderSizeResponse = { status: "ready"; size: number; error?: string
 // non-root folders (which causes Windows error 123 in some API invocations),
 // while preserving root paths like "C:\".
 export function cleanDirPath(path: string): string {
-  let trimmed = path.trim();
+  if (!isWindows) return path.replace(/\/+$/, "") || (path.startsWith("/") ? "/" : "");
+  let trimmed = path;
   if (!trimmed) return "";
   trimmed = trimmed.replace(/[/\\]\.$/, "");
   const sanitized = trimmed.replace(/^([a-zA-Z])::+/, "$1:");
@@ -104,7 +130,11 @@ export function cleanDirPath(path: string): string {
  * appends it to `basePath` instead of overwriting the base path.
  */
 export function resolvePath(basePath: string, inputPath: string): string {
-  const trimmedInput = inputPath.trim();
+  const trimmedInput = isWindows ? inputPath.trim() : inputPath;
+  if (!isWindows) {
+    if (!trimmedInput) return cleanDirPath(basePath);
+    return cleanDirPath(trimmedInput.startsWith("/") ? trimmedInput : joinPath(basePath, trimmedInput));
+  }
   if (!trimmedInput) return cleanDirPath(basePath);
 
   const isAbsolute = /^[a-zA-Z]:|^\\\\/.test(trimmedInput);
@@ -121,6 +151,13 @@ export function resolvePath(basePath: string, inputPath: string): string {
 }
 
 export function parentDir(path: string): string {
+  if (!isWindows) {
+    const clean = cleanDirPath(path);
+    const index = clean.lastIndexOf("/");
+    return index === 0 ? "/" : index < 0 ? clean : clean.slice(0, index);
+  }
+  const cleaned = cleanDirPath(path);
+  if (/^[a-zA-Z]:\\$/.test(cleaned) || /^\\\\[^\\]+\\[^\\]+$/.test(cleaned)) return cleaned;
   const normalized = path.replace(/[/\\]+$/, "");
   const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
   if (idx < 0) return normalized;
@@ -132,6 +169,10 @@ export function parentDir(path: string): string {
 }
 
 export function baseName(path: string): string {
+  if (!isWindows) {
+    const clean = cleanDirPath(path);
+    return clean === "/" ? "/" : clean.slice(clean.lastIndexOf("/") + 1);
+  }
   const normalized = path.replace(/[/\\]+$/, "");
   // A bare drive letter ("C:") reads as truncated — show it as a proper
   // drive root instead, the same distinction parentDir already makes for
@@ -148,6 +189,16 @@ export type PathSegment = { label: string; path: string };
 // keeps its trailing separator ("C:\") for the same reason baseName does —
 // "C:" alone means "current directory on C:" to Windows, not the drive root.
 export function pathSegments(path: string): PathSegment[] {
+  if (!isWindows) {
+    if (!path.startsWith("/")) return path ? [{ label: path, path }] : [];
+    const segments = [{ label: "/", path: "/" }];
+    let current = "";
+    for (const part of path.split("/").filter(Boolean)) {
+      current += "/" + part;
+      segments.push({ label: part, path: current });
+    }
+    return segments;
+  }
   const driveMatch = /^([a-zA-Z]:)[\\/]?/.exec(path);
   if (!driveMatch) return path ? [{ label: path, path }] : [];
 

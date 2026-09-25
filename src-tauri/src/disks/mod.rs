@@ -1,4 +1,7 @@
-use serde::{de::Deserializer, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
+#[cfg(windows)]
+use serde::de::Deserializer;
+#[cfg(windows)]
 use wmi::{COMLibrary, WMIConnection};
 
 // WMI's uint64 properties are supposed to travel over DCOM as numeric strings
@@ -6,6 +9,7 @@ use wmi::{COMLibrary, WMIConnection};
 // as Option<String> - but some providers/systems hand back a real integer
 // VARIANT instead, which then fails to deserialize into a String. Accept
 // either representation rather than assuming one.
+#[cfg(windows)]
 fn deserialize_flexible_u64<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
 where
     D: Deserializer<'de>,
@@ -44,6 +48,7 @@ pub struct PhysicalDisk {
     pub volumes: Vec<VirtualDisk>,
 }
 
+#[cfg(windows)]
 #[derive(Deserialize, Debug)]
 struct RawDiskDrive {
     #[serde(rename = "DeviceID")]
@@ -60,6 +65,7 @@ struct RawDiskDrive {
     interface_type: Option<String>,
 }
 
+#[cfg(windows)]
 #[derive(Deserialize, Debug)]
 struct RawAssociation {
     #[serde(rename = "Antecedent")]
@@ -68,6 +74,7 @@ struct RawAssociation {
     dependent: String,
 }
 
+#[cfg(windows)]
 #[derive(Deserialize, Debug)]
 struct RawLogicalDisk {
     #[serde(rename = "DeviceID")]
@@ -86,12 +93,14 @@ struct RawLogicalDisk {
 // an association's Antecedent/Dependent string), so a DeviceID with
 // backslashes - like a physical drive's `\\.\PHYSICALDRIVE0` - shows up there
 // with each backslash doubled. Match that rendering to find it by substring.
+#[cfg(windows)]
 fn escape_backslashes(value: &str) -> String {
     value.replace('\\', "\\\\")
 }
 
 // Pulls the key value out of a quoted `Something.DeviceID="value"` segment of
 // a WMI object path string, e.g. "C:" out of a Win32_LogicalDisk path.
+#[cfg(windows)]
 fn extract_device_id(path: &str) -> Option<String> {
     let marker = "DeviceID=\"";
     let start = path.find(marker)? + marker.len();
@@ -100,6 +109,7 @@ fn extract_device_id(path: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
+#[cfg(windows)]
 fn normalize_media_type(raw: &Option<String>) -> String {
     match raw.as_deref() {
         Some(m) if m.to_lowercase().contains("removable") => "Removable".to_string(),
@@ -127,6 +137,7 @@ pub fn get_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
 // a plain SELECT and join them in Rust. Only the physical drive's DeviceID
 // ever needs matching against WMI's own escaped rendering of it; everything
 // else is a plain string comparison that can't fail a query parse.
+#[cfg(windows)]
 fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
     let com_con = COMLibrary::new().map_err(|e| e.to_string())?;
     let wmi_con = WMIConnection::new(com_con).map_err(|e| e.to_string())?;
@@ -185,4 +196,50 @@ fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
     }
 
     Ok(disks)
+}
+
+#[cfg(not(windows))]
+fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
+    // Unix exposes mounted filesystems instead of drive letters. Keep the
+    // existing volume API, using the mount point as its navigation path.
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let mut seen = std::collections::HashSet::new();
+    Ok(disks.list().iter().filter_map(|disk| {
+        let mount = disk.mount_point().to_string_lossy().into_owned();
+        if !seen.insert(mount.clone()) { return None; }
+        let name = disk.name().to_string_lossy().into_owned();
+        Some(PhysicalDisk {
+            index: 0,
+            model: name.clone(),
+            size: disk.total_space(),
+            media_type: if disk.is_removable() { "Removable" } else { "Fixed" }.to_string(),
+            interface_type: String::new(),
+            volumes: vec![VirtualDisk {
+                drive_letter: mount.clone(),
+                volume_name: if mount == "/" { "Filesystem".to_string() } else { name },
+                file_system: disk.file_system().to_string_lossy().into_owned(),
+                total_space: disk.total_space(),
+                free_space: disk.available_space(),
+            }],
+        })
+    }).enumerate().map(|(index, mut disk)| {
+        disk.index = index as u32;
+        disk
+    }).collect())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    #[test]
+    fn topology_exposes_native_mount_points() {
+        let disks = super::query_disk_topology().unwrap();
+        assert!(disks.iter().flat_map(|disk| &disk.volumes).any(|volume| volume.drive_letter == "/"));
+        for disk in disks {
+            for volume in disk.volumes {
+                assert!(std::path::Path::new(&volume.drive_letter).is_absolute());
+                assert!(std::path::Path::new(&volume.drive_letter).is_dir());
+                assert!(volume.free_space <= volume.total_space);
+            }
+        }
+    }
 }

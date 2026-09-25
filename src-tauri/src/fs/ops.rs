@@ -52,11 +52,13 @@ fn operation_label(verb: &str, count: usize) -> String {
     }
 }
 
+#[cfg(windows)]
 const RESERVED_NAMES: &[&str] = &[
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
+#[cfg(windows)]
 fn validate_filename(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Name cannot be empty".to_string());
@@ -68,6 +70,14 @@ fn validate_filename(name: &str) -> Result<(), String> {
     let stem = name.split('.').next().unwrap_or(name);
     if RESERVED_NAMES.contains(&stem.to_uppercase().as_str()) {
         return Err(format!("\"{}\" is a reserved name on Windows", name));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn validate_filename(name: &str) -> Result<(), String> {
+    if name.is_empty() || name == "." || name == ".." || name.contains('/') || name.contains('\0') {
+        return Err("Name must be a single filename without a slash or NUL character".to_string());
     }
     Ok(())
 }
@@ -605,18 +615,39 @@ pub fn open_terminal_here(path: String) -> Result<(), String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // Same reasoning as the Windows branch: launch the shell directly
-        // with `current_dir` rather than building a `sh -c "cd <path> && …"`
-        // string. A path containing `$`, backticks, quotes, or `;` can't
-        // inject anything if it's never interpolated into shell syntax.
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        std::process::Command::new(shell)
-            .current_dir(&path_buf)
-            .spawn()
-            .map_err(|e| {
-                log::error!("open_terminal_here failed for {path}: {e}");
-                format!("Failed to open terminal: {e}")
-            })?;
+        let terminals = ["foot", "ghostty", "alacritty", "kitty", "konsole", "gnome-terminal", "xfce4-terminal", "xterm"];
+        let mut launched = false;
+
+        for term in terminals {
+            let status = match term {
+                "gnome-terminal" => std::process::Command::new(term)
+                    .arg(format!("--working-directory={}", path_buf.display()))
+                    .spawn(),
+                "konsole" => std::process::Command::new(term)
+                    .arg("--workdir")
+                    .arg(&path_buf)
+                    .spawn(),
+                _ => std::process::Command::new(term)
+                    .current_dir(&path_buf)
+                    .spawn(),
+            };
+
+            if status.is_ok() {
+                launched = true;
+                break;
+            }
+        }
+
+        if !launched {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+            std::process::Command::new(shell)
+                .current_dir(&path_buf)
+                .spawn()
+                .map_err(|e| {
+                    log::error!("open_terminal_here failed for {path}: {e}");
+                    format!("Failed to open terminal: {e}")
+                })?;
+        }
     }
 
     Ok(())
@@ -802,6 +833,20 @@ mod tests {
         fs::write(path, contents).unwrap();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn unix_names_allow_windows_reserved_characters_and_reject_traversal() {
+        let dir = tempdir().unwrap();
+        for name in ["CON", "name:with?chars", "back\\slash", " trailing "] {
+            let created = create_folder(dir.path().to_string_lossy().into_owned(), name.to_string()).unwrap();
+            assert_eq!(Path::new(&created).file_name().unwrap(), name);
+            assert!(Path::new(&created).is_dir());
+        }
+        for name in ["", ".", "..", "../escape", "bad\0name"] {
+            assert!(validate_filename(name).is_err());
+        }
+    }
+
     #[test]
     fn copy_single_file() {
         let dir = tempdir().unwrap();
@@ -813,6 +858,8 @@ mod tests {
         let result = copy_items_inner(
             vec![src.to_string_lossy().to_string()],
             dest_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             no_progress,
         )
         .unwrap();
@@ -835,6 +882,8 @@ mod tests {
         let result = copy_items_inner(
             vec![src_dir.to_string_lossy().to_string()],
             dest_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             no_progress,
         )
         .unwrap();
@@ -855,6 +904,8 @@ mod tests {
         let result = copy_items_inner(
             vec![src.to_string_lossy().to_string()],
             dest_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             no_progress,
         )
         .unwrap();
@@ -874,6 +925,8 @@ mod tests {
         let result = copy_items_inner(
             vec![src_dir.to_string_lossy().to_string()],
             src_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             no_progress,
         )
         .unwrap();
@@ -893,6 +946,8 @@ mod tests {
         let result = move_items_inner(
             vec![src.to_string_lossy().to_string()],
             dest_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             no_progress,
         )
         .unwrap();
@@ -931,11 +986,12 @@ mod tests {
         let src = dir.path().join("a.txt");
         write_file(&src, "hello");
 
-        let result = rename_item(src.to_string_lossy().to_string(), "bad:name.txt".to_string());
+        let result = rename_item(src.to_string_lossy().to_string(), "bad/name.txt".to_string());
         assert!(result.is_err());
     }
 
     #[test]
+    #[cfg(windows)]
     fn rename_rejects_reserved_windows_name() {
         let dir = tempdir().unwrap();
         let src = dir.path().join("a.txt");
@@ -970,7 +1026,7 @@ mod tests {
         let file = dir.path().join("to_delete.txt");
         write_file(&file, "bye");
 
-        let result = delete_items_inner(vec![file.to_string_lossy().to_string()], no_progress);
+        let result = delete_items_inner(vec![file.to_string_lossy().to_string()], &AtomicBool::new(false), 0, no_progress);
 
         assert_eq!(result.succeeded.len(), 1);
         assert!(!file.exists());
@@ -979,7 +1035,7 @@ mod tests {
     #[test]
     fn empty_batch_is_ok_not_error() {
         let dir = tempdir().unwrap();
-        let result = copy_items_inner(vec![], dir.path().to_string_lossy().to_string(), no_progress).unwrap();
+        let result = copy_items_inner(vec![], dir.path().to_string_lossy().to_string(), &AtomicBool::new(false), 0, no_progress).unwrap();
         assert!(result.succeeded.is_empty());
         assert!(result.failed.is_empty());
     }
@@ -1008,12 +1064,14 @@ mod tests {
         copy_items_inner(
             vec![src.to_string_lossy().to_string()],
             dest_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             |done, total, finished, _error| ticks.push((done, total, finished)),
         )
         .unwrap();
 
-        assert_eq!(ticks.first(), Some(&(0, 1, false)));
-        assert_eq!(ticks.last(), Some(&(1, 1, true)));
+        assert_eq!(ticks.first(), Some(&(0, 5, false)));
+        assert_eq!(ticks.last(), Some(&(5, 5, true)));
     }
 
     #[test]
@@ -1037,16 +1095,18 @@ mod tests {
         let result = copy_items_inner(
             vec![ok_src.to_string_lossy().to_string(), collide_src.to_string_lossy().to_string()],
             dest_dir.to_string_lossy().to_string(),
+            &AtomicBool::new(false),
+            0,
             |done, total, finished, _error| ticks.push((done, total, finished)),
         )
         .unwrap();
 
         assert_eq!(result.succeeded.len(), 1);
         assert_eq!(result.failed.len(), 1);
-        // total should only count ok.txt (1 file), not the collided source's
+        // total should only count ok.txt (5 bytes), not the collided source's
         // file too — otherwise done could never reach total except via the
         // forced final tick.
-        assert_eq!(ticks.first(), Some(&(0, 1, false)));
-        assert_eq!(ticks.last(), Some(&(1, 1, true)));
+        assert_eq!(ticks.first(), Some(&(0, 5, false)));
+        assert_eq!(ticks.last(), Some(&(5, 5, true)));
     }
 }

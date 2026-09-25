@@ -1,6 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
+import { configureFilesystem } from "./lib/fs";
 import { invoke } from "@tauri-apps/api/core";
 
 // The webview has no console in a packaged build, and a crash before Solid
@@ -30,4 +31,12 @@ invoke("log_frontend", { level: "info", message: "webview script loaded" }).catc
   () => {}, // IPC not up yet or log command missing — console output above is the fallback
 );
 
-render(() => <App />, document.getElementById("root") as HTMLElement);
+invoke<{ platform: string; homePath: string }>("get_filesystem_environment")
+  .then(({ platform, homePath }) => {
+    configureFilesystem(platform, homePath);
+    render(() => <App />, document.getElementById("root") as HTMLElement);
+  })
+  .catch((error) => {
+    reportError("filesystem initialization", error);
+    document.getElementById("root")!.textContent = "Could not initialize the filesystem: " + String(error);
+  });

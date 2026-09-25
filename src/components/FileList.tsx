@@ -41,6 +41,9 @@ import {
 } from "./icons";
 import {
   baseName,
+  isPathWithin,
+  joinPath,
+  pathKey,
   formatBytes,
   parentDir,
   type BatchResult,
@@ -420,17 +423,7 @@ export function FileList(props: FileListProps) {
 
   /** Whether `path` is inside (or is) one of the indexed roots. */
   function isPathIndexed(path: string) {
-    const normalize = (value: string) => value.toLowerCase().replace(/\//g, "\\");
-    const target = normalize(path);
-    return indexedRoots().some((root) => {
-      const normalizedRoot = normalize(root);
-      // The separator check is what stops "C:\Users\Ish" from being treated
-      // as covering "C:\Users\Ishan".
-      return (
-        target === normalizedRoot ||
-        target.startsWith(normalizedRoot.endsWith("\\") ? normalizedRoot : `${normalizedRoot}\\`)
-      );
-    });
+    return indexedRoots().some((root) => isPathWithin(path, root));
   }
 
   // ---- Streamed directory listings -------------------------------------
@@ -1443,9 +1436,9 @@ export function FileList(props: FileListProps) {
           if (trashEntries.length > 0) {
             const undoItems: { id: string; path: string }[] = [];
             for (const succeededPath of result.succeeded) {
-              const target = succeededPath.replace(/[\\/]+$/, "").toLowerCase();
+              const target = pathKey(succeededPath);
               const matching = trashEntries.filter(
-                (e) => e.originalPath.replace(/[\\/]+$/, "").toLowerCase() === target,
+                (e) => pathKey(e.originalPath) === target,
               );
               if (matching.length > 0) {
                 // Pick the most recently deleted item matching this path
@@ -1473,8 +1466,7 @@ export function FileList(props: FileListProps) {
   // without a round trip — needed to build undo entries, since BatchResult
   // only reports back the original source paths, not the destinations.
   function joinDestPath(destinationDir: string, sourcePath: string): string {
-    const withSep = /[\\/]$/.test(destinationDir) ? destinationDir : `${destinationDir}\\`;
-    return `${withSep}${baseName(sourcePath)}`;
+    return joinPath(destinationDir, baseName(sourcePath));
   }
 
   async function pasteClipboard() {
