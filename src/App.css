@@ -323,6 +323,8 @@ body {
     align-items: center;
     gap: 2px;
     flex-shrink: 0;
+    /* Keep the close button off the window's right border. */
+    padding-right: 4px;
 }
 
 .window-control-btn {
@@ -552,6 +554,7 @@ body {
     cursor: pointer;
     color: var(--text-secondary);
     flex-shrink: 0;
+    user-select: none;
 }
 
 .explorer-tab:hover {
