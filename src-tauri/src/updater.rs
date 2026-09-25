@@ -312,16 +312,22 @@ pub fn is_current_process_elevated() -> bool {
 // built any window state yet; the interactive relaunch_as_admin command
 // keeps its fire-and-forget spawn instead.
 #[cfg(target_os = "windows")]
-pub fn elevate_and_wait(exe: &std::path::Path) -> Result<bool, String> {
+pub fn elevate_and_wait(exe: &std::path::Path, extra_args: &[String]) -> Result<bool, String> {
     // The elevated copy must not race this instance's shutdown: it inherits
     // --takeover-from and waits for our pid to exit before running the
     // single-instance plugin check, otherwise it sees the dying unelevated
     // instance's mutex and exits itself (observed as "no window, no crash").
     let takeover_arg = format!("--takeover-from={}", std::process::id());
+    let mut all_args = vec![takeover_arg];
+    // CLI launch-path args must be forwarded too: `flurer.exe <path>` with
+    // "Always run as admin" on would otherwise open at the default folder —
+    // the handoff was observed dropping the path entirely (0.4.200).
+    all_args.extend(extra_args.iter().cloned());
+    let arg_list = all_args.iter().map(|a| ps_quote(a)).collect::<Vec<_>>().join(",");
     let command = format!(
         "Start-Process -FilePath {} -ArgumentList {} -Verb RunAs",
         ps_quote(&exe.to_string_lossy()),
-        ps_quote(&takeover_arg)
+        arg_list
     );
     let mut cmd = std::process::Command::new("powershell");
     cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &command]);

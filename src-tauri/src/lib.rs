@@ -111,10 +111,25 @@ pub fn run() {
             // instance stays unelevated for this run instead of exiting.
             #[cfg(target_os = "windows")]
             if settings.launch_as_admin && !updater::is_current_process_elevated() {
+                // Resolve the CLI launch path BEFORE the handoff: the
+                // elevated copy is spawned without our context, so without
+                // forwarding, `flurer.exe <path>` + "Always run as admin"
+                // opened at the default folder instead of <path>.
+                let handoff_args: Vec<String> = {
+                    let args: Vec<String> = std::env::args().collect();
+                    std::env::current_dir()
+                        .ok()
+                        .and_then(|cwd| cli::resolve_launch_path(&args, &cwd))
+                        .into_iter()
+                        .collect()
+                };
                 match std::env::current_exe() {
-                    Ok(exe) => match updater::elevate_and_wait(&exe) {
+                    Ok(exe) => match updater::elevate_and_wait(&exe, &handoff_args) {
                         Ok(true) => {
-                            log::info!("launch_as_admin: elevated instance started, exiting unelevated one");
+                            log::info!(
+                                "launch_as_admin: elevated instance started (forwarded args {:?}), exiting unelevated one",
+                                handoff_args
+                            );
                             app.handle().exit(0);
                             return Ok(());
                         }
