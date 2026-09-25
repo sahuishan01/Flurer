@@ -31,7 +31,11 @@ jobs:
     # one. head_commit is null on pull_request events, which coerces to an
     # empty string and leaves PR runs unaffected.
     if: ${{ !startsWith(github.event.head_commit.message, 'bump version') }}
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +49,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -55,11 +65,12 @@ jobs:
 
       # flurer-watchd (the elevated USN-Journal service) is a separate
       # workspace member, not part of the flurer_lib/flurer.exe crate
-      # graph — build it explicitly so tauri.conf.json's resource bundling
+      # graph — build it explicitly so tauri.windows.conf.json's resource bundling
       # step (which copies target/release/flurer-watchd.exe into the
       # installer) has something to find. See
       # docs/superpowers/specs/2026-08-16-usn-journal-watcher-design.md.
       - name: Build flurer-watchd service
+        if: runner.os == 'Windows'
         run: cargo build --release -p flurer-watchd
         working-directory: src-tauri
 
@@ -67,3 +78,15 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
