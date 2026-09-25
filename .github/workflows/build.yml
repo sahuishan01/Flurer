@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, linux]
   pull_request:
     branches: [main]
 
@@ -60,6 +60,9 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Test native path helpers
+        run: bun test tests/fs.test.ts
+
       - name: Build frontend
         run: bun run build
 
@@ -73,6 +76,12 @@ jobs:
         if: runner.os == 'Windows'
         run: cargo build --release -p flurer-watchd
         working-directory: src-tauri
+
+      - name: Test filesystem and disk discovery
+        working-directory: src-tauri
+        run: |
+          cargo test -p flurer --lib fs::
+          cargo test -p flurer --lib disks::
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0

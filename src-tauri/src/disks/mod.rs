@@ -200,5 +200,46 @@ fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
 
 #[cfg(not(windows))]
 fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
-    Err("Physical disk topology is currently supported only on Windows".to_string())
+    // Unix exposes mounted filesystems instead of drive letters. Keep the
+    // existing volume API, using the mount point as its navigation path.
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let mut seen = std::collections::HashSet::new();
+    Ok(disks.list().iter().filter_map(|disk| {
+        let mount = disk.mount_point().to_string_lossy().into_owned();
+        if !seen.insert(mount.clone()) { return None; }
+        let name = disk.name().to_string_lossy().into_owned();
+        Some(PhysicalDisk {
+            index: 0,
+            model: name.clone(),
+            size: disk.total_space(),
+            media_type: if disk.is_removable() { "Removable" } else { "Fixed" }.to_string(),
+            interface_type: String::new(),
+            volumes: vec![VirtualDisk {
+                drive_letter: mount.clone(),
+                volume_name: if mount == "/" { "Filesystem".to_string() } else { name },
+                file_system: disk.file_system().to_string_lossy().into_owned(),
+                total_space: disk.total_space(),
+                free_space: disk.available_space(),
+            }],
+        })
+    }).enumerate().map(|(index, mut disk)| {
+        disk.index = index as u32;
+        disk
+    }).collect())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    #[test]
+    fn topology_exposes_native_mount_points() {
+        let disks = super::query_disk_topology().unwrap();
+        assert!(disks.iter().flat_map(|disk| &disk.volumes).any(|volume| volume.drive_letter == "/"));
+        for disk in disks {
+            for volume in disk.volumes {
+                assert!(std::path::Path::new(&volume.drive_letter).is_absolute());
+                assert!(std::path::Path::new(&volume.drive_letter).is_dir());
+                assert!(volume.free_space <= volume.total_space);
+            }
+        }
+    }
 }

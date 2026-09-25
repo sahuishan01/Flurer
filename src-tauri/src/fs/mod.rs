@@ -81,11 +81,12 @@ pub struct DirListing {
 /// same underlying error instead of a raw io::Error string.
 pub(crate) fn describe_dir_error(path: &str, error: &std::io::Error) -> String {
     match error.kind() {
-        std::io::ErrorKind::PermissionDenied => format!(
+        std::io::ErrorKind::PermissionDenied if cfg!(windows) => format!(
             "Access denied — Windows is blocking access to {path}. \
              This is usually a system-protected folder (WindowsApps and similar) \
              that needs elevated permissions to open."
         ),
+        std::io::ErrorKind::PermissionDenied => format!("Access denied — you do not have permission to open {path}."),
         std::io::ErrorKind::NotFound => format!("{path} no longer exists."),
         _ => format!("Couldn't open {path}: {error}"),
     }
@@ -107,8 +108,9 @@ pub fn list_directory(
 /// Strips redundant trailing slashes from non-root paths (e.g. `C:\foo\bar\` -> `C:\foo\bar`),
 /// which prevents Windows error 123 (`ERROR_INVALID_NAME` / "syntax is incorrect") on
 /// certain directory types, while preserving root paths like `C:\` or `\\server\share\`.
+#[cfg(windows)]
 pub(crate) fn clean_dir_path(path: &str) -> String {
-    let mut trimmed = path.trim();
+    let mut trimmed = path;
     if trimmed.is_empty() {
         return String::new();
     }
@@ -131,10 +133,6 @@ pub(crate) fn clean_dir_path(path: &str) -> String {
     // UNC paths: e.g. "\\server\share" or "\\server\share\"
     if normalized.starts_with(r"\\") {
         let trimmed_unc = normalized.trim_end_matches('\\');
-        let parts: Vec<&str> = trimmed_unc.split('\\').filter(|s| !s.is_empty()).collect();
-        if parts.len() <= 2 {
-            return format!("\\\\{trimmed_unc}");
-        }
         return trimmed_unc.to_string();
     }
     // Regular directory path: strip trailing backslashes
@@ -144,6 +142,33 @@ pub(crate) fn clean_dir_path(path: &str) -> String {
     } else {
         stripped.to_string()
     }
+}
+
+#[cfg(not(windows))]
+pub(crate) fn clean_dir_path(path: &str) -> String {
+    let cleaned = path.trim_end_matches('/');
+    if cleaned.is_empty() && path.starts_with('/') {
+        "/".to_string()
+    } else {
+        cleaned.to_string()
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilesystemEnvironment {
+    platform: &'static str,
+    home_path: String,
+}
+
+#[tauri::command]
+pub fn get_filesystem_environment() -> Result<FilesystemEnvironment, String> {
+    let home = dirs::home_dir().filter(|path| path.is_dir())
+        .ok_or_else(|| "Could not find the user's home directory".to_string())?;
+    Ok(FilesystemEnvironment {
+        platform: std::env::consts::OS,
+        home_path: home.to_string_lossy().into_owned(),
+    })
 }
 
 /// The read half of a listing: walks the directory and collects entries plus
@@ -189,7 +214,11 @@ fn read_dir_listing(path: &str) -> Result<DirListing, String> {
             }
             continue;
         };
-        let metadata = entry.metadata().ok();
+        let metadata = if file_type.is_symlink() {
+            fs::metadata(entry.path()).ok()
+        } else {
+            entry.metadata().ok()
+        };
         let is_dir = match &metadata {
             Some(metadata) => metadata.is_dir(),
             // Couldn't follow it. The scan's own type is right for a plain
@@ -546,7 +575,8 @@ pub struct QuickAccessEntry {
 
 #[tauri::command]
 pub fn get_quick_access() -> Vec<QuickAccessEntry> {
-    let candidates: [(&str, Option<std::path::PathBuf>); 6] = [
+    let candidates: [(&str, Option<std::path::PathBuf>); 7] = [
+        ("Home", dirs::home_dir()),
         ("Desktop", dirs::desktop_dir()),
         ("Documents", dirs::document_dir()),
         ("Downloads", dirs::download_dir()),
@@ -558,7 +588,7 @@ pub fn get_quick_access() -> Vec<QuickAccessEntry> {
     candidates
         .into_iter()
         .filter_map(|(label, path)| {
-            path.map(|p| QuickAccessEntry {
+            path.filter(|p| p.is_dir()).map(|p| QuickAccessEntry {
                 label: label.to_string(),
                 path: p.to_string_lossy().to_string(),
             })
@@ -573,6 +603,24 @@ mod tests {
 
     fn list(dir: &Path) -> Result<DirListing, String> {
         list_directory(dir.to_string_lossy().to_string(), SortKey::Name, SortDirection::Ascending, true)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_listing_preserves_native_paths_and_names() {
+        assert_eq!(clean_dir_path("/"), "/");
+        assert_eq!(clean_dir_path("/tmp///"), "/tmp");
+        let root = tempdir().unwrap();
+        let folder = root.path().join(" case:Folder\\name ");
+        fs::create_dir(&folder).unwrap();
+        fs::write(folder.join("File"), b"upper").unwrap();
+        fs::write(folder.join("file"), b"lower").unwrap();
+        let listing = list(&folder).unwrap();
+        assert_eq!(listing.entries.len(), 2);
+        assert!(listing.entries.iter().all(|entry| Path::new(&entry.path).exists()));
+        std::os::unix::fs::symlink(&folder, root.path().join("linked-folder")).unwrap();
+        let root_listing = list(root.path()).unwrap();
+        assert!(root_listing.entries.iter().find(|entry| entry.name == "linked-folder").unwrap().is_dir);
     }
 
     #[test]
@@ -790,12 +838,11 @@ mod tests {
     }
 
     #[test]
-    fn quick_access_resolves_known_windows_folders() {
+    fn quick_access_resolves_existing_native_folders() {
         let entries = get_quick_access();
 
         let labels: Vec<&str> = entries.iter().map(|e| e.label.as_str()).collect();
-        assert!(labels.contains(&"Documents"), "expected Documents in {:?}", labels);
-        assert!(labels.contains(&"Desktop"), "expected Desktop in {:?}", labels);
+        assert!(labels.contains(&"Home"), "expected Home in {:?}", labels);
 
         for entry in &entries {
             assert!(
@@ -808,6 +855,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn clean_dir_path_handles_trailing_slashes_and_roots() {
         assert_eq!(clean_dir_path(r"C:\Program Files\debug_nonredist\"), r"C:\Program Files\debug_nonredist");
         assert_eq!(clean_dir_path(r"C:\Program Files\debug_nonredist/"), r"C:\Program Files\debug_nonredist");

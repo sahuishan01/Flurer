@@ -1,7 +1,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
-import { resolvePath, type DirEntry } from "../lib/fs";
+import { resolvePath, parentDir, defaultPath, type DirEntry } from "../lib/fs";
 import type { PhysicalDisk, VirtualDisk } from "../lib/graph";
 import { ClockIcon, DiskIcon, EnterIcon, FolderIcon, StarIcon } from "./icons";
 
@@ -70,22 +70,13 @@ export function DirectoryPickerModal(props: {
     } catch {
       // Same reasoning as quick access above.
     }
-    const start = props.initialPath || quickAccess()[0]?.path || drives()[0]?.driveLetter || "C:\\";
+    const start = props.initialPath || quickAccess()[0]?.path || drives()[0]?.driveLetter || defaultPath;
     loadDir(start);
   });
 
   function navigateUp() {
-    const current = currentPath().replace(/[/\\]+$/, "");
-    const separatorIndex = Math.max(current.lastIndexOf("/"), current.lastIndexOf("\\"));
-    if (separatorIndex < 0) return;
-    // Preserve a Windows drive root ("C:") rather than truncating it down
-    // to an empty/invalid path.
-    if (separatorIndex === 2 && current[1] === ":") {
-      loadDir(`${current.slice(0, 2)}\\`);
-      return;
-    }
-    const parent = current.slice(0, separatorIndex);
-    if (parent) loadDir(parent);
+    const parent = parentDir(currentPath());
+    if (parent && parent !== currentPath()) loadDir(parent);
   }
 
   return (

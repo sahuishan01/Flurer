@@ -27,14 +27,13 @@ import {
   type Theme,
   type TopBarMetrics,
 } from "./lib/settings";
-import { cleanDirPath, parentDir, resolvePath, type GroupByKey, type SortKey } from "./lib/fs";
+import { cleanDirPath, parentDir, resolvePath, defaultPath, nativeAbsolutePath, isPathWithin, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import type { GraphFocusRequest, MainView } from "./lib/view";
 import { loadInstalledPlugins, registeredPlugins } from "./lib/plugins";
 import "./App.css";
 
-const DEFAULT_PATH = "C:\\";
 const SETTINGS_SAVE_DEBOUNCE_MS = 300;
 
 type HistoryEntry =
@@ -42,14 +41,14 @@ type HistoryEntry =
   | { type: "explorer"; pane: number; path: string };
 
 function App() {
-  const [currentPath, setCurrentPath] = createSignal(DEFAULT_PATH);
-  const [pathInput, setPathInput] = createSignal(DEFAULT_PATH);
+  const [currentPath, setCurrentPath] = createSignal(defaultPath);
+  const [pathInput, setPathInput] = createSignal(defaultPath);
   // Which explorer pane global navigation (the top address bar, sidebar
   // clicks on a drive/favourite/recent, the search box) targets. 0 is the
   // primary pane (currentPath); k (k >= 1) is settings.splitPanePaths[k - 1].
   const [activePane, setActivePane] = createSignal(0);
   const [mainView, setMainView] = createSignal<MainView>("explorer");
-  const [history, setHistory] = createSignal<HistoryEntry[]>([{ type: "explorer", pane: 0, path: DEFAULT_PATH }]);
+  const [history, setHistory] = createSignal<HistoryEntry[]>([{ type: "explorer", pane: 0, path: defaultPath }]);
   const [historyIndex, setHistoryIndex] = createSignal(0);
   const [searchQuery, setSearchQuery] = createSignal("");
   const [searchRecursive, setSearchRecursive] = createSignal(false);
@@ -218,6 +217,12 @@ function App() {
   onMount(async () => {
     try {
       const loaded = await invoke<Settings>("get_settings");
+      // Ignore session paths from another operating system.
+      loaded.savedTabs = loaded.savedTabs?.filter((tab) => nativeAbsolutePath(tab.path))
+        .map((tab) => ({ ...tab, splitPanePaths: tab.splitPanePaths?.filter(nativeAbsolutePath) }));
+      loaded.splitPanePaths = loaded.splitPanePaths.filter(nativeAbsolutePath);
+      loaded.recentPaths = loaded.recentPaths.filter(nativeAbsolutePath);
+      if (loaded.lastPath && !nativeAbsolutePath(loaded.lastPath)) loaded.lastPath = defaultPath;
       setSettings(loaded);
       
       // Load plugins on startup in background (non-blocking)
@@ -621,18 +626,7 @@ function App() {
   // are removed so only the latest/deepest subfolder appears in recents.
   function recordRecent(path: string) {
     const limit = Math.max(MIN_HISTORY_ITEMS, Math.min(MAX_HISTORY_ITEMS, settings.maxHistoryItems));
-    const normalizedNew = path.replace(/[\\/]+$/, "").toLowerCase();
-
-    function isAncestorOrEqual(parent: string, childNormalized: string): boolean {
-      const p = parent.replace(/[\\/]+$/, "").toLowerCase();
-      if (!p || p === childNormalized) return true;
-      const prefix = p.endsWith(":") ? `${p}\\` : `${p}\\`;
-      const prefixAlt = p.endsWith(":") ? `${p}/` : `${p}/`;
-      return childNormalized.startsWith(prefix) || childNormalized.startsWith(prefixAlt);
-    }
-
-    // Filter out identical paths and any existing recent path that is an ancestor of the new path.
-    const filtered = settings.recentPaths.filter((p) => !isAncestorOrEqual(p, normalizedNew));
+    const filtered = settings.recentPaths.filter((parent) => !isPathWithin(path, parent));
 
     const next = [path, ...filtered].slice(0, limit);
     setSettings("recentPaths", next);
@@ -1045,7 +1039,7 @@ function App() {
   const [tabs, setTabs] = createSignal<ExplorerTab[]>([
     {
       id: crypto.randomUUID(),
-      path: DEFAULT_PATH,
+      path: defaultPath,
       splitPanePaths: settings.splitPanePaths.slice(),
       splitCols: settings.splitCols,
     },
