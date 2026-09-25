@@ -229,8 +229,10 @@ function App() {
       let launchPath: string | null = null;
       try {
         launchPath = await invoke<string | null>("take_launch_path");
+        invoke("log_frontend", { level: "info", message: `take_launch_path -> ${JSON.stringify(launchPath)}` }).catch(() => {});
       } catch (err) {
         console.error("Failed to read launch path", err);
+        invoke("log_frontend", { level: "error", message: `take_launch_path failed: ${err}` }).catch(() => {});
       }
 
       // Restore the saved tab session first, so a launch path or the
@@ -253,6 +255,7 @@ function App() {
 
       if (launchPath) {
         navigateTo(launchPath);
+        invoke("log_frontend", { level: "info", message: `navigated to launch path: ${launchPath}` }).catch(() => {});
       } else if (!restoredTabs && loaded.restoreLastStateOnReopen && loaded.lastPath) {
         navigateTo(loaded.lastPath);
       } else if (!restoredTabs && loaded.lastMainView && loaded.lastMainView !== "explorer") {
@@ -271,8 +274,11 @@ function App() {
 
     try {
       const unlisten = await listen<string>("open-new-tab", (event) => {
+        invoke("log_frontend", { level: "info", message: `open-new-tab event received: ${JSON.stringify(event.payload)}` }).catch(() => {});
         if (event.payload) {
           openTabWithPath(event.payload);
+        } else {
+          invoke("log_frontend", { level: "warn", message: "open-new-tab event with empty payload" }).catch(() => {});
         }
       });
       onCleanup(() => {

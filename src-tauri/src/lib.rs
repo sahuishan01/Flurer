@@ -61,6 +61,15 @@ pub fn run() {
     // is captured to %LOCALAPPDATA%/.flurer/{logs,crashes} instead of being
     // lost to a terminal the packaged app doesn't have.
     logging::init();
+    // Full argv/cwd for EVERY process start: on a warm start (single-instance
+    // handoff) this is the only log line in the short-lived second instance's
+    // own file, and it's what proves exactly what was forwarded — see the
+    // flurer.exe <path> warm-start investigation.
+    log::info!(
+        "process start: argv={:?}, cwd={:?}",
+        std::env::args().collect::<Vec<String>>(),
+        std::env::current_dir(),
+    );
 
     // "Always run as admin" handoff: the unelevated instance passes
     // --takeover-from=<its pid> to the elevated copy it spawns. The
@@ -81,9 +90,11 @@ pub fn run() {
             log::info!("single_instance triggered: argv={:?}, cwd={:?}", argv, cwd);
             if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
                 log::info!("single_instance opening target_dir: {}", target_dir);
-                let _ = app.emit("open-new-tab", target_dir);
+                if let Err(e) = app.emit("open-new-tab", target_dir) {
+                    log::error!("single_instance emit open-new-tab failed: {e}");
+                }
             } else {
-                log::info!("single_instance no target_dir resolved");
+                log::warn!("single_instance no target_dir resolved");
             }
             shortcuts::show_and_focus_main_window(app);
         }))
