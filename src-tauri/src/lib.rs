@@ -104,6 +104,33 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().args([tray::MINIMIZED_ARG]).build())
         .plugin(tauri_plugin_drag::init())
         .setup(|app| {
+            // UIPI fix for `flurer.exe <path>` while an ELEVATED instance is
+            // running: tauri-plugin-single-instance hands a second instance's
+            // argv to the first via WM_COPYDATA to its hidden window, and
+            // Windows silently DROPS that message when the sender is
+            // unelevated and the receiver elevated — the second instance
+            // exits and nothing ever happens (observed on 0.4.201/0.4.202).
+            // The elevated side must explicitly allow WM_COPYDATA from lower
+            // integrity levels; this is a no-op when not elevated.
+            #[cfg(target_os = "windows")]
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    ChangeWindowMessageFilterEx, FindWindowW, MSGFLT_ALLOW, WM_COPYDATA,
+                };
+                let id = app.config().identifier.clone();
+                // Same names the plugin derives from the identifier for its
+                // hidden message-target window ("{id}-sic" class, "{id}-siw"
+                // window title).
+                let class: Vec<u16> = format!("{id}-sic\0").encode_utf16().collect();
+                let title: Vec<u16> = format!("{id}-siw\0").encode_utf16().collect();
+                let hwnd = FindWindowW(class.as_ptr(), title.as_ptr());
+                if !hwnd.is_null() {
+                    let ok = ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, std::ptr::null_mut());
+                    log::info!("single_instance: ChangeWindowMessageFilterEx(WM_COPYDATA, MSGFLT_ALLOW) -> {}", ok != 0);
+                } else {
+                    log::warn!("single_instance: message-target window not found; cross-integrity handoff may be blocked");
+                }
+            }
             let settings = load_settings(&app.handle());
             // "Always run as admin": if the setting is on and this instance
             // isn't elevated, hand off to an elevated copy before building
