@@ -72,22 +72,19 @@ This file acts as a context preservation and coordination document for future AI
 
 ---
 
-## 6. Graphify-First Codebase Navigation
+## 6. GitNexus-First Codebase Navigation
 
-Before grepping or manually reading files to answer codebase or architecture questions, agents **MUST** use the graphify knowledge graph located at `graphify-out/`.
+Before grepping or manually reading files to answer codebase or architecture questions, agents **MUST** use GitNexus code intelligence tool / MCP server.
 
 ### Rules:
-1. **Query first**: Run `graphify query "<question>"` for any codebase or architecture question. This returns a scoped subgraph, usually much smaller than raw grep output.
-2. **Trace relationships**: Use `graphify path "<A>" "<B>"` to find how two concepts/files/symbols are connected.
-3. **Explain concepts**: Use `graphify explain "<concept>"` for focused explanations of specific nodes.
-4. **Wiki index**: If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
-5. **Broad review**: Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain do not surface enough context.
-6. **Keep graph current**: After modifying code files, run `graphify update .` to keep the graph up to date (AST-only, no API cost).
+1. **Query & Impact Analysis**: Use `gitnexus query "<concept>"` or `impact({target: "symbolName", direction: "upstream"})` before making changes or exploring code paths.
+2. **Context & Tracing**: Use `gitnexus context "<symbolName>"` for 360-degree views of symbols, and `gitnexus trace "<from>" "<to>"` to trace execution paths.
+3. **Keep Index Current**: After modifying code files, run `gitnexus analyze` to update the graph index.
+4. **Detect Changes**: Run `gitnexus detect-changes` prior to committing to verify affected flows and prevent regressions.
 
 ### When to Fall Back to Grep:
-- The graphify graph doesn't exist yet (`graphify-out/` is missing).
-- The query returns no relevant results after trying multiple phrasings.
-- You need exact string matches (e.g. searching for a specific error message or magic constant).
+- The symbol or execution flow is not resolvable by the index.
+- You need exact string literal matches (e.g., searching for a specific UI label or error message string).
 
 ---
 
@@ -201,3 +198,48 @@ After the Release workflow succeeds (GitHub Release created with MSI/NSIS assets
                                           │ notification                │
                                           └──────────────────────────────┘
 ```
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **Flurer** (2865 symbols, 6736 relationships, 250 execution flows).
+
+> Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
+
+## Always Do
+
+- **MUST run impact before editing.** Use `impact({target: "symbolName", direction: "upstream"})` or `node .gitnexus/run.cjs impact "symbolName" --direction upstream --repo .`; report callers, processes, and risk. Never substitute grep for graph analysis.
+- **MUST analyze graph changes before committing.** Use `detect_changes({scope: "all"})` (MCP) or `node .gitnexus/run.cjs detect-changes --scope all --repo .` (CLI fallback). `partial: true` or `truncated: true` is not a clean check — a zero means unseen, not unaffected; re-run it. For regression review: `detect_changes({scope: "compare", base_ref: "main"})` or `node .gitnexus/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
+- MUST warn on HIGH/CRITICAL `risk` pre-edit; never use `riskSharedAxes` to waive a HIGH/CRITICAL `risk` warning. Compare File/symbol: MCP File omits axes; Graph-RAG expands File.
+- **MUST treat `risk: UNKNOWN` as unresolved, not as low.** An empty caller set is not evidence the symbol is unused — it can also mean the callers are not resolvable by the index (plain-object property access, dynamic dispatch, cross-language calls). `impact` pairs `UNKNOWN` with a `riskNote` saying so. Confirm with a text search before treating the symbol as safe to change or delete; do not proceed on the strength of a zero.
+- **MUST use `query({search_query: "concept"})` for concepts/flows, `context({name: "symbolName"})` for a named symbol, or `impact` for blast radius, on read-only callers, dependencies, imports, or execution flow.** Graph first; text search only for empty/`UNKNOWN`/literals.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
+
+## Never Do
+
+- NEVER edit a function, class, or method before MCP/CLI impact analysis.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis, and never read `UNKNOWN` as an all-clear — it means the walk could not answer, which is the one verdict that requires confirming by other means.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit before MCP/CLI graph change analysis.
+
+## Resources
+
+| Resource | Use for |
+| --- | --- |
+| `gitnexus://repo/Flurer/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/Flurer/clusters` | All functional areas |
+| `gitnexus://repo/Flurer/processes` | All execution flows |
+| `gitnexus://repo/Flurer/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+| --- | --- |
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
+
+<!-- gitnexus:end -->

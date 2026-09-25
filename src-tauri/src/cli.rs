@@ -163,7 +163,42 @@ pub fn add_to_system_path() -> Result<bool, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        Err("Adding to system PATH is only supported on Windows".to_string())
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_dir = exe.parent().ok_or("Cannot locate executable parent directory")?;
+        let target_dir = exe_dir.to_string_lossy().to_string();
+
+        let home = dirs::home_dir().ok_or("Cannot determine user home directory")?;
+        let export_line = format!("\nexport PATH=\"{}:$PATH\"\n", target_dir);
+
+        let profiles = [home.join(".bashrc"), home.join(".zshrc"), home.join(".profile")];
+        let mut modified = false;
+
+        for profile in &profiles {
+            if profile.exists() {
+                let content = std::fs::read_to_string(profile).unwrap_or_default();
+                if !content.contains(&target_dir) {
+                    use std::io::Write;
+                    let mut file = std::fs::OpenOptions::new()
+                        .append(true)
+                        .open(profile)
+                        .map_err(|e| format!("Failed to update {}: {e}", profile.display()))?;
+                    file.write_all(export_line.as_bytes())
+                        .map_err(|e| format!("Failed to write to {}: {e}", profile.display()))?;
+                    modified = true;
+                } else {
+                    modified = true;
+                }
+            }
+        }
+
+        if !modified {
+            // Fallback: write to ~/.profile if none of the specific files existed
+            let profile = home.join(".profile");
+            std::fs::write(&profile, export_line)
+                .map_err(|e| format!("Failed to create {}: {e}", profile.display()))?;
+        }
+
+        Ok(true)
     }
 }
 

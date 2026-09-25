@@ -615,18 +615,39 @@ pub fn open_terminal_here(path: String) -> Result<(), String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // Same reasoning as the Windows branch: launch the shell directly
-        // with `current_dir` rather than building a `sh -c "cd <path> && …"`
-        // string. A path containing `$`, backticks, quotes, or `;` can't
-        // inject anything if it's never interpolated into shell syntax.
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        std::process::Command::new(shell)
-            .current_dir(&path_buf)
-            .spawn()
-            .map_err(|e| {
-                log::error!("open_terminal_here failed for {path}: {e}");
-                format!("Failed to open terminal: {e}")
-            })?;
+        let terminals = ["foot", "ghostty", "alacritty", "kitty", "konsole", "gnome-terminal", "xfce4-terminal", "xterm"];
+        let mut launched = false;
+
+        for term in terminals {
+            let status = match term {
+                "gnome-terminal" => std::process::Command::new(term)
+                    .arg(format!("--working-directory={}", path_buf.display()))
+                    .spawn(),
+                "konsole" => std::process::Command::new(term)
+                    .arg("--workdir")
+                    .arg(&path_buf)
+                    .spawn(),
+                _ => std::process::Command::new(term)
+                    .current_dir(&path_buf)
+                    .spawn(),
+            };
+
+            if status.is_ok() {
+                launched = true;
+                break;
+            }
+        }
+
+        if !launched {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+            std::process::Command::new(shell)
+                .current_dir(&path_buf)
+                .spawn()
+                .map_err(|e| {
+                    log::error!("open_terminal_here failed for {path}: {e}");
+                    format!("Failed to open terminal: {e}")
+                })?;
+        }
     }
 
     Ok(())
