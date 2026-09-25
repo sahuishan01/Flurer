@@ -286,6 +286,7 @@ function App() {
       });
     } catch (err) {
       console.error("Failed to listen for open-new-tab event", err);
+      invoke("log_frontend", { level: "error", message: `open-new-tab listen registration failed: ${err}` }).catch(() => {});
     }
   });
 

@@ -111,7 +111,13 @@ pub fn init() {
     }
     prune_old(&dir, "flurer-", MAX_LOG_FILES);
 
-    let file_name = format!("flurer-{}.log", Local::now().format("%Y%m%dT%H%M%S%.3f"));
+    // One shared per-day file, not one per process: every instance (including
+    // the short-lived second instance of a single-instance handoff, whose only
+    // lines are its startup ones) appends to the same file, so a multi-process
+    // flow like `flurer.exe <path>` is traceable end-to-end in one place.
+    // Append-mode writes (FILE_APPEND_DATA) land at end-of-file atomically per
+    // call, so interleaving between processes stays line-granular.
+    let file_name = format!("flurer-{}.log", Local::now().format("%Y%m%d"));
     let Ok(file) = OpenOptions::new().create(true).append(true).open(dir.join(&file_name)) else {
         return;
     };
