@@ -12,9 +12,9 @@
       "id": "graph",
       "name": "Storage Graph",
       "description": "Visual treemap-style storage graph for exploring disk usage.",
-      "version": "1.0.0",
+      "version": "0.4.20",
       "author": "Algosculptor",
-      "repo": "sahuishan01/flurer-plugin-graph"
+      "repo": "sahuishan01/flurer-graph-plugin"
     },
     {
       "id": "web-loader",
