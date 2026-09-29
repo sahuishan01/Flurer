@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, onMount } from "solid-js";
+import { createMemo, createSignal, For, Show, onMount, onCleanup } from "solid-js";
 import {
   pluginRegistry,
   installPluginFromGithub,
@@ -9,6 +9,7 @@ import {
   linkPluginRepo,
 } from "../lib/plugins";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 type PluginMarketplaceProps = {
   disabledPlugins: string[];
@@ -60,6 +61,16 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
   const [registry, setRegistry] = createSignal<RegistryEntry[] | null>(null);
   const [registryError, setRegistryError] = createSignal<string | null>(null);
   const [registryLoading, setRegistryLoading] = createSignal(false);
+  // Live install/update progress streamed from the backend as
+  // `plugin-progress` events; only meaningful while an operation runs.
+  const [progress, setProgress] = createSignal<{ stage: string; percent: number | null } | null>(null);
+
+  onMount(() => {
+    const p = listen<{ stage: string; percent: number | null }>("plugin-progress", (e) => {
+      setProgress(e.payload);
+    });
+    onCleanup(() => void p.then((fn) => fn()));
+  });
 
   const loadRegistry = async () => {
     setRegistryLoading(true);
@@ -124,6 +135,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
 
   const handleInstallRegistry = async (entry: RegistryEntry) => {
     setLoadingId(`reg:${entry.id}`);
+    setProgress(null);
     setErrorMsg(null);
     try {
       await installPluginFromGithub(entry.repo);
@@ -142,6 +154,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
     const url = githubUrl().trim();
     if (!url) return;
     setLoadingId("__github__");
+    setProgress(null);
     setErrorMsg(null);
     try {
       await installPluginFromGithub(url);
@@ -176,6 +189,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
     const path = zipFilePath();
     if (!path) return;
     setLoadingId("__zip__");
+    setProgress(null);
     setErrorMsg(null);
     try {
       await installPluginFromZip(path);
@@ -229,6 +243,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
 
   const handleUpdate = async (repo: string) => {
     setLoadingId("__update__");
+    setProgress(null);
     setErrorMsg(null);
     try {
       await updatePlugin(repo);
@@ -270,6 +285,25 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
 
       <Show when={errorMsg()}>
         <div class="settings-error-alert">{errorMsg()}</div>
+      </Show>
+
+      {/* Live install/update progress (backend streams plugin-progress) */}
+      <Show when={loadingId() !== null && progress()}>
+        {(p) => (
+          <div class="update-progress-container plugin-progress">
+            <div class="update-progress-info">
+              <span>{p().stage}</span>
+              <span>{p().percent !== null ? `${Math.round(p().percent!)}%` : ""}</span>
+            </div>
+            <div class="update-progress-bar">
+              <div
+                class="update-progress-fill"
+                classList={{ indeterminate: p().percent === null }}
+                style={{ width: p().percent !== null ? `${Math.min(100, p().percent!)}%` : "100%" }}
+              />
+            </div>
+          </div>
+        )}
       </Show>
 
       {/* ── Install from GitHub ───────────────────────────────────── */}

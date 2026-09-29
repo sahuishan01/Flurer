@@ -11,6 +11,66 @@ use tempfile::tempdir;
 
 use crate::helpers::settings::atomic_write;
 
+// Live progress for plugin install/update, streamed to the marketplace UI
+// as `plugin-progress` events: { stage, percent }. percent is None for
+// stages with no meaningful fraction (local ZIP read, extract, install).
+#[derive(Clone, Serialize)]
+struct PluginProgress {
+    stage: String,
+    percent: Option<f64>,
+}
+
+fn emit_progress(app: &AppHandle, stage: &str, percent: Option<f64>) {
+    use tauri::Emitter;
+    let _ = app.emit("plugin-progress", PluginProgress {
+        stage: stage.to_string(),
+        percent,
+    });
+}
+
+// Streams the ZIP download, emitting percent 0-100 for the download leg
+// only when the integer percent actually changes (chunks can arrive far
+// more often than the UI needs to repaint).
+async fn download_zip_with_progress(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<Vec<u8>, String> {
+    let mut resp = client
+        .get(url)
+        .header("User-Agent", "Flurer/0.4.22")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download ZIP: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Download returned {status}: {body}"));
+    }
+
+    let total = resp.content_length();
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut last_percent: i64 = -1;
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| format!("Failed to read ZIP data: {e}"))?
+    {
+        bytes.extend_from_slice(&chunk);
+        if let Some(total) = total {
+            if total > 0 {
+                let percent = (bytes.len() as f64 / total as f64 * 100.0) as i64;
+                if percent != last_percent {
+                    last_percent = percent;
+                    emit_progress(app, "Downloading", Some(percent as f64));
+                }
+            }
+        }
+    }
+    Ok(bytes)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginManifest {
@@ -219,10 +279,14 @@ fn extract_plugin_zip<R: Read + Seek>(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManifest, String> {
+pub async fn install_plugin_from_github(
+    app: AppHandle,
+    repo_url: String,
+) -> Result<PluginManifest, String> {
     let (owner, repo) = parse_github_url(&repo_url)?;
     let repo_slug = format!("{owner}/{repo}");
 
+    emit_progress(&app, "Resolving latest release", None);
     let api_url = format!("https://api.github.com/repos/{owner}/{repo}/releases/latest");
     let client = reqwest::Client::new();
 
@@ -259,27 +323,19 @@ pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManife
         .as_str()
         .ok_or("Missing download URL in release asset")?;
 
-    // Download the full ZIP into memory
-    let zip_bytes = client
-        .get(download_url)
-        .header("User-Agent", "Flurer/0.4.22")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to download ZIP: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read ZIP data: {e}"))?;
+    emit_progress(&app, "Downloading", Some(0.0));
+    let zip_bytes = download_zip_with_progress(&app, &client, download_url).await?;
 
-    // Extract to a temp directory
+    emit_progress(&app, "Extracting", None);
     let temp = tempdir().map_err(|e| e.to_string())?;
-    let cursor = Cursor::new(zip_bytes.to_vec());
+    let cursor = Cursor::new(zip_bytes);
     let archive = zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid ZIP: {e}"))?;
     let mut manifest = extract_plugin_zip(archive, temp.path())?;
 
     // Store the source repo in the manifest
     manifest.repo = Some(repo_slug);
 
-    // Move into the permanent plugin directory
+    emit_progress(&app, "Installing", None);
     let plugins = plugins_dir()?;
     let plugin_dir = plugins.join(&manifest.id);
     if plugin_dir.exists() {
@@ -292,18 +348,25 @@ pub async fn install_plugin_from_github(repo_url: String) -> Result<PluginManife
     let manifest_json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
     atomic_write(&plugin_dir.join("plugin.json"), manifest_json.as_bytes()).map_err(|e| e.to_string())?;
 
+    emit_progress(&app, "Done", Some(100.0));
     Ok(manifest)
 }
 
 #[tauri::command]
-pub async fn install_plugin_from_zip(zip_path: String) -> Result<PluginManifest, String> {
+pub async fn install_plugin_from_zip(
+    app: AppHandle,
+    zip_path: String,
+) -> Result<PluginManifest, String> {
+    emit_progress(&app, "Reading ZIP", None);
     let zip_bytes = fs::read(&zip_path).map_err(|e| format!("Failed to read ZIP file: {e}"))?;
 
+    emit_progress(&app, "Extracting", None);
     let temp = tempdir().map_err(|e| e.to_string())?;
     let cursor = Cursor::new(zip_bytes);
     let archive = zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid ZIP file: {e}"))?;
     let manifest = extract_plugin_zip(archive, temp.path())?;
 
+    emit_progress(&app, "Installing", None);
     let plugins = plugins_dir()?;
     let plugin_dir = plugins.join(&manifest.id);
     if plugin_dir.exists() {
@@ -312,6 +375,7 @@ pub async fn install_plugin_from_zip(zip_path: String) -> Result<PluginManifest,
 
     copy_dir(temp.path(), &plugin_dir)?;
 
+    emit_progress(&app, "Done", Some(100.0));
     Ok(manifest)
 }
 
@@ -418,10 +482,11 @@ pub async fn check_plugin_updates(
 }
 
 #[tauri::command]
-pub async fn update_plugin(repo_url: String) -> Result<PluginManifest, String> {
+pub async fn update_plugin(app: AppHandle, repo_url: String) -> Result<PluginManifest, String> {
     let (owner, repo) = parse_github_url(&repo_url)?;
     let repo_slug = format!("{owner}/{repo}");
 
+    emit_progress(&app, "Resolving latest release", None);
     let api_url = format!("https://api.github.com/repos/{owner}/{repo}/releases/latest");
     let client = reqwest::Client::new();
 
@@ -455,22 +520,17 @@ pub async fn update_plugin(repo_url: String) -> Result<PluginManifest, String> {
         .as_str()
         .ok_or("Missing download URL")?;
 
-    let zip_bytes = client
-        .get(download_url)
-        .header("User-Agent", "Flurer/0.4.22")
-        .send()
-        .await
-        .map_err(|e| format!("Failed to download: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read ZIP data: {e}"))?;
+    emit_progress(&app, "Downloading", Some(0.0));
+    let zip_bytes = download_zip_with_progress(&app, &client, download_url).await?;
 
+    emit_progress(&app, "Extracting", None);
     let temp = tempdir().map_err(|e| e.to_string())?;
-    let cursor = Cursor::new(zip_bytes.to_vec());
+    let cursor = Cursor::new(zip_bytes);
     let archive = zip::ZipArchive::new(cursor).map_err(|e| format!("Invalid ZIP: {e}"))?;
     let mut manifest = extract_plugin_zip(archive, temp.path())?;
     manifest.repo = Some(repo_slug);
 
+    emit_progress(&app, "Installing", None);
     let plugins = plugins_dir()?;
     let plugin_dir = plugins.join(&manifest.id);
 
@@ -484,5 +544,6 @@ pub async fn update_plugin(repo_url: String) -> Result<PluginManifest, String> {
     let manifest_json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
     atomic_write(&plugin_dir.join("plugin.json"), manifest_json.as_bytes()).map_err(|e| e.to_string())?;
 
+    emit_progress(&app, "Done", Some(100.0));
     Ok(manifest)
 }
