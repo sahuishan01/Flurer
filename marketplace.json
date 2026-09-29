@@ -15,6 +15,14 @@
       "version": "1.0.0",
       "author": "Algosculptor",
       "repo": "sahuishan01/flurer-plugin-graph"
+    },
+    {
+      "id": "web-loader",
+      "name": "Web Loader",
+      "description": "High-performance web browser and WebviewWindow loader for modern websites and local web apps.",
+      "version": "0.1.6",
+      "author": "Algosculptor",
+      "repo": "sahuishan01/flurer-web-loader"
     }
   ]
 }
