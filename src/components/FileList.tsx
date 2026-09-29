@@ -253,16 +253,19 @@ export function FileList(props: FileListProps) {
   // the operations that don't: rename, move (cut/paste and drag), and the
   // New folder/New file placeholder. Copy is deliberately excluded — it's
   // non-destructive, there's nothing at the original location to restore.
-  // Single-slot rather than a full stack: layering "undo the undo" etc. is
-  // more state than a file manager toast needs, and matches how most
-  // desktop apps' inline undo toasts already behave (Explorer, Gmail).
-  const [undoAction, setUndoAction] = createSignal<UndoAction | null>(null);
+  // A bounded stack rather than a single slot: Ctrl+Z walks backwards
+  // through recent operations one at a time; the toast shows the most
+  // recent one (plus how many more are queued).
+  const [undoStack, setUndoStack] = createSignal<UndoAction[]>([]);
+  const [undoToastVisible, setUndoToastVisible] = createSignal(false);
   let undoTimer: ReturnType<typeof setTimeout> | undefined;
+  const UNDO_STACK_MAX = 20;
 
   function pushUndo(action: UndoAction) {
     clearTimeout(undoTimer);
-    setUndoAction(action);
-    undoTimer = setTimeout(() => setUndoAction(null), 8000);
+    setUndoStack((prev) => [...prev, action].slice(-UNDO_STACK_MAX));
+    setUndoToastVisible(true);
+    undoTimer = setTimeout(() => setUndoToastVisible(false), 8000);
   }
 
   function undoLabel(action: UndoAction): string {
@@ -276,10 +279,13 @@ export function FileList(props: FileListProps) {
   }
 
   async function performUndo() {
-    const action = undoAction();
-    if (!action) return;
+    const stack = undoStack();
+    if (stack.length === 0) return;
+    const action = stack[stack.length - 1];
+    setUndoStack(stack.slice(0, -1));
+    if (stack.length - 1 === 0) setUndoToastVisible(false);
     clearTimeout(undoTimer);
-    setUndoAction(null);
+    undoTimer = setTimeout(() => setUndoToastVisible(false), 8000);
     setOpError("");
     try {
       if (action.type === "rename") {
@@ -1873,6 +1879,10 @@ export function FileList(props: FileListProps) {
       e.preventDefault();
       props.onToggleShowHiddenFiles?.();
       return;
+    } else if (bound("undo")) {
+      e.preventDefault();
+      performUndo();
+      return;
     }
 
     const list = sortedEntries();
@@ -2557,9 +2567,12 @@ export function FileList(props: FileListProps) {
         </Modal>
       )}
 
-      {undoAction() && (
+      {undoToastVisible() && undoStack().length > 0 && (
         <div class="undo-toast" role="status">
-          <span>{undoLabel(undoAction()!)}</span>
+          <span>
+            {undoLabel(undoStack()[undoStack().length - 1])}
+            {undoStack().length > 1 ? ` (+${undoStack().length - 1} more)` : ""}
+          </span>
           <button type="button" onClick={performUndo}>
             <UndoIcon size={14} /> Undo
           </button>

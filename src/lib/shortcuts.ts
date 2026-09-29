@@ -55,7 +55,8 @@ export type InAppShortcutAction =
   | "newPane"
   | "closePane"
   | "toggleHiddenFiles"
-  | "commandPalette";
+  | "commandPalette"
+  | "undo";
 
 export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   delete: "Delete selected item(s)",
@@ -79,12 +80,13 @@ export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   closePane: "Close active pane",
   toggleHiddenFiles: "Toggle hidden files",
   commandPalette: "Open command palette",
+  undo: "Undo last file operation",
 };
 
 export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShortcutAction[] }[] = [
   {
     category: "File Operations",
-    actions: ["delete", "deletePermanently", "rename", "copy", "cut", "paste", "selectAll"],
+    actions: ["delete", "deletePermanently", "rename", "copy", "cut", "paste", "selectAll", "undo"],
   },
   {
     category: "Navigation",
@@ -119,4 +121,5 @@ export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   closePane: "Ctrl+Shift+W",
   toggleHiddenFiles: "Ctrl+H",
   commandPalette: "Ctrl+K",
+  undo: "Ctrl+Z",
 };
