@@ -136,6 +136,9 @@ export type Settings = {
   autoCheckUpdateIntervalSeconds: number;
   ignoredUpdateVersion: string | null;
   showHiddenFiles: boolean;
+  // Explorer listing layout: "details" (table) or "grid" (icon tiles with
+  // thumbnails). Persisted per app, applied to every pane.
+  viewMode: "details" | "grid";
   // Top-bar system metrics: which CPU/GPU/memory/drive/network widgets are
   // pinned to the top bar and how often they refresh. items are
   // { kind, id } pairs — kind is "cpu" | "memory" | "gpu" | "drive" |
@@ -225,6 +228,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCheckUpdateIntervalSeconds: 14400,
   ignoredUpdateVersion: null,
   showHiddenFiles: false,
+  viewMode: "details",
   topBarMetrics: { enabled: false, intervalSeconds: 2, items: [] },
   savedTabs: [],
   savedActiveTabId: null,

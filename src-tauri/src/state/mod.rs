@@ -226,6 +226,11 @@ pub struct Settings {
     pub ignored_update_version: Option<String>,
     #[serde(default)]
     pub show_hidden_files: bool,
+    // Explorer listing layout: "details" (table) or "grid" (icon tiles with
+    // thumbnails). Frontend validates the string; anything but "grid"
+    // renders as the details table.
+    #[serde(default)]
+    pub view_mode: String,
     // Top-bar system metrics (see metrics/mod.rs): which CPU/GPU/memory/
     // drive/network widgets the user pinned, and how often they refresh.
     // items hold { kind, id } pairs — kind is "cpu" | "memory" | "gpu" |
@@ -359,6 +364,7 @@ impl Default for Settings {
             auto_check_update_interval_seconds: default_auto_check_update_interval_seconds(),
             ignored_update_version: None,
             show_hidden_files: false,
+            view_mode: "details".to_string(),
             top_bar_metrics: TopBarMetrics::default(),
             saved_tabs: Vec::new(),
             saved_active_tab_id: None,

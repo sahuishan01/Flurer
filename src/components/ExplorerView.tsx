@@ -40,6 +40,9 @@ type ExplorerViewProps = {
   onNavigateExtraPane?: (arrIndex: number, path: string) => void;
   showHiddenFiles?: boolean;
   onToggleShowHiddenFiles?: () => void;
+  // Listing layout shared by every pane (details table or icon grid).
+  viewMode?: "details" | "grid";
+  onViewModeChange?: (mode: "details" | "grid") => void;
   "data-bg-lightness"?: string;
 };
 
@@ -231,6 +234,8 @@ export function ExplorerView(props: ExplorerViewProps) {
           inAppShortcuts={props.inAppShortcuts}
           showHiddenFiles={props.showHiddenFiles}
           onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
+          viewMode={props.viewMode}
+          onViewModeChange={props.onViewModeChange}
         />
       </div>
 
@@ -302,6 +307,8 @@ export function ExplorerView(props: ExplorerViewProps) {
                 inAppShortcuts={props.inAppShortcuts}
                 showHiddenFiles={props.showHiddenFiles}
                 onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
+                viewMode={props.viewMode}
+                onViewModeChange={props.onViewModeChange}
               />
             </div>
           );

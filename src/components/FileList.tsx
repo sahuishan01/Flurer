@@ -24,10 +24,12 @@ import {
   CheckIcon,
   ClipboardIcon,
   CopyIcon,
+  DetailsIcon,
   FilePlusIcon,
   FileTypeIcon,
   FolderIcon,
   FolderPlusIcon,
+  GridIcon,
   InfoIcon,
   LayersIcon,
   PencilIcon,
@@ -61,6 +63,12 @@ import {
 import { FOLDER_COLOR_PRESETS } from "../lib/settings";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "../lib/shortcuts";
 
+type FilePreview =
+  | { kind: "image"; dataUrl: string }
+  | { kind: "text"; content: string; truncated: boolean }
+  | { kind: "tooLarge" }
+  | { kind: "unsupported" };
+
 type UndoAction =
   | { type: "rename"; from: string; to: string }
   | { type: "move"; items: { from: string; to: string }[] }
@@ -89,6 +97,9 @@ type FileListProps = {
   inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
   showHiddenFiles?: boolean;
   onToggleShowHiddenFiles?: () => void;
+  /** Listing layout: details table or icon grid with thumbnails. */
+  viewMode?: "details" | "grid";
+  onViewModeChange?: (mode: "details" | "grid") => void;
   /**
    * Whether this list owns the window-level interactions — keyboard
    * shortcuts and OS file drops. Both are bound to the document rather than
@@ -126,6 +137,49 @@ type FolderSizeState = "pending" | { size: number; done: boolean; error?: string
 // straight from this cache on mount skips that round trip entirely for any
 // folder already known.
 const persistentFolderSizes = new Map<string, FolderSizeState>();
+
+// Module-level thumbnail cache (path -> data URL), bounded so a long session
+// over many image-heavy folders can't balloon memory. Reused across
+// unmounts/remounts just like persistentFolderSizes. get_file_preview on the
+// backend already caps oversized images (TooLarge) for us.
+const THUMB_CACHE_MAX = 300;
+const thumbnailCache = new Map<string, string>();
+const THUMB_IMAGE_EXT = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
+
+function thumbExt(path: string): string | null {
+  const dot = path.lastIndexOf(".");
+  if (dot < 0) return null;
+  const ext = path.slice(dot + 1).toLowerCase();
+  return THUMB_IMAGE_EXT.has(ext) ? ext : null;
+}
+
+function cachedThumbnail(path: string): string | null {
+  const ext = thumbExt(path);
+  if (!ext) return null;
+  const cached = thumbnailCache.get(path);
+  if (cached) return cached;
+  void loadThumbnail(path);
+  return null;
+}
+
+async function loadThumbnail(path: string): Promise<string | null> {
+  if (thumbnailCache.size >= THUMB_CACHE_MAX) {
+    const firstKey = thumbnailCache.keys().next().value;
+    if (firstKey !== undefined) thumbnailCache.delete(firstKey);
+  }
+  try {
+    const preview = await invoke<FilePreview>("get_file_preview", { path });
+    if (preview && typeof preview === "object" && "dataUrl" in preview) {
+      const dataUrl = (preview as unknown as { dataUrl: string }).dataUrl;
+      thumbnailCache.set(path, dataUrl);
+      return dataUrl;
+    }
+    return null;
+  } catch {
+    // Missing/unreadable images just fall back to the icon — non-fatal.
+    return null;
+  }
+}
 
 const PREVIEWABLE_EXTENSIONS = new Set([
   "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "svg",
@@ -303,6 +357,13 @@ export function FileList(props: FileListProps) {
   const [propertiesTarget, setPropertiesTarget] = createSignal<string | null>(null);
   const [bulkRenameOpen, setBulkRenameOpen] = createSignal(false);
   const [duplicatesOpen, setDuplicatesOpen] = createSignal(false);
+
+  // Current listing layout — props win (App-controlled), falling back to
+  // the persisted setting for any caller that doesn't thread it through.
+  const viewMode = () => props.viewMode ?? "details";
+  function toggleViewMode() {
+    props.onViewModeChange?.(viewMode() === "grid" ? "details" : "grid");
+  }
 
   // Folder sizes are computed lazily in the background by the Rust size
   // cache (never blocking the listing itself) and pushed here as they
@@ -1552,7 +1613,7 @@ export function FileList(props: FileListProps) {
 
     function applySelection(rect: { x: number; y: number; width: number; height: number }) {
       const next = new Set(baseSelection);
-      const rows = wrap.querySelectorAll<HTMLElement>("tr[data-row-path]");
+      const rows = wrap.querySelectorAll<HTMLElement>("[data-row-path]");
       rows.forEach((row) => {
         const box = row.getBoundingClientRect();
         const intersects = box.left < rect.x + rect.width && box.right > rect.x && box.top < rect.y + rect.height && box.bottom > rect.y;
@@ -1982,6 +2043,118 @@ export function FileList(props: FileListProps) {
   // number) in both call sites specifically so shift-click range-select
   // always reads the *current* position even for a row whose index moved
   // without the row itself being torn down and recreated.
+  // Shared rename editor used by both the details-table rows and the
+  // grid tiles — identical blur/teardown semantics in either layout.
+  function renderRenameInput(entry: DirEntry) {
+    return (
+      <input
+        class="rename-input"
+        value={renameValue()}
+        ref={(el) => {
+          // Solid runs ternary refs before the node is inserted into the
+          // document, and focus() on a disconnected element is a no-op —
+          // defer one microtask so the element is attached by then.
+          queueMicrotask(() => {
+            el.focus();
+            // Explorer-style: preselect the base name so typing replaces
+            // it while the extension stays untouched (folders have none).
+            const dot = el.value.lastIndexOf(".");
+            el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
+          });
+        }}
+        onInput={(e) => setRenameValue(e.currentTarget.value)}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          // stopImmediatePropagation: our keydown listener also lives on
+          // `document` (same node as Solid's delegated handler), where a
+          // plain stopPropagation doesn't prevent it from firing — Enter
+          // would otherwise commit the rename AND open the folder.
+          e.stopImmediatePropagation();
+          if (e.key === "Enter") commitRename();
+          else if (e.key === "Escape") cancelRename();
+        }}
+        onBlur={() => {
+          // Row teardown (a listing replacement rebuilding this row)
+          // removes the focused input, and Chromium fires that blur
+          // while the node still reports isConnected — focus is cleared
+          // before detachment settles, so timing can't tell teardown
+          // apart from a genuine click-away. Cause can: every listing
+          // replacement goes through replaceEntries, which marks the
+          // window. Anything else is the user deliberately moving
+          // focus — the commit trigger we want.
+          if (!replacingEntries) commitRename();
+        }}
+      />
+    );
+  }
+
+  // Grid-view thumbnail: reads the module-level cache synchronously when
+  // possible, kicks off a load otherwise, and flips to the image when the
+  // data URL lands. Falls back to the caller's icon while pending or
+  // unavailable (TooLarge/unsupported/read errors).
+  function Thumbnail(props: { path: string }) {
+    const [src, setSrc] = createSignal<string | null>(thumbnailCache.get(props.path) ?? null);
+    createEffect(() => {
+      if (src()) return;
+      const target = props.path;
+      if (!thumbExt(target)) return;
+      loadThumbnail(target).then((url) => {
+        if (url && target === props.path) setSrc(url);
+      });
+    });
+    return (
+      <Show when={src()} fallback={null}>
+        <img class="file-grid-thumb-img" src={src()!} alt="" draggable={false} loading="lazy" />
+      </Show>
+    );
+  }
+
+  function renderTile(entry: DirEntry, index: () => number) {
+    return (
+      <div
+        class="file-grid-tile"
+        classList={{
+          "file-grid-tile-dir": entry.isDir,
+          "file-grid-tile-selected": selected().has(entry.path),
+          "file-grid-tile-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
+        }}
+        tabIndex={0}
+        data-row-path={entry.path}
+        data-drop-path={entry.isDir ? entry.path : undefined}
+        onMouseDown={(e) => handleRowMouseDown(e, entry)}
+        onClick={(e) => handleRowClick(e, entry, index())}
+        onDblClick={() => openEntry(entry)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") openEntry(entry);
+          else if (e.key === " ") {
+            e.preventDefault();
+            handleRowClick(e as unknown as MouseEvent, entry, index());
+          }
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleRowContextMenu(e, entry);
+        }}
+      >
+        <div class="file-grid-thumb">
+          <Show
+            when={thumbExt(entry.path) && !entry.isDir}
+            fallback={<FileTypeIcon path={entry.path} isDir={entry.isDir} size={34} />}
+          >
+            <Thumbnail path={entry.path} />
+          </Show>
+          {props.folderColors[entry.path] && (
+            <span class="folder-color-dot file-grid-color-dot" style={{ background: props.folderColors[entry.path] }} title="Color tag" />
+          )}
+        </div>
+        <div class="file-grid-name" title={entry.name}>
+          {renamingPath() === entry.path ? renderRenameInput(entry) : entry.name}
+        </div>
+      </div>
+    );
+  }
+
   function renderRow(entry: DirEntry, index: () => number) {
     return (
       <tr
@@ -2021,44 +2194,7 @@ export function FileList(props: FileListProps) {
             <span class="folder-color-dot" style={{ background: props.folderColors[entry.path] }} title="Color tag" />
           )}
           {renamingPath() === entry.path ? (
-            <input
-              class="rename-input"
-              value={renameValue()}
-              ref={(el) => {
-                // Solid runs ternary refs before the node is inserted into the
-                // document, and focus() on a disconnected element is a no-op —
-                // defer one microtask so the element is attached by then.
-                queueMicrotask(() => {
-                  el.focus();
-                  // Explorer-style: preselect the base name so typing replaces
-                  // it while the extension stays untouched (folders have none).
-                  const dot = el.value.lastIndexOf(".");
-                  el.setSelectionRange(0, !entry.isDir && dot > 0 ? dot : el.value.length);
-                });
-              }}
-              onInput={(e) => setRenameValue(e.currentTarget.value)}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                // stopImmediatePropagation: our keydown listener also lives on
-                // `document` (same node as Solid's delegated handler), where a
-                // plain stopPropagation doesn't prevent it from firing — Enter
-                // would otherwise commit the rename AND open the folder.
-                e.stopImmediatePropagation();
-                if (e.key === "Enter") commitRename();
-                else if (e.key === "Escape") cancelRename();
-              }}
-              onBlur={() => {
-                // Row teardown (a listing replacement rebuilding this row)
-                // removes the focused input, and Chromium fires that blur
-                // while the node still reports isConnected — focus is cleared
-                // before detachment settles, so timing can't tell teardown
-                // apart from a genuine click-away. Cause can: every listing
-                // replacement goes through replaceEntries, which marks the
-                // window. Anything else is the user deliberately moving
-                // focus — the commit trigger we want.
-                if (!replacingEntries) commitRename();
-              }}
-            />
+            renderRenameInput(entry)
           ) : (
             entry.name
           )}
@@ -2074,6 +2210,61 @@ export function FileList(props: FileListProps) {
         <td class="file-modified-cell">{formatModified(entry.modified)}</td>
         {isSearching() && <td class="file-location">{parentDir(entry.path)}</td>}
       </tr>
+    );
+  }
+
+  // Grid layout: same shared handlers as the table rows (selection,
+  // drag, rename, context menu), flat or grouped exactly like the details
+  // table. Not virtualized in v1.
+  function renderGrid() {
+    return (
+      <div class="file-list-table-wrap file-grid-wrap" onMouseDown={handleListMouseDown}>
+        <Show when={marqueeRect()}>
+          {(rect) => (
+            <div
+              class="marquee-select"
+              style={{
+                left: `${rect().x}px`,
+                top: `${rect().y}px`,
+                width: `${rect().width}px`,
+                height: `${rect().height}px`,
+              }}
+            />
+          )}
+        </Show>
+        <div class="file-grid">
+          <Show when={sortedEntries().length === 0 && !listingInFlight()}>
+            <div class="file-grid-empty">
+              <FolderIcon size={24} />
+              <span>{isSearching() ? "No results match your search" : "This folder is empty"}</span>
+            </div>
+          </Show>
+          <Show
+            when={groupedSections()}
+            fallback={
+              <For each={sortedEntries()}>
+                {(entry) => renderTile(entry, () => indexByPath().get(entry.path) ?? 0)}
+              </For>
+            }
+          >
+            {(sections) => (
+              <For each={sections()}>
+                {(section) => (
+                  <>
+                    <div class="file-grid-section-header">
+                      <span class="group-header-label">{section.label}</span>
+                      <span class="group-header-count">{section.entries.length}</span>
+                    </div>
+                    <For each={section.entries}>
+                      {(entry) => renderTile(entry, () => indexByPath().get(entry.path) ?? 0)}
+                    </For>
+                  </>
+                )}
+              </For>
+            )}
+          </Show>
+        </div>
+      </div>
     );
   }
 
@@ -2159,6 +2350,18 @@ export function FileList(props: FileListProps) {
             <option value="size">Group by: Size</option>
             <option value="modified">Group by: Date modified</option>
           </select>
+          <button
+            type="button"
+            class="view-mode-toggle"
+            aria-pressed={viewMode() === "grid"}
+            title={viewMode() === "grid" ? "Switch to details view" : "Switch to grid view"}
+            onClick={toggleViewMode}
+          >
+            <Show when={viewMode() === "grid"} fallback={<GridIcon size={14} />}>
+              <DetailsIcon size={14} />
+            </Show>
+            {viewMode() === "grid" ? "Details" : "Grid"}
+          </button>
           <Show when={entries().some((e) => props.folderColors[e.path])}>
             <button
               type="button"
@@ -2174,6 +2377,8 @@ export function FileList(props: FileListProps) {
           </Show>
         </div>
         <div class="file-list-split">
+        <Show when={viewMode() === "grid"}>{renderGrid()}</Show>
+        <Show when={viewMode() !== "grid"}>
         <div
           class="file-list-table-wrap"
           ref={wrapEl}
@@ -2248,6 +2453,7 @@ export function FileList(props: FileListProps) {
           </tbody>
         </table>
         </div>
+        </Show>
 
         <Show when={previewPath() && !previewDismissed()}>
           <PreviewPanel path={previewPath()!} onClose={() => setPreviewDismissed(true)} />

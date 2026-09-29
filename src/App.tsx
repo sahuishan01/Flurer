@@ -1635,6 +1635,11 @@ function App() {
                     setSettings("showHiddenFiles", !settings.showHiddenFiles);
                     persistSettings();
                   }}
+                  viewMode={settings.viewMode}
+                  onViewModeChange={(mode) => {
+                    setSettings("viewMode", mode);
+                    persistSettings();
+                  }}
                 />
               </div>
             </Show>
