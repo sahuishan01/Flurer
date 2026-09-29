@@ -1,0 +1,20 @@
+{
+  "plugins": [
+    {
+      "id": "git",
+      "name": "Git Operations",
+      "description": "View git status, stage/unstage files, commit, push and pull from within Flurer.",
+      "version": "0.16.5",
+      "author": "Algosculptor",
+      "repo": "sahuishan01/flurer-plugin-git"
+    },
+    {
+      "id": "graph",
+      "name": "Storage Graph",
+      "description": "Visual treemap-style storage graph for exploring disk usage.",
+      "version": "1.0.0",
+      "author": "Algosculptor",
+      "repo": "sahuishan01/flurer-plugin-graph"
+    }
+  ]
+}

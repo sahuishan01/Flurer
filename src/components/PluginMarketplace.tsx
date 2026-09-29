@@ -33,6 +33,20 @@ type UpdateInfo = {
   repo: string;
 };
 
+// Remote registry (AGENTS.md §1): a marketplace.json hosted in the main
+// repo listing plugins available for one-click install. Fetched at mount;
+// a failed fetch just hides the section (URL/ZIP installs still work).
+type RegistryEntry = {
+  id: string;
+  name: string;
+  description?: string;
+  version?: string;
+  author?: string;
+  repo: string;
+};
+
+const REGISTRY_URL = "https://raw.githubusercontent.com/sahuishan01/Flurer/main/marketplace.json";
+
 export function PluginMarketplace(props: PluginMarketplaceProps) {
   const [githubUrl, setGithubUrl] = createSignal("");
   const [zipFilePath, setZipFilePath] = createSignal<string | null>(null);
@@ -43,6 +57,25 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
   const [checkingUpdates, setCheckingUpdates] = createSignal(false);
   const [linkingId, setLinkingId] = createSignal<string | null>(null);
   const [linkRepoUrl, setLinkRepoUrl] = createSignal("");
+  const [registry, setRegistry] = createSignal<RegistryEntry[] | null>(null);
+  const [registryError, setRegistryError] = createSignal<string | null>(null);
+  const [registryLoading, setRegistryLoading] = createSignal(false);
+
+  const loadRegistry = async () => {
+    setRegistryLoading(true);
+    setRegistryError(null);
+    try {
+      const res = await fetch(REGISTRY_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setRegistry(Array.isArray(data.plugins) ? data.plugins : []);
+    } catch (err) {
+      setRegistry(null);
+      setRegistryError(String(err));
+    } finally {
+      setRegistryLoading(false);
+    }
+  };
 
   const refreshInstalled = async () => {
     try {
@@ -71,6 +104,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
     await refreshInstalled();
     // Auto-check for updates after installed list loads
     setTimeout(checkForUpdates, 500);
+    void loadRegistry();
   });
 
   const updateMap = createMemo(() => {
@@ -85,6 +119,22 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
       enabled: !props.disabledPlugins.includes(p.id),
     })),
   );
+
+  // ── Registry browse ─────────────────────────────────────────────────────
+
+  const handleInstallRegistry = async (entry: RegistryEntry) => {
+    setLoadingId(`reg:${entry.id}`);
+    setErrorMsg(null);
+    try {
+      await installPluginFromGithub(entry.repo);
+      await refreshInstalled();
+      setTimeout(checkForUpdates, 500);
+    } catch (err) {
+      setErrorMsg(`Install failed: ${err}`);
+    } finally {
+      setLoadingId(null);
+    }
+  };
 
   // ── GitHub install ──────────────────────────────────────────────────────
 
@@ -254,6 +304,74 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
         <p class="plugin-install-hint">
           Select a <strong>.zip</strong> file that contains <code>plugin.json</code> and the plugin code.
         </p>
+      </div>
+
+      {/* ── Registry browse ───────────────────────────────────────── */}
+      <div class="plugin-install-section">
+        <div class="plugin-installed-header">
+          <h4>Available Plugins</h4>
+          <button type="button" disabled={registryLoading()} onClick={loadRegistry}>
+            {registryLoading() ? "Loading…" : "Refresh"}
+          </button>
+        </div>
+        <Show
+          when={registry()}
+          fallback={
+            <div class="plugin-empty-state">
+              {registryLoading()
+                ? "Loading the plugin registry…"
+                : `Couldn't load the plugin registry${registryError() ? ` (${registryError()})` : ""}. URL and ZIP installs below still work.`}
+            </div>
+          }
+        >
+          {(entries) => (
+            <Show
+              when={entries().length > 0}
+              fallback={<div class="plugin-empty-state">The registry has no plugins listed yet.</div>}
+            >
+              <div class="plugin-list">
+                <For each={entries()}>
+                  {(entry) => {
+                    const isInstalled = createMemo(() => installed().some((p) => p.id === entry.id));
+                    return (
+                      <div class="plugin-card">
+                        <div class="plugin-card-body">
+                          <div class="plugin-card-title-row">
+                            <span class="plugin-name">{entry.name}</span>
+                            <Show when={entry.version}>
+                              <span class="plugin-meta">v{entry.version}</span>
+                            </Show>
+                          </div>
+                          <div class="plugin-meta">
+                            {entry.author ? `${entry.author} • ` : ""}
+                            {entry.repo}
+                          </div>
+                          <Show when={entry.description}>
+                            <div class="plugin-description">{entry.description}</div>
+                          </Show>
+                        </div>
+                        <div class="plugin-actions">
+                          <Show
+                            when={!isInstalled()}
+                            fallback={<span class="plugin-meta">Installed</span>}
+                          >
+                            <button
+                              type="button"
+                              disabled={isBusy(`reg:${entry.id}`)}
+                              onClick={() => handleInstallRegistry(entry)}
+                            >
+                              {isBusy(`reg:${entry.id}`) ? "Installing…" : "Install"}
+                            </button>
+                          </Show>
+                        </div>
+                      </div>
+                    );
+                  }}
+                </For>
+              </div>
+            </Show>
+          )}
+        </Show>
       </div>
 
       {/* ── Installed plugins ─────────────────────────────────────── */}
