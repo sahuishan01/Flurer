@@ -1201,6 +1201,9 @@ function App() {
 
     add("tab-new", "New tab", "Tabs & Panes", openNewTab, combo("newTab"));
     add("tab-close", "Close active tab", "Tabs & Panes", () => closeTab(activeTabId()), combo("closeTab"));
+    for (const tab of tabs()) {
+      add(`tab-switch-${tab.id}`, `Switch to tab: ${tab.path}`, "Tabs & Panes", () => switchTab(tab.id));
+    }
     add("pane-new", "Add split pane", "Tabs & Panes", () => {
       if (1 + settings.splitPanePaths.length < 16) {
         const cur = activePanePath();

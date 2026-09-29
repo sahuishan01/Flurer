@@ -77,7 +77,18 @@ export function ExplorerTabs(props: ExplorerTabsProps) {
   onCleanup(endDrag);
 
   return (
-    <div class="explorer-tabs" role="tablist" ref={stripRef}>
+    <div
+      class="explorer-tabs"
+      role="tablist"
+      ref={stripRef}
+      onDblClick={(e) => {
+        // Double-clicking the empty strip (not a tab, not the + button)
+        // opens a new tab — same as every browser's tab strip.
+        const target = e.target as HTMLElement;
+        if (target.closest(".explorer-tab") || target.closest(".explorer-tab-new")) return;
+        props.onNew();
+      }}
+    >
       <For each={props.tabs}>
         {(tab, i) => (
           <div
