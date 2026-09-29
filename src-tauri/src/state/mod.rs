@@ -302,7 +302,7 @@ fn default_window_width() -> u32 {
 }
 
 fn default_sidebar_section_order() -> Vec<String> {
-    ["drives", "recents", "favourites", "quick"]
+    ["drives", "recents", "favourites", "quick", "tree"]
         .into_iter()
         .map(String::from)
         .collect()

@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ClockIcon,
@@ -18,7 +18,7 @@ import type { MainView } from "../lib/view";
 import type { PhysicalDisk, VirtualDisk } from "../lib/graph";
 import type { SidebarSectionId } from "../lib/settings";
 import { DEFAULT_SIDEBAR_SECTION_ORDER } from "../lib/settings";
-import { baseName, formatBytes } from "../lib/fs";
+import { baseName, formatBytes, pathSegments, type DirEntry, type DirListing } from "../lib/fs";
 
 type QuickAccessEntry = {
   label: string;
@@ -48,6 +48,7 @@ const SECTION_TITLES: Record<SidebarSectionId, string> = {
   drives: "Drives",
   recents: "Recents",
   favourites: "Favourites",
+  tree: "Folders",
 };
 
 type SidebarProps = {
@@ -418,7 +419,111 @@ export function Sidebar(props: SidebarProps) {
             </For>
           </>
         )}
+        {id === "tree" && (
+          <div class="sidebar-tree">
+            <TreeRow path={treeRoot()} label={treeRoot()} depth={0} />
+          </div>
+        )}
       </div>
+    );
+  }
+
+  // ---- Folder tree section ----------------------------------------------
+  //
+  // Lazy-loading tree rooted at the current pane's drive root. Expansion
+  // state and child listings live at Sidebar scope so they survive
+  // re-renders while navigating; expanding a node lists its subfolders via
+  // the same list_directory command the rest of the UI uses (no watching —
+  // a node re-lists each time it's collapsed and re-expanded, which keeps
+  // stale removed/added folders from lingering forever without a watcher
+  // per node).
+  const [treeExpanded, setTreeExpanded] = createSignal<Set<string>>(new Set());
+  const [treeChildren, setTreeChildren] = createSignal<Map<string, DirEntry[] | null>>(new Map());
+
+  const treeRoot = createMemo(() => {
+    const segs = pathSegments(props.currentPath);
+    return segs.length > 0 ? segs[0].path : props.currentPath;
+  });
+
+  // Follow navigation: expand every ancestor (and the location itself) so
+  // the tree always shows where the user is.
+  createEffect(() => {
+    const segs = pathSegments(props.currentPath).map((s) => s.path);
+    setTreeExpanded((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const p of segs) if (!next.has(p)) { next.add(p); changed = true; }
+      return changed ? next : prev;
+    });
+  });
+
+  async function loadTreeChildren(path: string) {
+    setTreeChildren((prev) => { const next = new Map(prev); next.set(path, null); return next; });
+    try {
+      const listing = await invoke<DirListing>("list_directory", {
+        path,
+        sortKey: "name",
+        sortDirection: "ascending",
+      });
+      setTreeChildren((prev) => { const next = new Map(prev); next.set(path, listing.entries.filter((e) => e.isDir)); return next; });
+    } catch {
+      setTreeChildren((prev) => { const next = new Map(prev); next.set(path, []); return next; });
+    }
+  }
+
+  function toggleTreeNode(path: string) {
+    const expanded = treeExpanded();
+    if (expanded.has(path)) {
+      const next = new Set(expanded);
+      next.delete(path);
+      // Drop the cached listing so a later re-expand re-lists fresh.
+      setTreeChildren((prev) => { const n = new Map(prev); n.delete(path); return n; });
+      setTreeExpanded(next);
+    } else {
+      const next = new Set(expanded);
+      next.add(path);
+      setTreeExpanded(next);
+    }
+  }
+
+  function TreeRow(props2: { path: string; label: string; depth: number }): JSX.Element {
+    const expanded = () => treeExpanded().has(props2.path);
+    const children = () => treeChildren().get(props2.path);
+    createEffect(() => {
+      if (expanded() && children() === undefined) loadTreeChildren(props2.path);
+    });
+    return (
+      <>
+        <div
+          class="tree-row"
+          classList={{ active: props.activeView === "explorer" && props.currentPath === props2.path }}
+          style={{ "padding-left": `${8 + props2.depth * 14}px` }}
+          data-tip={props2.path}
+          data-drop-path={props2.path}
+          onClick={() => props.onSelectPath(props2.path)}
+        >
+          <button
+            type="button"
+            class="tree-chevron"
+            aria-label={expanded() ? `Collapse ${props2.label}` : `Expand ${props2.label}`}
+            aria-expanded={expanded()}
+            onClick={(e) => { e.stopPropagation(); toggleTreeNode(props2.path); }}
+          >
+            {expanded() ? "▾" : "▸"}
+          </button>
+          <span class="sidebar-icon"><FolderIcon size={14} /></span>
+          <span class="sidebar-entry-label tree-label">{props2.label}</span>
+        </div>
+        <Show when={expanded()}>
+          <Show when={children()} fallback={<div class="tree-row tree-loading" style={{ "padding-left": `${22 + props2.depth * 14}px` }}>…</div>}>
+            {(kids) => (
+              <For each={kids()}>
+                {(entry) => <TreeRow path={entry.path} label={entry.name} depth={props2.depth + 1} />}
+              </For>
+            )}
+          </Show>
+        </Show>
+      </>
     );
   }
 

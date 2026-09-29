@@ -4690,6 +4690,58 @@ button.danger:not(.context-menu-item):hover {
     font-size: 0.85em;
 }
 
+/* ---- Sidebar folder tree ---- */
+.sidebar-tree {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px 3px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.tree-row:hover {
+    background: var(--accent-bg-soft);
+}
+
+.tree-row.active {
+    background: var(--accent-bg-soft);
+    color: var(--accent-default);
+}
+
+.tree-row .sidebar-entry-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-chevron {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    padding: 1px 3px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.tree-chevron:hover {
+    color: var(--text-primary);
+}
+
+.tree-loading {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
 /* ---- Inline breadcrumb path bar ---- */
 .path-breadcrumbs {
     display: flex;

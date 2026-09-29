@@ -6,13 +6,14 @@ export type Theme = "light" | "dark" | "midnight" | "ocean" | "nord" | "paper";
 
 // Sidebar sections the user can drag-reorder. "quick" is the Quick access
 // panel (Recycle Bin + the OS Desktop/Documents/Downloads entries).
-export type SidebarSectionId = "quick" | "drives" | "recents" | "favourites";
+export type SidebarSectionId = "quick" | "drives" | "recents" | "favourites" | "tree";
 
 export const DEFAULT_SIDEBAR_SECTION_ORDER: SidebarSectionId[] = [
   "drives",
   "recents",
   "favourites",
   "quick",
+  "tree",
 ];
 
 export const THEMES: { value: Theme; label: string; dark: boolean }[] = [
