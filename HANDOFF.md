@@ -444,9 +444,9 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.205** — chunks 1 (command palette) and 2 (grid
-view) of the UX project below are shipped and tagged; both Release
-workflows succeeded and the version-bump commits were pushed to main.
+`main` is at **v0.4.211** — the UX improvements project (all 8 chunks,
+command palette through tab polish) is complete: every chunk shipped
+through the full release ritual and its Release workflow succeeded.
 Settings live in
 `~/.config/flurer/<version>/settings.json` with serde defaults bridging
 old files (see "Settings compatibility" below). The per-version ritual in
@@ -484,20 +484,48 @@ agent-releases). Chunk order (chosen for impact/risk):
    `get_file_preview` + bounded module LRU (`Thumbnail` component).
    Grid is NOT virtualized in v1 — revisit if huge-folder grid perf
    becomes a problem. `bun run build` was clean before the push.
-3. **Breadcrumb path bar** — **NEXT (IN PROGRESS).** Clickable path
-   segments with per-level dropdown in `ExplorerPathBar.tsx`; falls
-   back to the existing text input.
-4. **Folder tree pane** — pending. Sidebar tree using `dirwatch` live
-   updates.
-5. **Multi-step undo stack** — pending. Generalize FileList's
-   single-slot `undoAction` into an op journal (rename/move/create/
-   bulkRename/delete).
-6. **Quick look preview** — pending. Spacebar-transient preview modal
-   reusing `get_file_preview`.
-7. **Marketplace registry browsing** — pending. `marketplace.json` +
-   GitHub API in `PluginMarketplace.tsx` (see AGENTS.md §1/§2).
-8. **Tab management UX polish** — pending. Tab close buttons, middle-
-   click close, overflow menu.
+3. **Breadcrumb path bar** — **DONE, shipped as v0.4.206.** Commit
+   `da437e9`. `ExplorerPathBar.tsx` now renders inline clickable breadcrumb
+   segments (with per-segment subfolder dropdowns via a second
+   `createPopover` instance and the shared `list_directory` cache) whenever
+   the typed-path popover is closed; the folder icon still opens the
+   editable-path popover, so Ctrl+L and drop targets are unchanged.
+4. **Folder tree pane** — **DONE, shipped as v0.4.207.** Commit `67e548a`.
+   New reorderable sidebar section `"tree"` ("Folders"): lazy-loading
+   expandable tree rooted at the active pane's drive root; navigation
+   auto-expands the current path's ancestors; rows are drop targets; nodes
+   re-list on re-expand instead of watching. `SidebarSectionId` extended
+   (frontend merges unknown ids, so older settings files are safe); Rust
+   `default_sidebar_section_order` gained `"tree"` (one-word CI-compiled
+   change).
+5. **Multi-step undo** — **DONE, shipped as v0.4.208.** Commit `991c23e`.
+   FileList's single-slot undo is a 20-deep stack; new remappable shortcut
+   `undo` (default Ctrl+Z) pops one operation at a time; toast shows the
+   latest operation plus a `(+N more)` count. Scope unchanged
+   (rename/move/create/bulkRename/trash-restore).
+6. **Quick look preview** — **DONE, shipped as v0.4.209.** Commit
+   `e601892`. New `QuickLookModal.tsx`: Space with exactly one item
+   selected toggles a centered image/text overlay via `get_file_preview`;
+   Space/Esc closes. Space keeps its select-under-cursor behavior when the
+   selection isn't a single item.
+7. **Marketplace registry browsing** — **DONE, shipped as v0.4.210.**
+   Commit `c06ad0d`. `PluginMarketplace.tsx` fetches `marketplace.json`
+   from the main repo (`raw.githubusercontent.com/sahuishan01/Flurer/main`)
+   at mount into a new "Available Plugins" section with one-click Install
+   (reusing the GitHub release install path); failure degrades to a
+   message. Starter registry file (`marketplace.json`) ships with the two
+   reference plugins.
+8. **Tab management polish** — **DONE, shipped as v0.4.211.** Commit
+   `a636e47`. Double-clicking the empty tab strip opens a new tab; the
+   command palette lists every open tab as a switch target. (Close
+   buttons and middle-click close already existed.)
+
+**PROJECT COMPLETE — all 8 chunks shipped v0.4.204 → v0.4.211, each
+through the full release ritual (Build CI green → bump → tag → Release
+CI green → bump commit pushed → ntfy agent-tasks + agent-releases).
+Remaining follow-up ideas not in scope:** grid-view virtualization for
+huge folders, per-pane tab integration, content-index search, plugin
+sandboxing (AGENTS.md §4), and the plugin SDK/types package (§5).
 
 Process reminders for every chunk (learned in chunk 1):
 - Commit feature first WITHOUT a version bump; only after Build CI is
