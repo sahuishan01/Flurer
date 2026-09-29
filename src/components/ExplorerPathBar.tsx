@@ -15,14 +15,49 @@ type ExplorerPathBarProps = {
 
 export function ExplorerPathBar(props: ExplorerPathBarProps) {
   const { open, pos, containerRef, panelRef, toggle, close } = createPopover();
+  // A second, independent popover for a breadcrumb segment's subfolder
+  // dropdown — only one of the two overlays is ever open at a time.
+  const segMenu = createPopover();
   let inputRef: HTMLInputElement | undefined;
+  const [segDirs, setSegDirs] = createSignal<string[]>([]);
+  const [segTitle, setSegTitle] = createSignal("");
 
   // Navigating away (breadcrumb click, sidebar, back/forward) should always
   // close the overlay rather than leaving it open pointed at a stale path.
   createEffect(() => {
     props.path;
     close();
+    segMenu.close();
   });
+
+  // Subfolder dropdown for a breadcrumb segment: the segment's own
+  // directories (same listing the autocomplete uses, same cache).
+  async function openSegmentMenu(segment: { path: string }, btn: HTMLElement) {
+    if (segMenu.open()) {
+      segMenu.close();
+      return;
+    }
+    segTitle(segment.path);
+    setSegDirs([]);
+    segMenu.toggle(btn);
+    if (!segMenu.open()) return;
+    let names = listingCache.get(segment.path);
+    if (names === undefined) {
+      try {
+        const listing = await invoke<DirListing>("list_directory", {
+          path: segment.path,
+          sortKey: "name",
+          sortDirection: "ascending",
+        });
+        names = listing.entries.filter((e) => e.isDir).map((e) => e.name);
+      } catch {
+        names = [];
+      }
+      listingCache.set(segment.path, names);
+    }
+    if (segTitle() !== segment.path) return;
+    setSegDirs(names);
+  }
 
   function openPopover(btn: HTMLElement) {
     toggle(btn);
@@ -124,6 +159,66 @@ export function ExplorerPathBar(props: ExplorerPathBarProps) {
       >
         <FolderIcon size={16} />
       </button>
+
+      <Show when={!open()}>
+        <div class="path-breadcrumbs">
+          <For each={pathSegments(props.path)}>
+            {(segment, index) => (
+              <>
+                <Show when={index() > 0}>
+                  <span class="breadcrumb-sep">›</span>
+                </Show>
+                <span class="crumb-wrap">
+                  <button
+                    type="button"
+                    class="breadcrumb-segment inline-crumb"
+                    data-drop-path={segment.path}
+                    title={segment.path}
+                    onClick={() => props.onNavigate(segment.path)}
+                  >
+                    {segment.label}
+                  </button>
+                  <button
+                    type="button"
+                    class="crumb-chevron icon-btn"
+                    aria-label={`Subfolders of ${segment.label}`}
+                    aria-expanded={segMenu.open() && segTitle() === segment.path}
+                    onClick={(e) => openSegmentMenu(segment, e.currentTarget)}
+                  >
+                    ▾
+                  </button>
+                </span>
+              </>
+            )}
+          </For>
+        </div>
+      </Show>
+      <Show when={!open() && segMenu.open()}>
+        <div class="path-popover crumb-dropdown" style={segMenu.pos()} ref={segMenu.panelRef}>
+          <Show
+            when={segDirs().length > 0}
+            fallback={<div class="path-suggestions-empty">No subfolders</div>}
+          >
+            <ul class="path-suggestions" role="listbox">
+              <For each={segDirs()}>
+                {(name) => (
+                  <li
+                    role="option"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      segMenu.close();
+                      props.onNavigate(joinPath(segTitle(), name));
+                    }}
+                  >
+                    <FolderIcon size={13} />
+                    {name}
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Show>
+        </div>
+      </Show>
 
       <Show when={open()}>
         <div class="path-popover" style={pos()} ref={panelRef}>

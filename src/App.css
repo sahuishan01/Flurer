@@ -4690,6 +4690,60 @@ button.danger:not(.context-menu-item):hover {
     font-size: 0.85em;
 }
 
+/* ---- Inline breadcrumb path bar ---- */
+.path-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    min-width: 0;
+    flex: 1;
+    scrollbar-width: none;
+}
+
+.path-breadcrumbs::-webkit-scrollbar {
+    display: none;
+}
+
+.crumb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    min-width: 0;
+}
+
+.inline-crumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+}
+
+.crumb-chevron {
+    font-size: 9px;
+    padding: 1px 3px;
+    border-radius: 4px;
+    opacity: 0.6;
+}
+
+.crumb-chevron:hover {
+    opacity: 1;
+    background: var(--accent-bg-soft);
+}
+
+.crumb-dropdown {
+    min-width: 180px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.path-suggestions-empty {
+    padding: 10px 12px;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
 /* ---- Grid (icon) view ---- */
 .view-mode-toggle {
     display: inline-flex;
