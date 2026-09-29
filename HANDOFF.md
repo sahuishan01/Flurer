@@ -523,7 +523,16 @@ agent-releases). Chunk order (chosen for impact/risk):
 **PROJECT COMPLETE — all 8 chunks shipped v0.4.204 → v0.4.211, each
 through the full release ritual (Build CI green → bump → tag → Release
 CI green → bump commit pushed → ntfy agent-tasks + agent-releases).
-Remaining follow-up ideas not in scope:** grid-view virtualization for
+
+Follow-ups shipped after the project: v0.4.212 (`b5a0426`) added live
+progress for plugin install/ZIP/update — Rust emits `plugin-progress`
+events (`{stage, percent}`) with a streamed download percent; the
+marketplace renders a progress panel (reusing the app-updater styles,
+indeterminate animation where no fraction exists). Also: the
+marketplace registry gained `web-loader` and its graph entry was
+corrected to `sahuishan01/flurer-graph-plugin` (the original guessed
+repo 404'd — that was the "Install failed: GitHub API 404" report).
+Remaining follow-up ideas not in scope: grid-view virtualization for
 huge folders, per-pane tab integration, content-index search, plugin
 sandboxing (AGENTS.md §4), and the plugin SDK/types package (§5).
 
