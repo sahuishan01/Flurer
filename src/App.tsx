@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { CommandBar } from "./components/CommandBar";
+import { CommandPalette, type CommandPaletteItem } from "./components/CommandPalette";
 import { ExplorerPathBar } from "./components/ExplorerPathBar";
 import { ExplorerTabs, type ExplorerTab } from "./components/ExplorerTabs";
 import { ExplorerView } from "./components/ExplorerView";
@@ -870,7 +871,11 @@ function App() {
       }
 
       // --- Navigation & Window shortcuts ---
-      if (bound("navBack")) {
+      if (bound("commandPalette")) {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+        return;
+      } else if (bound("navBack")) {
         e.preventDefault();
         goBack();
         return;
@@ -1161,6 +1166,70 @@ function App() {
   }
 
   const [graphFocusRequest, setGraphFocusRequest] = createSignal<GraphFocusRequest | null>(null);
+
+  const [commandPaletteOpen, setCommandPaletteOpen] = createSignal(false);
+
+  // The palette's command list: navigation, views (including plugins),
+  // tabs/panes, themes, and every recent/favourite path as a jump target.
+  const paletteCommands = createMemo<CommandPaletteItem[]>(() => {
+    const combo = (action: InAppShortcutAction) =>
+      settings.inAppShortcuts[action] ?? DEFAULT_IN_APP_SHORTCUTS[action];
+    const commands: CommandPaletteItem[] = [];
+
+    function add(id: string, label: string, category: string, run: () => void, shortcut?: string) {
+      commands.push({ id, label, category, run, shortcut });
+    }
+
+    add("nav-back", "Go back", "Navigation", goBack, combo("navBack"));
+    add("nav-forward", "Go forward", "Navigation", goForward, combo("navForward"));
+    add("nav-parent", "Go to parent folder", "Navigation", () => {
+      const cur = activePanePath();
+      const p = parentDir(cur);
+      if (p && p !== cur && p !== cur.replace(/[/\\]+$/, "")) navigateActivePane(p);
+    }, combo("navParent"));
+    add("toggle-hidden", "Toggle hidden files", "Navigation", () => {
+      setSettings("showHiddenFiles", !settings.showHiddenFiles);
+      persistSettings();
+    }, combo("toggleHiddenFiles"));
+
+    add("view-explorer", "Open Explorer", "Views", () => selectView("explorer"));
+    add("view-trash", "Open Trash", "Views", () => selectView("trash"));
+    add("view-settings", "Open Settings", "Views", () => selectView("settings"));
+    for (const plugin of registeredPlugins()) {
+      add(`view-plugin-${plugin.id}`, `Open ${plugin.name}`, "Views", () => selectView(plugin.id));
+    }
+
+    add("tab-new", "New tab", "Tabs & Panes", openNewTab, combo("newTab"));
+    add("tab-close", "Close active tab", "Tabs & Panes", () => closeTab(activeTabId()), combo("closeTab"));
+    add("pane-new", "Add split pane", "Tabs & Panes", () => {
+      if (1 + settings.splitPanePaths.length < 16) {
+        const cur = activePanePath();
+        const p = parentDir(cur);
+        const next = [...settings.splitPanePaths, p && p !== cur ? p : cur];
+        setSettings("splitPanePaths", next);
+        setActivePane(next.length);
+      }
+    }, combo("newPane"));
+    add("pane-cycle", "Cycle active split pane", "Tabs & Panes", () => {
+      const total = 1 + settings.splitPanePaths.length;
+      if (total > 1) setActivePane((prev) => (prev + 1) % total);
+    }, combo("cyclePane"));
+
+    for (const theme of THEMES) {
+      add(`theme-${theme.value}`, `Theme: ${theme.label}`, "Appearance", () => {
+        updateTheme(theme.value);
+      });
+    }
+
+    for (const path of settings.recentPaths) {
+      add(`recent-${path}`, path, "Recent folders", () => navigateActivePane(path));
+    }
+    for (const path of settings.favouritePaths) {
+      add(`favourite-${path}`, path, "Favourites", () => navigateActivePane(path));
+    }
+
+    return commands;
+  });
 
   // Picking a place from the sidebar (a drive, a recent/favourite folder, or
   // a quick-access shortcut) normally jumps to whichever explorer pane is
@@ -1708,6 +1777,13 @@ function App() {
         </div>
       </div>
       </Show>
+
+      {/* Command palette */}
+      <CommandPalette
+        open={commandPaletteOpen()}
+        onClose={() => setCommandPaletteOpen(false)}
+        commands={paletteCommands()}
+      />
 
       {/* Auto-update confirmation modal */}
       <Show when={pendingUpdateInfo()}>
