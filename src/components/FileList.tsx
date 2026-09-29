@@ -18,6 +18,7 @@ import { DuplicateFinderModal } from "./DuplicateFinderModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import { PreviewPanel } from "./PreviewPanel";
+import { QuickLookModal } from "./QuickLookModal";
 import { PropertiesDialog } from "./PropertiesDialog";
 import {
   ArchiveIcon,
@@ -343,6 +344,9 @@ export function FileList(props: FileListProps) {
   // selecting a different one reopens it, matching how most preview panes
   // (VS Code's, Explorer's) treat "closed" as scoped to the current pick.
   const [previewDismissed, setPreviewDismissed] = createSignal(false);
+  // Space on a single selection toggles the transient Quick Look overlay
+  // (macOS-style) — separate from the always-on PreviewPanel.
+  const [quickLookPath, setQuickLookPath] = createSignal<string | null>(null);
   const previewPath = createMemo(() => {
     if (windowWidth() < 768) return null;
     const sel = selected();
@@ -1941,6 +1945,14 @@ export function FileList(props: FileListProps) {
       return;
     } else if (e.key === " ") {
       e.preventDefault();
+      // With exactly one item already selected, Space toggles Quick Look
+      // (macOS-style). Otherwise Space keeps its classic behavior: select
+      // the row under the cursor (or the first row when nothing's picked).
+      if (!mod && selected().size === 1) {
+        const [only] = selected();
+        setQuickLookPath((prev) => (prev === only ? null : only));
+        return;
+      }
       const cur = lastClickedIndex();
       if (cur !== null && cur >= 0 && cur < list.length) {
         const targetEntry = list[cur];
@@ -2542,6 +2554,10 @@ export function FileList(props: FileListProps) {
           onClose={() => setDuplicatesOpen(false)}
           onDeleted={refresh}
         />
+      )}
+
+      {quickLookPath() && (
+        <QuickLookModal path={quickLookPath()!} onClose={() => setQuickLookPath(null)} />
       )}
 
       {opError() && (
