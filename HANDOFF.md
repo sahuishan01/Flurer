@@ -1,12 +1,12 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-**STATUS UPDATE (v0.4.196): all five features shipped and confirmed; the
-5-feature reintroduction project is finished.** See "Post-revert work"
-near the bottom of this file for everything shipped since v0.4.109,
-including the newest subsystems (delete flows, top-bar system metrics,
-command-bar layout). The historical story below is kept because its
-lessons (one feature per version, never guess-and-patch, Rust compiles
-only in CI) still govern how this repo is worked on.
+**STATUS UPDATE (v0.4.204): the 5-feature reintroduction is long finished;
+the current active project is the "UX improvements in chunks" project —
+see that section at the bottom of this file for exactly what's done,
+what's mid-flight, and what's next.** See "Post-revert work" below for
+everything shipped since v0.4.109. The historical story below is kept
+because its lessons (one feature per version, never guess-and-patch, Rust
+compiles only in CI) still govern how this repo is worked on.
 
 Historical context (as it stood mid-project, at v0.4.107): features 1, 2,
 and 3 of 5 shipped and confirmed. Don't treat any feature as done until
@@ -444,11 +444,113 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.196** — all 5 reintroduced features plus the
-post-revert work listed above are shipped and tagged. Settings live in
+`main` is at **v0.4.204** — the command palette (chunk 1 of the UX
+project below) is shipped and tagged; the Release workflow succeeded and
+the version-bump commit was pushed to main. Settings live in
 `~/.config/flurer/<version>/settings.json` with serde defaults bridging
 old files (see "Settings compatibility" below). The per-version ritual in
 "Release ritual" plus AGENTS.md §7 (ntfy notifications, CI watch, bump
 only after a green build, tag-only push) is the required workflow for any
 new change. This file and AGENTS.md are the source of truth for working
 on this repo.
+
+## UX improvements project (2026-09) — CURRENT ACTIVE WORK
+
+User request: implement the full UX-improvement shortlist "in chunks and
+version bumps" — one feature per chunk, each chunk going through the full
+release ritual (commit → push → watch Build CI → bump version → tag
+tag-only → watch Release CI → push bump commit → ntfy agent-tasks +
+agent-releases). Chunk order (chosen for impact/risk):
+
+1. **Command palette (Ctrl+K)** — **DONE, shipped as v0.4.204.** Commit
+   `003696c`. Files: new `src/components/CommandPalette.tsx` (fuzzy
+   subsequence scoring, Portal'd overlay using `.modal-backdrop` so the
+   global shortcut handler skips it, keyboard nav, scroll-into-view),
+   `src/lib/shortcuts.ts` (new `commandPalette` action, default `Ctrl+K`,
+   listed under Navigation in the remappable-shortcuts categories),
+   `src/App.tsx` (state + binding in `handleKeyDown` +
+   `paletteCommands` memo: nav actions, views incl. registered plugins,
+   tabs/panes, per-theme entries, recent + favourite path jumps),
+   `src/App.css` (`.command-palette-*` styles). Rust untouched
+   (`in_app_shortcuts` is already `HashMap<String, String>`).
+2. **Grid/icon view with thumbnails** — **IN PROGRESS (mid-edit, not
+   committed, NOT verified with tsc yet — run `bun run build` before
+   anything else).** Target: persisted `viewMode: "details" | "grid"`,
+   toggle button in the file-list toolbar, tile renderer reusing the
+   existing selection/drag/rename/context-menu handlers, image
+   thumbnails.
+   - Done so far:
+     - `src/components/icons.tsx`: added `GridIcon` + `DetailsIcon`.
+     - `src/lib/settings.ts`: `viewMode: "details" | "grid"` field,
+       default `"details"`.
+     - `src-tauri/src/state/mod.rs`: `view_mode: String` with
+       `#[serde(default)]` + Default-impl entry `"details"` — **Rust
+       change, compiles only in CI.**
+     - `src/components/FileList.tsx`: local `FilePreview` type (mirrors
+       PreviewPanel's; the backend's `get_file_preview` returns
+       `{kind:"image", dataUrl}` for images and caps oversized ones);
+       module-level LRU thumbnail cache (`THUMB_CACHE_MAX = 300`,
+       `cachedThumbnail`/`loadThumbnail` reusing `get_file_preview` —
+       no Rust work needed); props `viewMode`/`onViewModeChange`;
+       `viewGrid()`/`toggleViewMode()` helpers. Thumbnails are loaded
+       fire-and-forget; tiles re-read the cache on rerender.
+   - Remaining (in order):
+     1. Run `bun run build` FIRST — the FileList edits were applied via
+        many small patches; verify no duplicated/mangled lines survived
+        (check the `FilePreview` type, the props block, and the
+        `viewGrid`/`toggleViewMode` helpers read cleanly).
+     2. Toolbar toggle button in `.file-list-toolbar-row` (next to the
+        Group-by select): icon button with Grid/Details icon, title
+        "Toggle grid view", calls `toggleViewMode`.
+     3. Grid renderer: when `viewGrid() === "grid"`, render a
+        `.file-grid` (CSS grid of tiles) instead of the `<table>` inside
+        `.file-list-table-wrap` — reuse `sortedEntries()` +
+        `groupedSections()` (section headers as grid-spanning labels),
+        tiles get `data-row-path`, `data-drop-path` (dirs only),
+        selection/cut styling, dbl-click `openEntry`, context menu,
+        drag (`handleRowMouseDown`), inline rename (share the rename
+        input JSX with `renderRow` by extracting a helper), color dot,
+        thumbnail (`cachedThumbnail`) or `FileTypeIcon`, name +
+        `renderSizeCell`. No virtualization in grid mode for v1 —
+        document that in the commit message.
+     4. Marquee: `applySelection` in `handleListMouseDown` queries
+        `tr[data-row-path]` — widen to `[data-row-path]` so tiles are
+        included.
+     5. ExplorerView.tsx: thread `viewMode`/`onViewModeChange` into BOTH
+        FileList call sites (primary + `<Index>` extra panes).
+     6. App.tsx: pass `viewMode={settings.viewMode}` +
+        `onViewModeChange` (setSettings + persistSettings) into
+        ExplorerView.
+     7. `src/App.css`: `.file-grid`, `.file-grid-tile`,
+        `.file-grid-tile.selected`, `.file-grid-section-header` styles —
+        use `var(--panel-rgb)`/`var(--text-primary)`/accent tokens like
+        the command palette styles do.
+     8. Release cycle as **v0.4.205** (commit without bump first).
+3. **Breadcrumb path bar** — pending. Clickable path segments with
+   per-level dropdown, in `ExplorerPathBar`.
+4. **Folder tree pane** — pending. Sidebar tree using `dirwatch` live
+   updates.
+5. **Multi-step undo stack** — pending. Generalize FileList's
+   single-slot `undoAction` into an op journal (rename/move/create/
+   bulkRename/delete).
+6. **Quick look preview** — pending. Spacebar-transient preview modal
+   reusing `get_file_preview`.
+7. **Marketplace registry browsing** — pending. `marketplace.json` +
+   GitHub API in `PluginMarketplace.tsx` (see AGENTS.md §1/§2).
+8. **Tab management UX polish** — pending. Tab close buttons, middle-
+   click close, overflow menu.
+
+Process reminders for every chunk (learned in chunk 1):
+- Commit feature first WITHOUT a version bump; only after Build CI is
+  green do the bump (package.json, src-tauri/Cargo.toml,
+  src-tauri/tauri.conf.json — Cargo.lock was NOT needed this time; the
+  sed-style bump commit includes all three), local commit, tag
+  `vX.Y.Z`, push tag ONLY, watch Release, then push the bump commit.
+- `git pull --rebase` may be needed before pushing (remote moves); the
+  auto-managed `.commandcode/taste/*` files are dirty — stash them
+  around a rebase and pop after.
+- ntfy: agent-tasks after the push, agent-releases only after Release
+  CI succeeds. Both sent for v0.4.204 already.
+- Solid note: the palette's open-reset uses `createEffect` on
+  `props.open` (not `onMount` — props are reactive getters, mount runs
+  once).
