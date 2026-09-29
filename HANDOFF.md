@@ -444,9 +444,10 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.204** — the command palette (chunk 1 of the UX
-project below) is shipped and tagged; the Release workflow succeeded and
-the version-bump commit was pushed to main. Settings live in
+`main` is at **v0.4.205** — chunks 1 (command palette) and 2 (grid
+view) of the UX project below are shipped and tagged; both Release
+workflows succeeded and the version-bump commits were pushed to main.
+Settings live in
 `~/.config/flurer/<version>/settings.json` with serde defaults bridging
 old files (see "Settings compatibility" below). The per-version ritual in
 "Release ritual" plus AGENTS.md §7 (ntfy notifications, CI watch, bump
@@ -473,61 +474,19 @@ agent-releases). Chunk order (chosen for impact/risk):
    tabs/panes, per-theme entries, recent + favourite path jumps),
    `src/App.css` (`.command-palette-*` styles). Rust untouched
    (`in_app_shortcuts` is already `HashMap<String, String>`).
-2. **Grid/icon view with thumbnails** — **IN PROGRESS (mid-edit, not
-   committed, NOT verified with tsc yet — run `bun run build` before
-   anything else).** Target: persisted `viewMode: "details" | "grid"`,
-   toggle button in the file-list toolbar, tile renderer reusing the
-   existing selection/drag/rename/context-menu handlers, image
-   thumbnails.
-   - Done so far:
-     - `src/components/icons.tsx`: added `GridIcon` + `DetailsIcon`.
-     - `src/lib/settings.ts`: `viewMode: "details" | "grid"` field,
-       default `"details"`.
-     - `src-tauri/src/state/mod.rs`: `view_mode: String` with
-       `#[serde(default)]` + Default-impl entry `"details"` — **Rust
-       change, compiles only in CI.**
-     - `src/components/FileList.tsx`: local `FilePreview` type (mirrors
-       PreviewPanel's; the backend's `get_file_preview` returns
-       `{kind:"image", dataUrl}` for images and caps oversized ones);
-       module-level LRU thumbnail cache (`THUMB_CACHE_MAX = 300`,
-       `cachedThumbnail`/`loadThumbnail` reusing `get_file_preview` —
-       no Rust work needed); props `viewMode`/`onViewModeChange`;
-       `viewGrid()`/`toggleViewMode()` helpers. Thumbnails are loaded
-       fire-and-forget; tiles re-read the cache on rerender.
-   - Remaining (in order):
-     1. Run `bun run build` FIRST — the FileList edits were applied via
-        many small patches; verify no duplicated/mangled lines survived
-        (check the `FilePreview` type, the props block, and the
-        `viewGrid`/`toggleViewMode` helpers read cleanly).
-     2. Toolbar toggle button in `.file-list-toolbar-row` (next to the
-        Group-by select): icon button with Grid/Details icon, title
-        "Toggle grid view", calls `toggleViewMode`.
-     3. Grid renderer: when `viewGrid() === "grid"`, render a
-        `.file-grid` (CSS grid of tiles) instead of the `<table>` inside
-        `.file-list-table-wrap` — reuse `sortedEntries()` +
-        `groupedSections()` (section headers as grid-spanning labels),
-        tiles get `data-row-path`, `data-drop-path` (dirs only),
-        selection/cut styling, dbl-click `openEntry`, context menu,
-        drag (`handleRowMouseDown`), inline rename (share the rename
-        input JSX with `renderRow` by extracting a helper), color dot,
-        thumbnail (`cachedThumbnail`) or `FileTypeIcon`, name +
-        `renderSizeCell`. No virtualization in grid mode for v1 —
-        document that in the commit message.
-     4. Marquee: `applySelection` in `handleListMouseDown` queries
-        `tr[data-row-path]` — widen to `[data-row-path]` so tiles are
-        included.
-     5. ExplorerView.tsx: thread `viewMode`/`onViewModeChange` into BOTH
-        FileList call sites (primary + `<Index>` extra panes).
-     6. App.tsx: pass `viewMode={settings.viewMode}` +
-        `onViewModeChange` (setSettings + persistSettings) into
-        ExplorerView.
-     7. `src/App.css`: `.file-grid`, `.file-grid-tile`,
-        `.file-grid-tile.selected`, `.file-grid-section-header` styles —
-        use `var(--panel-rgb)`/`var(--text-primary)`/accent tokens like
-        the command palette styles do.
-     8. Release cycle as **v0.4.205** (commit without bump first).
-3. **Breadcrumb path bar** — pending. Clickable path segments with
-   per-level dropdown, in `ExplorerPathBar`.
+2. **Grid/icon view with thumbnails** — **DONE, shipped as v0.4.205.**
+   Commit `687b4a2` (feature) + `3e7f269` (bump). `viewMode:
+   "details" | "grid"` setting (+ `view_mode` serde-default Rust field —
+   compiled green in CI), toolbar toggle, `renderGrid()`/`renderTile()`
+   reusing the table rows' handlers (selection, drag, rename via the
+   extracted `renderRenameInput`, context menu), grouped sections,
+   marquee widened to `[data-row-path]`, thumbnails via
+   `get_file_preview` + bounded module LRU (`Thumbnail` component).
+   Grid is NOT virtualized in v1 — revisit if huge-folder grid perf
+   becomes a problem. `bun run build` was clean before the push.
+3. **Breadcrumb path bar** — **NEXT (IN PROGRESS).** Clickable path
+   segments with per-level dropdown in `ExplorerPathBar.tsx`; falls
+   back to the existing text input.
 4. **Folder tree pane** — pending. Sidebar tree using `dirwatch` live
    updates.
 5. **Multi-step undo stack** — pending. Generalize FileList's
