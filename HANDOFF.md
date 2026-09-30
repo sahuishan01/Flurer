@@ -444,9 +444,12 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.211** — the UX improvements project (all 8 chunks,
+`main` is at **v0.4.214**. The UX improvements project (all 8 chunks,
 command palette through tab polish) is complete: every chunk shipped
 through the full release ritual and its Release workflow succeeded.
+Post-project follow-ups v0.4.212 (live plugin progress), v0.4.213 (in-app
+child webviews) and v0.4.214 (explorer view-type selector) are each also
+shipped through the same ritual.
 Settings live in
 `~/.config/flurer/<version>/settings.json` with serde defaults bridging
 old files (see "Settings compatibility" below). The per-version ritual in
@@ -532,6 +535,17 @@ indeterminate animation where no fraction exists). Also: the
 marketplace registry gained `web-loader` and its graph entry was
 corrected to `sahuishan01/flurer-graph-plugin` (the original guessed
 repo 404'd — that was the "Install failed: GitHub API 404" report).
+- **v0.4.213** (`1322591`): enabled the Tauri `unstable` feature for native
+  in-app child webviews.
+- **v0.4.214** (`e5fe02c`): `feat(explorer)` — an extensible view-type
+  selector. A registry (`ExplorerViewType` / `EXPLORER_VIEW_TYPES` in
+  `src/lib/view.ts`) drives a `ViewTypeSelect` dropdown in the file-list
+  toolbar, replacing the binary details/grid toggle; `viewMode` is broadened
+  to a registry-driven string (backwards-compatible), with `lookupViewType`
+  falling back to a valid layout for unknown/legacy persisted values. Built-in
+  types are Details and Grid (their icons reused as descriptors); adding a type
+  is a registry entry plus a render branch. Added `ChevronDownIcon`
+  (`icons.tsx`).
 Remaining follow-up ideas not in scope: grid-view virtualization for
 huge folders, per-pane tab integration, content-index search, plugin
 sandboxing (AGENTS.md §4), and the plugin SDK/types package (§5).
