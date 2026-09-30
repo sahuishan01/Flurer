@@ -41,8 +41,8 @@ type ExplorerViewProps = {
   showHiddenFiles?: boolean;
   onToggleShowHiddenFiles?: () => void;
   // Listing layout shared by every pane (details table or icon grid).
-  viewMode?: "details" | "grid";
-  onViewModeChange?: (mode: "details" | "grid") => void;
+  viewMode?: string;
+  onViewModeChange?: (mode: string) => void;
   "data-bg-lightness"?: string;
 };
 

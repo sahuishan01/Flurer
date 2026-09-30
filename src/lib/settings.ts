@@ -137,9 +137,10 @@ export type Settings = {
   autoCheckUpdateIntervalSeconds: number;
   ignoredUpdateVersion: string | null;
   showHiddenFiles: boolean;
-  // Explorer listing layout: "details" (table) or "grid" (icon tiles with
-  // thumbnails). Persisted per app, applied to every pane.
-  viewMode: "details" | "grid";
+  // Explorer listing layout (details table, grid icons, etc.). Persisted per
+  // app, applied to every pane. The value is one of the ids registered in
+  // EXPLORER_VIEW_TYPES (lib/view.ts); unknown values fall back to "details".
+  viewMode: string;
   // Top-bar system metrics: which CPU/GPU/memory/drive/network widgets are
   // pinned to the top bar and how often they refresh. items are
   // { kind, id } pairs — kind is "cpu" | "memory" | "gpu" | "drive" |

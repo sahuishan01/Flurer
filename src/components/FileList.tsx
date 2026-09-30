@@ -18,6 +18,8 @@ import { DuplicateFinderModal } from "./DuplicateFinderModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import { PreviewPanel } from "./PreviewPanel";
+import { ViewTypeSelect } from "./ViewTypeSelect";
+import { EXPLORER_VIEW_TYPES, lookupViewType } from "../lib/view";
 import { QuickLookModal } from "./QuickLookModal";
 import { PropertiesDialog } from "./PropertiesDialog";
 import {
@@ -25,12 +27,10 @@ import {
   CheckIcon,
   ClipboardIcon,
   CopyIcon,
-  DetailsIcon,
   FilePlusIcon,
   FileTypeIcon,
   FolderIcon,
   FolderPlusIcon,
-  GridIcon,
   InfoIcon,
   LayersIcon,
   PencilIcon,
@@ -98,9 +98,9 @@ type FileListProps = {
   inAppShortcuts: Partial<Record<InAppShortcutAction, string>>;
   showHiddenFiles?: boolean;
   onToggleShowHiddenFiles?: () => void;
-  /** Listing layout: details table or icon grid with thumbnails. */
-  viewMode?: "details" | "grid";
-  onViewModeChange?: (mode: "details" | "grid") => void;
+  /** Listing layout (details table or icon grid); one of `EXPLORER_VIEW_TYPES` ids. */
+  viewMode?: string;
+  onViewModeChange?: (mode: string) => void;
   /**
    * Whether this list owns the window-level interactions — keyboard
    * shortcuts and OS file drops. Both are bound to the document rather than
@@ -369,11 +369,9 @@ export function FileList(props: FileListProps) {
   const [duplicatesOpen, setDuplicatesOpen] = createSignal(false);
 
   // Current listing layout — props win (App-controlled), falling back to
-  // the persisted setting for any caller that doesn't thread it through.
-  const viewMode = () => props.viewMode ?? "details";
-  function toggleViewMode() {
-    props.onViewModeChange?.(viewMode() === "grid" ? "details" : "grid");
-  }
+  // the persisted setting. Resolved through the registry so a legacy or
+  // unrecognized value never leaves the list without a valid layout.
+  const viewMode = () => lookupViewType(props.viewMode).id;
 
   // Folder sizes are computed lazily in the background by the Rust size
   // cache (never blocking the listing itself) and pushed here as they
@@ -2372,18 +2370,11 @@ export function FileList(props: FileListProps) {
             <option value="size">Group by: Size</option>
             <option value="modified">Group by: Date modified</option>
           </select>
-          <button
-            type="button"
-            class="view-mode-toggle"
-            aria-pressed={viewMode() === "grid"}
-            title={viewMode() === "grid" ? "Switch to details view" : "Switch to grid view"}
-            onClick={toggleViewMode}
-          >
-            <Show when={viewMode() === "grid"} fallback={<GridIcon size={14} />}>
-              <DetailsIcon size={14} />
-            </Show>
-            {viewMode() === "grid" ? "Details" : "Grid"}
-          </button>
+          <ViewTypeSelect
+            viewTypes={EXPLORER_VIEW_TYPES}
+            value={viewMode()}
+            onChange={props.onViewModeChange}
+          />
           <Show when={entries().some((e) => props.folderColors[e.path])}>
             <button
               type="button"
