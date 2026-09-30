@@ -444,12 +444,13 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.214**. The UX improvements project (all 8 chunks,
+`main` is at **v0.4.215**. The UX improvements project (all 8 chunks,
 command palette through tab polish) is complete: every chunk shipped
 through the full release ritual and its Release workflow succeeded.
 Post-project follow-ups v0.4.212 (live plugin progress), v0.4.213 (in-app
-child webviews) and v0.4.214 (explorer view-type selector) are each also
-shipped through the same ritual.
+child webviews), v0.4.214 (explorer view-type selector) and v0.4.215
+(plugin-extensible view types) are each also shipped through the same
+ritual.
 Settings live in
 `~/.config/flurer/<version>/settings.json` with serde defaults bridging
 old files (see "Settings compatibility" below). The per-version ritual in
@@ -544,8 +545,20 @@ repo 404'd — that was the "Install failed: GitHub API 404" report).
   to a registry-driven string (backwards-compatible), with `lookupViewType`
   falling back to a valid layout for unknown/legacy persisted values. Built-in
   types are Details and Grid (their icons reused as descriptors); adding a type
-  is a registry entry plus a render branch. Added `ChevronDownIcon`
-  (`icons.tsx`).
+   is a registry entry plus a render branch. Added `ChevronDownIcon`
+   (`icons.tsx`).
+- **v0.4.215** (`aa0cd41`): made the view-type selector plugin-extensible.
+  `PluginInfo.explorerViewTypes` is a new contribution (`id`/`label`/`icon`
+  + an optional `render` Solid component) documented in `plugin-spec.md` §4;
+  a plugin view type's `render` mounts in place of the table/grid via an
+  `ExplorerListViewContext` (current listing, selection, row actions, and a
+  `renderTile` convenience) that FileList builds from its own state. App
+  merges Core's `EXPLORER_VIEW_TYPES` with plugin types through `ExplorerView
+  → FileList → ViewTypeSelect`, so new layouts appear in the selector for free
+  and persist as `settings.viewMode`. Core's Details/Grid renderers are
+  untouched; `viewMode` resolution falls back to a valid type for
+  legacy/unknown persisted values. (Build `36689858263` + Release
+  `36690999677` both green.)
 Remaining follow-up ideas not in scope: grid-view virtualization for
 huge folders, per-pane tab integration, content-index search, plugin
 sandboxing (AGENTS.md §4), and the plugin SDK/types package (§5).
