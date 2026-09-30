@@ -32,7 +32,7 @@ import { cleanDirPath, parentDir, resolvePath, defaultPath, nativeAbsolutePath, 
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import { EXPLORER_VIEW_TYPES, type GraphFocusRequest, type MainView } from "./lib/view";
-import { loadInstalledPlugins, registeredPlugins } from "./lib/plugins";
+import { loadInstalledPlugins, registeredPlugins, pluginRegistry } from "./lib/plugins";
 import "./App.css";
 
 const SETTINGS_SAVE_DEBOUNCE_MS = 300;
@@ -227,7 +227,7 @@ function App() {
       setSettings(loaded);
       
       // Load plugins on startup in background (non-blocking)
-      loadInstalledPlugins(loaded.disabledPlugins || []).catch((err) =>
+      const pluginsLoaded = loadInstalledPlugins(loaded.disabledPlugins || []).catch((err) =>
         console.error("Plugin startup error:", err)
       );
 
@@ -265,8 +265,18 @@ function App() {
       } else if (!restoredTabs && loaded.restoreLastStateOnReopen && loaded.lastPath) {
         navigateTo(loaded.lastPath);
       } else if (!restoredTabs && loaded.lastMainView && loaded.lastMainView !== "explorer") {
-        setMainView(loaded.lastMainView);
-        setHistory([{ type: "view", view: loaded.lastMainView }]);
+        if (loaded.lastMainView === "graph" || pluginRegistry.getPlugin(loaded.lastMainView)) {
+          setMainView(loaded.lastMainView);
+          setHistory([{ type: "view", view: loaded.lastMainView }]);
+        } else if (!loaded.disabledPlugins?.includes(loaded.lastMainView)) {
+          // Plugin view saved before its plugin registered — wait for plugin
+          // load to finish, then only switch if the plugin actually exists.
+          await pluginsLoaded;
+          if (pluginRegistry.getPlugin(loaded.lastMainView)) {
+            setMainView(loaded.lastMainView);
+            setHistory([{ type: "view", view: loaded.lastMainView }]);
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to load settings", err);
@@ -1298,12 +1308,14 @@ function App() {
     document.documentElement.style.setProperty("--sidebar-tooltip-delay", `${settings.sidebarTooltipDelayMs}ms`);
   });
 
-  // Settings has no "settings" view value of its own — only remember whether
-  // the user was last looking at the explorer or the graph, so relaunching
-  // the app doesn't strand them on the settings page.
+  // Settings has no "settings" view value of its own — only remember views the
+  // user can return to on relaunch: the explorer, the graph, and any loaded
+  // plugin view (so e.g. the git panel reopens where they left off).
+  // Never persist "settings" or "trash" so relaunching doesn't strand the user.
   createEffect(() => {
     const view = mainView();
-    if (view !== "explorer" && view !== "graph") return;
+    if (view === "settings" || view === "trash") return;
+    if (view !== "explorer" && !pluginRegistry.getPlugin(view)) return;
     if (settings.lastMainView !== view) {
       setSettings("lastMainView", view);
       persistSettings();

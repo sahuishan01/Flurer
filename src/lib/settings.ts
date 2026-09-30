@@ -31,7 +31,7 @@ export function isDarkTheme(theme: Theme): boolean {
 
 export type BackgroundType = "none" | "gradient" | "solid" | "unsplash";
 export type UnsplashMode = "fixed" | "autoRotateCategory" | "autoRotateList";
-export type LastMainView = "explorer" | "graph";
+export type LastMainView = "explorer" | "graph" | (string & {});
 
 export type BackgroundSettings = {
   backgroundType: BackgroundType;
