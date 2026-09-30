@@ -19,7 +19,12 @@ import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import { PreviewPanel } from "./PreviewPanel";
 import { ViewTypeSelect } from "./ViewTypeSelect";
-import { EXPLORER_VIEW_TYPES, lookupViewType } from "../lib/view";
+import {
+  EXPLORER_VIEW_TYPES,
+  lookupViewType,
+  type ExplorerListViewContext,
+  type ExplorerViewType,
+} from "../lib/view";
 import { QuickLookModal } from "./QuickLookModal";
 import { PropertiesDialog } from "./PropertiesDialog";
 import {
@@ -101,6 +106,9 @@ type FileListProps = {
   /** Listing layout (details table or icon grid); one of `EXPLORER_VIEW_TYPES` ids. */
   viewMode?: string;
   onViewModeChange?: (mode: string) => void;
+  /** Explorer view types for the selector (Core's `EXPLORER_VIEW_TYPES` plus
+   *  any contributed by installed plugins); defaults to Core's set. */
+  viewTypes?: ExplorerViewType[];
   /**
    * Whether this list owns the window-level interactions — keyboard
    * shortcuts and OS file drops. Both are bound to the document rather than
@@ -368,10 +376,16 @@ export function FileList(props: FileListProps) {
   const [bulkRenameOpen, setBulkRenameOpen] = createSignal(false);
   const [duplicatesOpen, setDuplicatesOpen] = createSignal(false);
 
-  // Current listing layout — props win (App-controlled), falling back to
-  // the persisted setting. Resolved through the registry so a legacy or
-  // unrecognized value never leaves the list without a valid layout.
-  const viewMode = () => lookupViewType(props.viewMode).id;
+  // Explorer view types: Core's built-ins plus any contributed by installed
+  // plugins (App merges them and passes them here; fall back to Core-only so
+  // FileList stays usable in isolation / for tests).
+  const allViewTypes = () => props.viewTypes ?? EXPLORER_VIEW_TYPES;
+
+  // Current listing layout — props win (App-controlled), falling back to the
+  // persisted setting. Resolved through the active view-type set so a legacy
+  // or unrecognized value never leaves the list without a valid layout.
+  const viewMode = () =>
+    (allViewTypes().find((v) => v.id === props.viewMode) ?? lookupViewType(props.viewMode)).id;
 
   // Folder sizes are computed lazily in the background by the Rust size
   // cache (never blocking the listing itself) and pushed here as they
@@ -2233,6 +2247,37 @@ export function FileList(props: FileListProps) {
     );
   }
 
+  // Context handed to plugin-supplied view types (see ExplorerListViewContext).
+  // Built from FileList's own listing/selection/actions so plugins can render a
+  // custom layout (list, columns, gallery) reusing Core's tile primitive.
+  const listViewCtx = createMemo<ExplorerListViewContext>(() => ({
+    files: entries,
+    dataBgLightness: props["data-bg-lightness"] ?? "dark",
+    isSelected: (path: string) => selected().has(path),
+    selectedPaths: () => Array.from(selected()),
+    selectPath: (path: string) => setSelected(new Set([path])),
+    selectAll: (on: boolean) =>
+      setSelected(on ? new Set(entries().map((e) => e.path)) : new Set()),
+    openFile: openEntry,
+    showContextMenu: (entry: DirEntry, e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleRowContextMenu(e, entry);
+    },
+    startRename,
+    renderTile: (entry: DirEntry) =>
+      renderTile(entry, () => indexByPath().get(entry.path) ?? 0),
+  }));
+
+  // A plugin view type supplies its own `render`; Core's built-in Details/Grid
+  // (no `render`) are handled by the table/Grid branches below. Same "assign
+  // the component to a const and render it" pattern App uses for plugin panels.
+  function renderPluginView() {
+    const vt = allViewTypes().find((v) => v.id === viewMode());
+    const PluginView = vt?.render;
+    return PluginView ? <PluginView ctx={listViewCtx()} /> : null;
+  }
+
   // Grid layout: same shared handlers as the table rows (selection,
   // drag, rename, context menu), flat or grouped exactly like the details
   // table. Not virtualized in v1.
@@ -2371,7 +2416,7 @@ export function FileList(props: FileListProps) {
             <option value="modified">Group by: Date modified</option>
           </select>
           <ViewTypeSelect
-            viewTypes={EXPLORER_VIEW_TYPES}
+            viewTypes={allViewTypes()}
             value={viewMode()}
             onChange={props.onViewModeChange}
           />
@@ -2391,7 +2436,7 @@ export function FileList(props: FileListProps) {
         </div>
         <div class="file-list-split">
         <Show when={viewMode() === "grid"}>{renderGrid()}</Show>
-        <Show when={viewMode() !== "grid"}>
+        <Show when={viewMode() === "details"}>
         <div
           class="file-list-table-wrap"
           ref={wrapEl}
@@ -2467,6 +2512,7 @@ export function FileList(props: FileListProps) {
         </table>
         </div>
         </Show>
+        <Show when={viewMode() !== "grid" && viewMode() !== "details"}>{renderPluginView()}</Show>
 
         <Show when={previewPath() && !previewDismissed()}>
           <PreviewPanel path={previewPath()!} onClose={() => setPreviewDismissed(true)} />

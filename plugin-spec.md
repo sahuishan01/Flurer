@@ -113,12 +113,19 @@ interface PluginInfo {
   // mainPanel if both are set.
   fullPanel?: (props: MainPanelProps) => JSX.Element;
 
-  // A tab in Flurer's own Settings page, under your plugin's name.
-  settingsPanel?: (props: {
-    dataBgLightness: string;
-    pluginSettings: any;
-    onPluginSettingsChange: (patch: any) => void;
-  }) => JSX.Element;
+   // A tab in Flurer's own Settings page, under your plugin's name.
+   settingsPanel?: (props: {
+     dataBgLightness: string;
+     pluginSettings: any;
+     onPluginSettingsChange: (patch: any) => void;
+   }) => Solid.JSX.Element;
+
+   // Explorer listing view types contributed to the view-type selector (the
+   // dropdown next to "Group by"). Core reserves the `details` and `grid` ids;
+   // use unique ids. A type with a `render` component is mounted by FileList in
+   // place of the built-in table/grid — see `ExplorerViewType` / the render
+   // contract below (§4).
+   explorerViewTypes?: ExplorerViewType[];
 }
 ```
 
@@ -138,6 +145,87 @@ interface PluginInfo {
   pluginSettings: any;        // settings.pluginSettings[your id], persisted, {} until first write
   onPluginSettingsChange: (patch: any) => void; // shallow-merges patch into pluginSettings[your id]
 }
+```
+
+### Explorer view types (`explorerViewTypes`)
+
+Plugins can add new layouts to the explorer view-type selector — the dropdown
+next to "Group by". Core ships `details` and `grid`; a plugin contributes its
+own (unique `id`) and, optionally, a `render` component that FileList mounts in
+place of the built-in table/grid.
+
+```ts
+interface ExplorerViewType {
+  id: string;                                // unique (Core reserves "details", "grid")
+  label: string;                             // shown in the selector
+  icon: (props: { size?: number; class?: string }) => JSX.Element;
+  // Optional Solid component that renders the list body. Omitted for Core's
+  // built-ins (Details/Grid), which FileList renders with its own table/grid.
+  render?: (props: { ctx: ExplorerListViewContext }) => JSX.Element;
+}
+```
+
+When the active view type is a plugin type with a `render`, FileList mounts it
+where the grid/table would live, using the same `<PluginView ctx={…} />` pattern
+App uses for plugin panels — so the function may use Solid hooks freely. Core
+exposes the listing, selection, and row-level actions through
+`ExplorerListViewContext`:
+
+```ts
+interface ExplorerListViewContext {
+  files: Accessor<DirEntry[]>;              // current flat listing (grouped/sorted)
+  dataBgLightness: string;                  // "light" | "dark"
+  isSelected: (path: string) => boolean;
+  selectedPaths: Accessor<string[]>;
+  selectPath: (path: string) => void;       // single-select (click semantics)
+  selectAll: (on: boolean) => void;         // select/deselect everything
+  openFile: (entry: DirEntry) => void;      // open file / navigate folder
+  showContextMenu: (entry: DirEntry, e: MouseEvent) => void;
+  startRename: (path: string) => void;
+  renderTile: (entry: DirEntry) => JSX.Element; // Core grid-styled tile
+}
+```
+
+`DirEntry` is `{ name, path, isDir, size, modified: number | null }` (see
+`src/lib/fs.ts`). `renderTile` returns a Core grid-styled tile (thumbnail/icon,
+name, selection state, rename input, context menu); reuse it to compose a
+gallery-style view, or render your own rows from `files` for a fully custom
+layout. Marquee (drag) selection isn't wired into the plugin surface in v1:
+bind `onClick`/`onDoubleClick` to `ctx.selectPath`/`ctx.openFile` on your own
+rows, or reuse `ctx.renderTile` tiles which already handle selection.
+
+Minimal example — a compact single-column list:
+
+```tsx
+window.registerPlugin({
+  id: "compact-list",
+  name: "Compact list",
+  description: "A denser Details-style layout",
+  version: "1.0.0",
+  author: "you",
+  explorerViewTypes: [
+    {
+      id: "compact",
+      label: "Compact",
+      icon: ({ size = 16 }) => <ListIcon size={size} />,
+      render: ({ ctx }) => (
+        <div class="compact-list">
+          {ctx.files().map((f) => (
+            <div
+              class="compact-row"
+              classList={{ selected: ctx.isSelected(f.path) }}
+              onDblClick={() => ctx.openFile(f)}
+              onContextMenu={(e) => ctx.showContextMenu(f, e)}
+              onClick={() => ctx.selectPath(f.path)}
+            >
+              {ctx.renderTile(f)}
+            </div>
+          ))}
+        </div>
+      ),
+    },
+  ],
+});
 ```
 
 `pluginSettings` is a free-form bag scoped entirely to your plugin's `id` —

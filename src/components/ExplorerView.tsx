@@ -4,6 +4,7 @@ import { ExplorerPathBar } from "./ExplorerPathBar";
 import { CloseIcon, PlusIcon, SplitPaneIcon } from "./icons";
 import { parentDir, type ClipboardState, type GroupByKey, type SortDirection, type SortKey } from "../lib/fs";
 import type { InAppShortcutAction } from "../lib/shortcuts";
+import type { ExplorerViewType } from "../lib/view";
 
 type ExplorerViewProps = {
   path: string;
@@ -43,6 +44,9 @@ type ExplorerViewProps = {
   // Listing layout shared by every pane (details table or icon grid).
   viewMode?: string;
   onViewModeChange?: (mode: string) => void;
+  /** Explorer view types for the selector (Core's built-ins plus any
+   *  contributed by installed plugins). */
+  viewTypes?: ExplorerViewType[];
   "data-bg-lightness"?: string;
 };
 
@@ -236,6 +240,7 @@ export function ExplorerView(props: ExplorerViewProps) {
           onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
           viewMode={props.viewMode}
           onViewModeChange={props.onViewModeChange}
+          viewTypes={props.viewTypes}
         />
       </div>
 
@@ -309,6 +314,7 @@ export function ExplorerView(props: ExplorerViewProps) {
                 onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
                 viewMode={props.viewMode}
                 onViewModeChange={props.onViewModeChange}
+                viewTypes={props.viewTypes}
               />
             </div>
           );

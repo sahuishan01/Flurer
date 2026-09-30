@@ -1,16 +1,65 @@
-import type { JSX } from "solid-js";
+import type { Accessor, JSX } from "solid-js";
+import type { DirEntry } from "./fs";
 import { DetailsIcon, GridIcon } from "../components/icons";
 
 export type MainView = "explorer" | "settings" | string;
 
-/** A file-listing layout the explorer can display (Details, Grid, …). */
+/**
+ * Context handed to a plugin-supplied explorer view type (the `render` field of
+ * `ExplorerViewType`). It exposes Core's current listing, selection state, and
+ * row-level actions so a plugin can render its own layout (list, columns,
+ * gallery, …) without re-implementing listing/selection/open/rename logic.
+ */
+export interface ExplorerListViewContext {
+  /** Current listing (flat, in grouped/sorted order — the same entries the
+   *  built-in Details table and Grid render). */
+  files: Accessor<DirEntry[]>;
+  /** "light" | "dark" — choose readable text/icon colors against the shell. */
+  dataBgLightness: string;
+  /** Selection state for the current listing. */
+  isSelected: (path: string) => boolean;
+  selectedPaths: Accessor<string[]>;
+  /** Select exactly one entry (click semantics); clears the rest. */
+  selectPath: (path: string) => void;
+  /** Select/deselect everything. */
+  selectAll: (on: boolean) => void;
+  /** Open the entry (files open externally, directories navigate in-app). */
+  openFile: (entry: DirEntry) => void;
+  /** Show Core's context menu for an entry (Delete, Rename, Share, …). */
+  showContextMenu: (entry: DirEntry, e: MouseEvent) => void;
+  /** Begin an inline rename for an entry. */
+  startRename: (path: string) => void;
+  /**
+   * Core per-file tile (thumbnail/icon, name, size, selection state, rename
+   * input, context menu). Optional convenience — compose these into any layout
+   * (list, columns, gallery), or render your own rows from `files` for a fully
+   * custom layout. Renders a Core grid-styled tile.
+   */
+  renderTile: (entry: DirEntry) => JSX.Element;
+}
+
+/**
+ * A file-listing layout the explorer can display (Details, Grid, …). Core
+ * registers `details` and `grid` with `EXPLORER_VIEW_TYPES`; plugins add their
+ * own via `PluginInfo.explorerViewTypes` (unique ids).
+ */
 export interface ExplorerViewType {
-  /** Stable id, also used as the persisted `settings.viewMode` value. */
+  /** Stable id, also used as the persisted `settings.viewMode` value. Core
+   *  reserves `details` and `grid`; plugins must use unique ids. */
   id: string;
   /** Human-readable label shown in the view-type selector. */
   label: string;
   /** Icon shown in the selector trigger and item. */
   icon: (props: { size?: number; class?: string }) => JSX.Element;
+  /**
+   * Optional Solid component that renders the list body for this view type.
+   * Omitted for Core's built-ins (Details/Grid), which `FileList` renders with
+   * its own table/grid. Plugin-contributed view types supply one — `FileList`
+   * mounts it in place of the table/grid, passing the same `ExplorerListViewContext`
+   * it gives every layout. Same `<PluginView ctx={…} />` pattern App uses for plugin
+   * panels, so plugin render functions may use Solid hooks freely.
+   */
+  render?: (props: { ctx: ExplorerListViewContext }) => JSX.Element;
 }
 
 /**

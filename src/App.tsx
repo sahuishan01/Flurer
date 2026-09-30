@@ -31,7 +31,7 @@ import {
 import { cleanDirPath, parentDir, resolvePath, defaultPath, nativeAbsolutePath, isPathWithin, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
-import type { GraphFocusRequest, MainView } from "./lib/view";
+import { EXPLORER_VIEW_TYPES, type GraphFocusRequest, type MainView } from "./lib/view";
 import { loadInstalledPlugins, registeredPlugins } from "./lib/plugins";
 import "./App.css";
 
@@ -1257,6 +1257,13 @@ function App() {
   }
 
   const activePlugin = () => registeredPlugins().find((p) => p.id === mainView());
+  // Explorer view types: Core's built-ins plus any contributed by installed
+  // plugins (PluginInfo.explorerViewTypes). Passed to every ExplorerView so
+  // FileList's view-type selector shows plugin types and can render them.
+  const mergedViewTypes = createMemo(() => [
+    ...EXPLORER_VIEW_TYPES,
+    ...registeredPlugins().flatMap((p) => p.explorerViewTypes ?? []),
+  ]);
   const showSidebar = () => {
     const view = mainView();
     if (view === "settings") return false;
@@ -1643,6 +1650,7 @@ function App() {
                     setSettings("viewMode", mode);
                     persistSettings();
                   }}
+                  viewTypes={mergedViewTypes()}
                 />
               </div>
             </Show>

@@ -4,6 +4,7 @@ import * as SolidWeb from "solid-js/web";
 import * as TauriCore from "@tauri-apps/api/core";
 import * as TauriEvent from "@tauri-apps/api/event";
 import * as TauriShell from "@tauri-apps/plugin-shell";
+import type { ExplorerViewType } from "./view";
 
 export interface PluginInfo {
   id: string;
@@ -60,6 +61,14 @@ export interface PluginInfo {
     pluginSettings: any;
     onPluginSettingsChange: (patch: any) => void;
   }) => Solid.JSX.Element;
+
+  // Explorer listing view types contributed to the view-type selector (the
+  // dropdown next to "Group by"). Core registers `details` and `grid`; plugins
+  // add their own with unique ids. A type that includes a `render` component
+  // is mounted by FileList in place of the built-in table/grid — see
+  // ExplorerViewType / ExplorerListViewContext in `src/lib/view.ts` and
+  // plugin-spec.md §4.
+  explorerViewTypes?: ExplorerViewType[];
 }
 
 // Reactive signal to store registered plugins
