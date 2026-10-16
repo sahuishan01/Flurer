@@ -166,6 +166,35 @@ pub async fn uninstall_plugin(id: String) -> Result<(), String> {
 pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Option<String>, String> {
     use tauri::Manager;
     if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
+        let eval_res = webview.eval_with_callback(
+            r#"window.location.href"#,
+            move |res| {
+                if let Ok(mut guard) = tx.lock() {
+                    if let Some(sender) = guard.take() {
+                        let _ = sender.send(res);
+                    }
+                }
+            },
+        );
+
+        if eval_res.is_ok() {
+            if let Ok(Ok(raw_json)) = tokio::time::timeout(std::time::Duration::from_millis(400), rx).await {
+                // Parse JSON string returned by eval_with_callback (e.g. "\"https://...\"")
+                if let Ok(parsed_url) = serde_json::from_str::<String>(&raw_json) {
+                    if !parsed_url.is_empty() && parsed_url != "about:blank" {
+                        return Ok(Some(parsed_url));
+                    }
+                } else if !raw_json.is_empty() && raw_json != "null" && raw_json != "about:blank" {
+                    let cleaned = raw_json.trim_matches('"').to_string();
+                    if !cleaned.is_empty() {
+                        return Ok(Some(cleaned));
+                    }
+                }
+            }
+        }
+
         if let Ok(url) = webview.url() {
             return Ok(Some(url.to_string()));
         }
