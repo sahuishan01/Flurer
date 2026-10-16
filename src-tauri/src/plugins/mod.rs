@@ -162,6 +162,17 @@ pub async fn uninstall_plugin(id: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Option<String>, String> {
+    use tauri::Manager;
+    if let Some(webview) = app.get_webview(&label) {
+        if let Ok(url) = webview.url() {
+            return Ok(Some(url.to_string()));
+        }
+    }
+    Ok(None)
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

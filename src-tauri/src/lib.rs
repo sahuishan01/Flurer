@@ -47,7 +47,7 @@ use plugins::{
         git_unstage,
     },
     install_plugin_from_github, install_plugin_from_zip, list_installed_plugins, load_plugin_code,
-    uninstall_plugin, update_plugin, link_plugin_repo,
+    uninstall_plugin, update_plugin, link_plugin_repo, get_docked_webview_url,
 };
 
 use crate::{configs::Config, state::AppState};
@@ -338,6 +338,7 @@ pub fn run() {
             check_plugin_updates,
             update_plugin,
             link_plugin_repo,
+            get_docked_webview_url,
             // Git plugin commands
             git_repo_status,
             git_branches,
