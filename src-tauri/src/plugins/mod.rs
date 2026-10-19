@@ -222,9 +222,8 @@ pub async fn attach_child_webview_shortcuts(
                 COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
                 COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN,
             };
-            use webview2_com::callback::AcceleratorKeyPressedEventHandler;
+            use webview2_com::AcceleratorKeyPressedEventHandler;
             use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
-            use windows::core::BOOL;
             use tauri::Emitter;
 
             let pid = plugin_id.unwrap_or_else(|| {
@@ -308,11 +307,11 @@ pub async fn attach_child_webview_shortcuts(
                                             }
                                         }
                                         // Zoom In: '=' / '+' (VK_OEM_PLUS = 0xBB, VK_ADD = 0x6B)
-                                        (0xBB | 0x6B) if is_ctrl => Some(("+", "Equal")),
+                                        0xBB | 0x6B if is_ctrl => Some(("+", "Equal")),
                                         // Zoom Out: '-' (VK_OEM_MINUS = 0xBD, VK_SUBTRACT = 0x6D)
-                                        (0xBD | 0x6D) if is_ctrl => Some(("-", "Minus")),
+                                        0xBD | 0x6D if is_ctrl => Some(("-", "Minus")),
                                         // Zoom Reset: '0' (0x30, VK_NUMPAD0 = 0x60)
-                                        (0x30 | 0x60) if is_ctrl => Some(("0", "Digit0")),
+                                        0x30 | 0x60 if is_ctrl => Some(("0", "Digit0")),
                                         // Terminal toggle: '\' (0xDC)
                                         0xDC if is_ctrl => Some(("\\", "Backslash")),
                                         // Navigation: Alt+Left / Alt+Right / Alt+Up
@@ -345,7 +344,7 @@ pub async fn attach_child_webview_shortcuts(
                                             let _ = app_handle.emit("web-loader:shortcut", &payload);
                                         }
 
-                                        let _ = unsafe { args.SetHandled(BOOL::from(true)) };
+                                        let _ = unsafe { args.SetHandled(true) };
                                     }
                                 }
                             }
