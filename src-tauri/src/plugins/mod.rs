@@ -217,6 +217,8 @@ pub async fn attach_child_webview_shortcuts(
     if let Some(webview) = app.get_webview(&label) {
         #[cfg(windows)]
         {
+            use std::collections::HashSet;
+            use std::sync::Mutex;
             use webview2_com::Microsoft::Web::WebView2::Win32::{
                 COREWEBVIEW2_KEY_EVENT_KIND,
                 COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
@@ -225,6 +227,15 @@ pub async fn attach_child_webview_shortcuts(
             use webview2_com::AcceleratorKeyPressedEventHandler;
             use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
             use tauri::Emitter;
+
+            static ATTACHED_WEBVIEWS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+            {
+                let mut lock = ATTACHED_WEBVIEWS.lock().unwrap();
+                let set = lock.get_or_insert_with(HashSet::new);
+                if !set.insert(label.clone()) {
+                    return Ok(());
+                }
+            }
 
             let pid = plugin_id.unwrap_or_else(|| {
                 if label.starts_with("web-") {
@@ -339,8 +350,8 @@ pub async fn attach_child_webview_shortcuts(
                                         // 2. Emit to plugin-specific channel
                                         let _ = app_handle.emit(&format!("{}:shortcut", target_pid), &payload);
 
-                                        // 3. Backwards-compatibility alias for web-loader
-                                        if target_pid == "web-loader" || target_label.starts_with("web-") {
+                                        // 3. Backwards-compatibility alias for web-loader (if not already emitted above)
+                                        if target_pid != "web-loader" && target_label.starts_with("web-") {
                                             let _ = app_handle.emit("web-loader:shortcut", &payload);
                                         }
 
