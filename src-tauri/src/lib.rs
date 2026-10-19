@@ -48,6 +48,7 @@ use plugins::{
     },
     install_plugin_from_github, install_plugin_from_zip, list_installed_plugins, load_plugin_code,
     uninstall_plugin, update_plugin, link_plugin_repo, get_docked_webview_url,
+    attach_docked_webview_shortcuts, attach_child_webview_shortcuts,
 };
 
 use crate::{configs::Config, state::AppState};
@@ -339,6 +340,8 @@ pub fn run() {
             update_plugin,
             link_plugin_repo,
             get_docked_webview_url,
+            attach_docked_webview_shortcuts,
+            attach_child_webview_shortcuts,
             // Git plugin commands
             git_repo_status,
             git_branches,

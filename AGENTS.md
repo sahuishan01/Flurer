@@ -98,7 +98,7 @@ After every agent turn that performs a user-requested task (modification, build,
 
 - **Topic**: `agent-tasks`
 - **Base URL**: `https://ntfy.algosculptor.com`
-- **Authorization**: `Bearer tk_cw33joa3jxozijd46cl724tl2dhgd` (source of truth: `~/.dotfiles/agent-profile/PROFILE.md`)
+- **Authorization**: Use `/home/opc/.local/bin/ntfy-agent-notify`, which reads the token from protected local storage.
 - **Headers**: `Title: Flurer ($(hostname))`
 - **Body**: Concise bulleted summary of what was accomplished in that turn.
 

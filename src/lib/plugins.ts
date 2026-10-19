@@ -111,6 +111,22 @@ export const pluginRegistry = {
 (window as any).TauriEvent = TauriEvent;
 (window as any).TauriShell = TauriShell;
 (window as any).registerPlugin = (plugin: PluginInfo) => pluginRegistry.register(plugin);
+(window as any).attachChildWebviewShortcuts = (label: string, pluginId?: string) =>
+  TauriCore.invoke("attach_child_webview_shortcuts", { label, pluginId });
+
+/**
+ * Attaches native OS-level accelerator key interception to any child/docked webview.
+ * Intercepts shortcuts (Ctrl+T, Ctrl+W, Ctrl+R, Ctrl+L, Ctrl+P, Command Palette, etc.)
+ * even when the child webview has exclusive native OS focus, and dispatches them
+ * to the global "flurer:webview-shortcut" event as well as "<pluginId>:shortcut".
+ */
+export async function attachChildWebviewShortcuts(label: string, pluginId?: string): Promise<void> {
+  try {
+    await TauriCore.invoke("attach_child_webview_shortcuts", { label, pluginId });
+  } catch (err) {
+    console.warn(`[plugins] Failed to attach child webview shortcuts for ${label}:`, err);
+  }
+}
 
 export async function loadInstalledPlugins(disabledPlugins: string[] = []) {
   try {

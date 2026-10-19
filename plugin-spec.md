@@ -291,3 +291,36 @@ disabled plugin's code never runs, so don't rely on any setup/cleanup
 lifecycle hook firing around a disable toggle; there isn't one.
 `uninstallPlugin(id)` removes the on-disk install and unregisters it from
 the running app.
+
+## 8. Child Webviews & Accelerator Key Interception
+
+If your plugin mounts a native child webview (via `plugin:webview|create_webview`), clicking inside that webview transfers native OS input focus to the child control (Microsoft Edge WebView2 on Windows, WebKitGTK on Linux). When focused, standard browser and accelerator keystrokes (`Ctrl+T`, `Ctrl+W`, `Ctrl+R`, `Ctrl+L`, `Ctrl+P`, etc.) are consumed by the child webview and never reach the parent DOM.
+
+To ensure accelerator shortcuts continue working while the user interacts with child webviews:
+
+1. **Attach native interception**:
+   Immediately after creating a child webview, invoke `attach_child_webview_shortcuts`:
+   ```ts
+   // Using global helper:
+   await window.attachChildWebviewShortcuts(webviewLabel, "your-plugin-id");
+
+   // Or via TauriCore IPC:
+   await window.TauriCore.invoke("attach_child_webview_shortcuts", {
+     label: webviewLabel,
+     pluginId: "your-plugin-id",
+   });
+   ```
+
+2. **Listen for forwarded shortcuts**:
+   Core intercepts the keys on the OS controller level (marking `Handled = true` on Windows `ICoreWebView2Controller`), prevents the page from dropping them, and dispatches two events:
+   - Global system channel: `"flurer:webview-shortcut"`
+   - Plugin-scoped channel: `"<your-plugin-id>:shortcut"`
+
+   ```ts
+   window.TauriEvent.listen("flurer:webview-shortcut", (event) => {
+     const { key, code, ctrlKey, shiftKey, altKey, sourceWebview, pluginId } = event.payload;
+     if (key === "t" && ctrlKey) {
+       openNewTab();
+     }
+   });
+   ```

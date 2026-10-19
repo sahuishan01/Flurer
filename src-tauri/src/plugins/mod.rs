@@ -202,6 +202,175 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
     Ok(None)
 }
 
+/// Native Windows accelerator key interception (Solution 2) for child/docked webviews.
+/// Intercepts accelerator keys on the ICoreWebView2Controller before WebView2 consumes
+/// or drops them, and emits:
+/// 1. "flurer:webview-shortcut" (Global Flurer system event)
+/// 2. "<pluginId>:shortcut" (Plugin-specific event, e.g. "web-loader:shortcut")
+#[tauri::command]
+pub async fn attach_child_webview_shortcuts(
+    app: AppHandle,
+    label: String,
+    plugin_id: Option<String>,
+) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(webview) = app.get_webview(&label) {
+        #[cfg(windows)]
+        {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                COREWEBVIEW2_KEY_EVENT_KIND,
+                COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
+                COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN,
+            };
+            use webview2_com::callback::AcceleratorKeyPressedEventHandler;
+            use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
+            use windows::core::BOOL;
+            use tauri::Emitter;
+
+            let pid = plugin_id.unwrap_or_else(|| {
+                if label.starts_with("web-") {
+                    "web-loader".to_string()
+                } else {
+                    label.split('-').next().unwrap_or("plugin").to_string()
+                }
+            });
+
+            let app_handle = app.clone();
+            let label_clone = label.clone();
+            webview
+                .with_webview(move |w| {
+                    let controller = w.controller();
+                    let mut token: i64 = 0;
+                    let target_pid = pid.clone();
+                    let target_label = label_clone.clone();
+
+                    let handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_controller, args| {
+                        if let Some(args) = args {
+                            let mut kind = COREWEBVIEW2_KEY_EVENT_KIND(0);
+                            if unsafe { args.KeyEventKind(&mut kind) }.is_ok()
+                                && (kind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                                    || kind == COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN)
+                            {
+                                let mut vk: u32 = 0;
+                                if unsafe { args.VirtualKey(&mut vk) }.is_ok() {
+                                    let is_ctrl = (unsafe { GetKeyState(VK_CONTROL as i32) } as u16 & 0x8000) != 0;
+                                    let is_shift = (unsafe { GetKeyState(VK_SHIFT as i32) } as u16 & 0x8000) != 0;
+                                    let is_alt = (unsafe { GetKeyState(VK_MENU as i32) } as u16 & 0x8000) != 0;
+
+                                    let shortcut_data: Option<(&'static str, &'static str)> = match vk {
+                                        // 'T' = 0x54 (Ctrl+T / Ctrl+Shift+T)
+                                        0x54 if is_ctrl => {
+                                            if is_shift { Some(("T", "KeyT")) } else { Some(("t", "KeyT")) }
+                                        }
+                                        // 'W' = 0x57 (Ctrl+W)
+                                        0x57 if is_ctrl => Some(("w", "KeyW")),
+                                        // 'N' = 0x4E (Ctrl+N)
+                                        0x4E if is_ctrl => Some(("n", "KeyN")),
+                                        // 'R' = 0x52 (Ctrl+R)
+                                        0x52 if is_ctrl => Some(("r", "KeyR")),
+                                        // F5 = 0x74
+                                        0x74 => Some(("F5", "F5")),
+                                        // 'L' = 0x4C (Ctrl+L: Focus URL/Address Bar)
+                                        0x4C if is_ctrl => Some(("l", "KeyL")),
+                                        // 'D' = 0x44 (Alt+D or Ctrl+D)
+                                        0x44 if is_alt || is_ctrl => Some(("d", "KeyD")),
+                                        // 'P' = 0x50 (Ctrl+Shift+P / Ctrl+P)
+                                        0x50 if is_ctrl => {
+                                            if is_shift { Some(("P", "KeyP")) } else { Some(("p", "KeyP")) }
+                                        }
+                                        // 'O' = 0x4F (Ctrl+O)
+                                        0x4F if is_ctrl => Some(("o", "KeyO")),
+                                        // 'E' = 0x45 (Ctrl+E)
+                                        0x45 if is_ctrl => Some(("e", "KeyE")),
+                                        // 'K' = 0x4B (Ctrl+K)
+                                        0x4B if is_ctrl => Some(("k", "KeyK")),
+                                        // 'F' = 0x46 (Ctrl+F)
+                                        0x46 if is_ctrl => Some(("f", "KeyF")),
+                                        // F3 = 0x72
+                                        0x72 => Some(("F3", "F3")),
+                                        // 'B' = 0x42 (Ctrl+B: Sidebar)
+                                        0x42 if is_ctrl => Some(("b", "KeyB")),
+                                        // Tab = 0x09 (Ctrl+Tab)
+                                        0x09 if is_ctrl => Some(("tab", "Tab")),
+                                        // Digits '1'..='9' (0x31..=0x39)
+                                        d @ 0x31..=0x39 if is_ctrl && !is_shift => {
+                                            match d {
+                                                0x31 => Some(("1", "Digit1")),
+                                                0x32 => Some(("2", "Digit2")),
+                                                0x33 => Some(("3", "Digit3")),
+                                                0x34 => Some(("4", "Digit4")),
+                                                0x35 => Some(("5", "Digit5")),
+                                                0x36 => Some(("6", "Digit6")),
+                                                0x37 => Some(("7", "Digit7")),
+                                                0x38 => Some(("8", "Digit8")),
+                                                0x39 => Some(("9", "Digit9")),
+                                                _ => None,
+                                            }
+                                        }
+                                        // Zoom In: '=' / '+' (VK_OEM_PLUS = 0xBB, VK_ADD = 0x6B)
+                                        (0xBB | 0x6B) if is_ctrl => Some(("+", "Equal")),
+                                        // Zoom Out: '-' (VK_OEM_MINUS = 0xBD, VK_SUBTRACT = 0x6D)
+                                        (0xBD | 0x6D) if is_ctrl => Some(("-", "Minus")),
+                                        // Zoom Reset: '0' (0x30, VK_NUMPAD0 = 0x60)
+                                        (0x30 | 0x60) if is_ctrl => Some(("0", "Digit0")),
+                                        // Terminal toggle: '\' (0xDC)
+                                        0xDC if is_ctrl => Some(("\\", "Backslash")),
+                                        // Navigation: Alt+Left / Alt+Right / Alt+Up
+                                        0x25 if is_alt => Some(("ArrowLeft", "ArrowLeft")),
+                                        0x27 if is_alt => Some(("ArrowRight", "ArrowRight")),
+                                        0x26 if is_alt => Some(("ArrowUp", "ArrowUp")),
+                                        _ => None,
+                                    };
+
+                                    if let Some((k_str, c_str)) = shortcut_data {
+                                        let payload = serde_json::json!({
+                                            "key": k_str,
+                                            "code": c_str,
+                                            "ctrlKey": is_ctrl,
+                                            "shiftKey": is_shift,
+                                            "altKey": is_alt,
+                                            "metaKey": false,
+                                            "sourceWebview": &target_label,
+                                            "pluginId": &target_pid,
+                                        });
+
+                                        // 1. Emit globally for Flurer system and host
+                                        let _ = app_handle.emit("flurer:webview-shortcut", &payload);
+
+                                        // 2. Emit to plugin-specific channel
+                                        let _ = app_handle.emit(&format!("{}:shortcut", target_pid), &payload);
+
+                                        // 3. Backwards-compatibility alias for web-loader
+                                        if target_pid == "web-loader" || target_label.starts_with("web-") {
+                                            let _ = app_handle.emit("web-loader:shortcut", &payload);
+                                        }
+
+                                        let _ = unsafe { args.SetHandled(BOOL::from(true)) };
+                                    }
+                                }
+                            }
+                        }
+                        Ok(())
+                    }));
+
+                    let _ = unsafe { controller.add_AcceleratorKeyPressed(&handler, &mut token) };
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (&label, &plugin_id);
+        }
+    }
+    Ok(())
+}
+
+/// Backwards-compatibility alias for web-loader and existing plugins.
+#[tauri::command]
+pub async fn attach_docked_webview_shortcuts(app: AppHandle, label: String) -> Result<(), String> {
+    attach_child_webview_shortcuts(app, label, Some("web-loader".to_string())).await
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

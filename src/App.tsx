@@ -997,9 +997,53 @@ function App() {
 
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("mouseup", handleMouseUp);
+
+    // Global listener for shortcuts intercepted from child webviews across all plugins
+    let unlistenWebviewShortcuts: (() => void) | undefined;
+    listen<{
+      key: string;
+      code: string;
+      ctrlKey: boolean;
+      shiftKey: boolean;
+      altKey: boolean;
+      metaKey: boolean;
+      sourceWebview?: string;
+      pluginId?: string;
+    }>("flurer:webview-shortcut", (event) => {
+      const p = event.payload;
+      if (!p) return;
+
+      const isMod = p.ctrlKey || p.metaKey;
+      const k = (p.key || "").toLowerCase();
+
+      // 1. Host Global: Command Palette (Ctrl+Shift+P or Ctrl+P if mainView is explorer)
+      if (isMod && p.shiftKey && (k === "p" || p.code === "KeyP")) {
+        setCommandPaletteOpen(true);
+        return;
+      }
+
+      // 2. Host Global: Open Terminal (Ctrl+\)
+      if (isMod && (k === "\\" || p.code === "Backslash")) {
+        openTerminalHere();
+        return;
+      }
+
+      // 3. If mainView is explorer, handle explorer tab/window shortcuts
+      if (mainView() === "explorer") {
+        if (isMod && !p.shiftKey && (k === "t" || p.code === "KeyT")) {
+          openNewTab();
+        } else if (isMod && (k === "w" || p.code === "KeyW")) {
+          closeTab(activeTabId());
+        }
+      }
+    }).then((unlisten) => {
+      unlistenWebviewShortcuts = unlisten;
+    }).catch(() => {});
+
     onCleanup(() => {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("mouseup", handleMouseUp);
+      if (unlistenWebviewShortcuts) unlistenWebviewShortcuts();
     });
   });
 
