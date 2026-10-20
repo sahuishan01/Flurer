@@ -444,13 +444,21 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.225** (tag `v0.4.225`; `git describe` reports
-`v0.4.225-2-g...` because the CI-runner commit `4155a68` landed on main
-*during* the release and was merged in afterwards — the merge commit
-`b6ab6ca` keeps the released tag in main's history, which a rebase
-would not have). The Settings redesign (below) shipped in that release
-through the full ritual: Build CI green → bump → tag-only push →
-Release CI green → bump commit pushed → ntfy agent-tasks + agent-releases.
+`main` is at **v0.4.227**. The Settings redesign shipped in v0.4.225
+(plus the CI image fix in v0.4.226) and the explorer layout regression
+it introduced was fixed in v0.4.227 — see "The CSS merge that broke the
+explorer" below for what went wrong and how it was caught.
+
+The release ritual is unchanged: Build CI green → bump → tag-only push
+→ Release CI green → bump commit pushed → ntfy agent-tasks +
+agent-releases. Two CI notes worth keeping: the Release workflow's
+`publish` job `needs: build`, and `build` is a matrix, so **one failed
+leg publishes no release at all** (this is how a single missing
+`xdg-utils` in the Linux build image blocked every release); and the
+Linux leg runs on the self-hosted `heaven` runner, whose job-start hook
+was briefly misconfigured (`/usr/local/libexec/github-runner-job-started`
+must exist and end in `.sh`/`.ps1`/`.js` — a runner-machine config, not
+a repo one).
 
 The UX improvements project (all 8 chunks, command palette through tab
 polish) is complete: every chunk shipped through the full release ritual
@@ -530,6 +538,65 @@ Two lessons from this work, both about verifying rather than assuming:
   and headless Chromium (`~/.cache/ms-playwright/.../chrome
   --headless --screenshot`); drive it with a small CDP script over
   Node's global `WebSocket` when an interaction needs verifying.
+
+### The CSS merge that broke the explorer (v0.4.227)
+
+v0.4.225 shipped the redesign **and a regression in the file
+explorer**, which was reported by the user and fixed in v0.4.227
+(`58f901c`). It is worth writing down because the failure mode was
+silent and the cause was not where anyone would look.
+
+The redesign removed a block of dead CSS with a Python script that did a
+plain string replace:
+
+```
+.settings-panel-header h2,
+.settings-section h3 {
+    text-shadow: var(--text-shadow);
+}
+```
+
+Those two selectors were the **tail of a longer shared selector list**:
+
+```
+.sidebar-item,
+.sidebar-section-label,
+.breadcrumb-segment,
+.file-table th,
+.file-table td,
+.progress-task-label,
+.settings-panel-header h2,
+.settings-section h3 {
+    text-shadow: var(--text-shadow);
+}
+
+.file-list-error-banner { ... }
+```
+
+Deleting the tail removed the rule's **closing brace** as well, so the
+list ran straight into the next rule and merged with it. Everything in
+the list inherited `.file-list-error-banner`'s declarations — a red
+tint, a 1px border, a 12px gap, 4px margins, 6px radius and
+`display: flex`. The file table cells went from `display: table-cell`
+to `display: flex`, and the sidebar items, section labels and
+breadcrumb segments all turned into red error banners.
+
+Rules to take from it:
+- **Never bulk-edit CSS with string replacement.** A rule's selector
+  list can continue past the block you think you are removing. Remove
+  whole rules with a CSS parser, or by matching the full rule text.
+- **A selector-list change is not a local change.** Removing the last
+  selector of a list is equivalent to deleting the whole rule, and
+  merging two rules is equivalent to deleting the boundary between
+  them. Both were invisible in a diff of "settings" selectors.
+- **Verify CSS changes by their effect, not by their selectors.** The
+  check that found this: parse both revisions with postcss and diff
+  the *rules*, then render one element per class in headless Chromium
+  and diff the *computed styles*. Before the fix, `.file-table td`
+  reported `display: table-cell -> flex` and a red background; after
+  it, every explorer class is byte-identical to the original. A
+  selector-level diff had missed it because the corrupted rule still
+  had the right selector text.
 
 Also note: `bun run build` is `vite build` and does **not** typecheck —
 CI will not catch a TypeScript error. Run `./node_modules/.bin/tsc
