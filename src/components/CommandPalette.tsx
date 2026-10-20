@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Portal } from "solid-js/web";
+import { fuzzyScore } from "../lib/fuzzy";
 
 export type CommandPaletteItem = {
   id: string;
@@ -15,30 +16,6 @@ type CommandPaletteProps = {
   onClose: () => void;
   commands: CommandPaletteItem[];
 };
-
-// Subsequence fuzzy match with a light score: consecutive and
-// word-start matches rank above scattered ones, shorter labels win ties.
-function fuzzyScore(query: string, text: string): number {
-  if (!query) return 1;
-  const q = query.toLowerCase();
-  const t = text.toLowerCase();
-  const direct = t.indexOf(q);
-  if (direct >= 0) {
-    return 1000 - direct - text.length * 0.05;
-  }
-  let score = 0;
-  let ti = 0;
-  let streak = 0;
-  for (let qi = 0; qi < q.length; qi++) {
-    const ch = q[qi];
-    const found = t.indexOf(ch, ti);
-    if (found < 0) return -1;
-    streak = found === ti ? streak + 1 : 1;
-    score += 10 + streak * 2 + (found === 0 || /[\s\\/\-_]/.test(t[found - 1]) ? 8 : 0);
-    ti = found + 1;
-  }
-  return score - text.length * 0.05;
-}
 
 export function CommandPalette(props: CommandPaletteProps) {
   const [query, setQuery] = createSignal("");

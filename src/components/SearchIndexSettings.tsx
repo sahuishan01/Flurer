@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderPlusIcon, RefreshIcon, TrashIcon } from "./icons";
 import { DirectoryPickerModal } from "./DirectoryPickerModal";
+import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
 
 type IndexStatus = {
   roots: string[];
@@ -98,8 +99,11 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
   const busy = () => status()?.rebuilding ?? false;
 
   return (
-    <section class="settings-section">
-      <h3>Search index</h3>
+    <SettingsSection
+      id="search-index.index"
+      title="Index"
+      description="Folders searched from memory instead of being walked on every keystroke."
+    >
       <p class="settings-hint">
         Indexed folders are searched from memory instead of being walked on every keystroke, which is what makes
         searching a whole drive feel instant. The index is kept current as files change; rebuild it if it ever
@@ -110,52 +114,68 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
         <p class="file-list-error selectable-text">{error()}</p>
       </Show>
 
-      <div class="search-index-status">
-        <Show
-          when={!busy()}
-          fallback={<span>Indexing… {progress().toLocaleString()} items found</span>}
+      <SettingGroup>
+        <SettingRow
+          id="search-index.index.roots"
+          label="Indexed folders"
+          description="Every folder listed here is walked in the background and searched from memory."
+          fullWidth
         >
-          <Show
-            when={(status()?.entryCount ?? 0) > 0}
-            fallback={<span>No index yet — add a folder below to build one.</span>}
-          >
-            <span>{status()!.entryCount.toLocaleString()} items indexed</span>
-          </Show>
-        </Show>
-      </div>
+          <div class="search-index-status">
+            <Show
+              when={!busy()}
+              fallback={<span>Indexing… {progress().toLocaleString()} items found</span>}
+            >
+              <Show
+                when={(status()?.entryCount ?? 0) > 0}
+                fallback={<span>No index yet — add a folder below to build one.</span>}
+              >
+                <span>{status()!.entryCount.toLocaleString()} items indexed</span>
+              </Show>
+            </Show>
+          </div>
 
-      <ul class="search-index-roots">
-        <For each={props.roots}>
-          {(root) => (
-            <li>
-              <span class="search-index-root-path selectable-text">{root}</span>
-              <button type="button" class="icon-btn" aria-label={`Stop indexing ${root}`} onClick={() => removeRoot(root)}>
-                <TrashIcon />
-              </button>
-            </li>
-          )}
-        </For>
-      </ul>
+          <ul class="search-index-roots">
+            <For each={props.roots}>
+              {(root) => (
+                <li>
+                  <span class="search-index-root-path selectable-text">{root}</span>
+                  <button type="button" class="icon-btn" aria-label={`Stop indexing ${root}`} onClick={() => removeRoot(root)}>
+                    <TrashIcon />
+                  </button>
+                </li>
+              )}
+            </For>
+          </ul>
+        </SettingRow>
 
-      <div class="search-index-actions">
-        <button type="button" onClick={() => setPickerOpen(true)} disabled={busy()}>
-          <FolderPlusIcon /> Add folder
-        </button>
-        <button type="button" onClick={() => rebuild(props.roots)} disabled={busy() || props.roots.length === 0}>
-          <RefreshIcon /> Rebuild
-        </button>
-        <button
-          type="button"
-          disabled={busy() || (status()?.entryCount ?? 0) === 0}
-          onClick={async () => {
-            props.onRootsChange([]);
-            await invoke("clear_search_index").catch((err) => setError(String(err)));
-            refreshStatus();
-          }}
+        <SettingRow
+          id="search-index.index.rebuild"
+          label="Rebuild or clear the index"
+          description="Rebuilding re-walks every indexed folder. Clearing throws the index away."
+          fullWidth
         >
-          <TrashIcon /> Clear index
-        </button>
-      </div>
+          <div class="search-index-actions">
+            <button type="button" onClick={() => setPickerOpen(true)} disabled={busy()}>
+              <FolderPlusIcon /> Add folder
+            </button>
+            <button type="button" onClick={() => rebuild(props.roots)} disabled={busy() || props.roots.length === 0}>
+              <RefreshIcon /> Rebuild
+            </button>
+            <button
+              type="button"
+              disabled={busy() || (status()?.entryCount ?? 0) === 0}
+              onClick={async () => {
+                props.onRootsChange([]);
+                await invoke("clear_search_index").catch((err) => setError(String(err)));
+                refreshStatus();
+              }}
+            >
+              <TrashIcon /> Clear index
+            </button>
+          </div>
+        </SettingRow>
+      </SettingGroup>
 
       <Show when={pickerOpen()}>
         <DirectoryPickerModal
@@ -166,6 +186,6 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
           onClose={() => setPickerOpen(false)}
         />
       </Show>
-    </section>
+    </SettingsSection>
   );
 }

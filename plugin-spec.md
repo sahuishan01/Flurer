@@ -267,6 +267,29 @@ once your `settingsPanel` actually gives the user a way to adjust
 `surfaceOpacity`/`surfaceBlur` themselves — otherwise leave it unset so
 Core's generic slider (§6) still works for your users.
 
+### Your panel inside the Settings shell
+
+`settingsPanel` renders inside Flurer's Settings screen, which was
+redesigned in v0.4.224. The shell draws the header, the category rail
+and the content pane; your panel renders inside the content pane, so
+your own markup and styling are unchanged.
+
+Two things to know:
+
+- **No sub-nav and no search entry.** The sub-nav lists the sections of
+  the active category, and the settings search is indexed from a core
+  registry (`src/lib/settingsRegistry.ts`). A plugin's panel is
+  arbitrary JSX, so core cannot know its sections — your panel appears
+  as the whole content of its category, with no section pills above it
+  and no hits in the search. That is deliberate: the registry is the
+  single source of truth for the core settings, and a plugin that wants
+  to be findable can expose its own controls inside its panel.
+- **Use the shared primitives.** `SettingsSection` and `SettingRow`
+  from `src/components/settings-ui.tsx` give your panel the same
+  collapsible cards and two-column rows as the core settings, and they
+  keep working when the user changes theme. The same theme tokens
+  listed above apply.
+
 ## 6. Reserved `pluginSettings` keys
 
 Two keys under `pluginSettings[your id]` are reserved by Core for the

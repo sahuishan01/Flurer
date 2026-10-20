@@ -74,6 +74,17 @@ export interface PluginInfo {
 // Reactive signal to store registered plugins
 export const [registeredPlugins, setRegisteredPlugins] = Solid.createSignal<PluginInfo[]>([]);
 
+/**
+ * Plugins whose panel translucency can be overridden from Settings.
+ *
+ * Plugins that bring their own appearance controls are excluded —
+ * having two UIs write the same surfaceOpacity/surfaceBlur fields would
+ * just be confusing, not additive.
+ */
+export function pluginsWithAppearanceOverride(): PluginInfo[] {
+  return registeredPlugins().filter((p) => (p.mainPanel || p.fullPanel) && !p.hasCustomAppearanceSettings);
+}
+
 // Track loaded plugin IDs
 const loadedPluginIds = new Set<string>();
 

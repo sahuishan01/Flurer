@@ -10,11 +10,11 @@ import {
 } from "../lib/plugins";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
 
 type PluginMarketplaceProps = {
   disabledPlugins: string[];
   onDisabledPluginsChange: (disabled: string[]) => void;
-  searchQuery: string;
 };
 
 type InstalledEntry = {
@@ -275,74 +275,92 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div class="settings-section">
-      <div class="settings-section-header">
-        <h3>Plugin Marketplace</h3>
-        <span class="settings-section-subtitle">
-          Install plugins from a GitHub repo or a ZIP file, then manage them below.
-        </span>
-      </div>
+    <div class="plugin-marketplace">
+      <SettingsSection
+        id="plugins.marketplace"
+        title="Marketplace"
+        description="Install plugins from a GitHub repo or a ZIP file."
+      >
+        <Show when={errorMsg()}>
+          <div class="settings-error-alert">{errorMsg()}</div>
+        </Show>
 
-      <Show when={errorMsg()}>
-        <div class="settings-error-alert">{errorMsg()}</div>
-      </Show>
-
-      {/* Live install/update progress (backend streams plugin-progress) */}
-      <Show when={loadingId() !== null && progress()}>
-        {(p) => (
-          <div class="update-progress-container plugin-progress">
-            <div class="update-progress-info">
-              <span>{p().stage}</span>
-              <span>{p().percent !== null ? `${Math.round(p().percent!)}%` : ""}</span>
+        {/* Live install/update progress (backend streams plugin-progress) */}
+        <Show when={loadingId() !== null && progress()}>
+          {(p) => (
+            <div class="update-progress-container plugin-progress">
+              <div class="update-progress-info">
+                <span>{p().stage}</span>
+                <span>{p().percent !== null ? `${Math.round(p().percent!)}%` : ""}</span>
+              </div>
+              <div class="update-progress-bar">
+                <div
+                  class="update-progress-fill"
+                  classList={{ indeterminate: p().percent === null }}
+                  style={{ width: p().percent !== null ? `${Math.min(100, p().percent!)}%` : "100%" }}
+                />
+              </div>
             </div>
-            <div class="update-progress-bar">
-              <div
-                class="update-progress-fill"
-                classList={{ indeterminate: p().percent === null }}
-                style={{ width: p().percent !== null ? `${Math.min(100, p().percent!)}%` : "100%" }}
-              />
+          )}
+        </Show>
+
+        <SettingGroup>
+          {/* ── Install from GitHub ───────────────────────────────────── */}
+          <SettingRow
+            id="plugins.marketplace.github"
+            label="Install from GitHub"
+            description="Fetches the latest release from the repo and installs the first .zip asset found."
+            fullWidth
+          >
+            <div class="plugin-install-section">
+              <div class="plugin-install-row">
+                <input
+                  type="text"
+                  placeholder="https://github.com/owner/repo or owner/repo"
+                  value={githubUrl()}
+                  onInput={(e) => setGithubUrl(e.currentTarget.value)}
+                  style={{ flex: 1 }}
+                />
+                <button type="button" disabled={!githubUrl().trim() || isBusy("__github__")} onClick={handleInstallFromGithub}>
+                  {isBusy("__github__") ? "Installing…" : "Install"}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </Show>
+          </SettingRow>
 
-      {/* ── Install from GitHub ───────────────────────────────────── */}
-      <div class="plugin-install-section">
-        <h4>Install from GitHub</h4>
-        <div class="plugin-install-row">
-          <input
-            type="text"
-            placeholder="https://github.com/owner/repo or owner/repo"
-            value={githubUrl()}
-            onInput={(e) => setGithubUrl(e.currentTarget.value)}
-            style={{ flex: 1 }}
-          />
-          <button type="button" disabled={!githubUrl().trim() || isBusy("__github__")} onClick={handleInstallFromGithub}>
-            {isBusy("__github__") ? "Installing…" : "Install"}
-          </button>
-        </div>
-        <p class="plugin-install-hint">
-          Fetches the latest release from the repo and installs the first <strong>.zip</strong> asset found.
-        </p>
-      </div>
+          {/* ── Install from ZIP ──────────────────────────────────────── */}
+          <SettingRow
+            id="plugins.marketplace.zip"
+            label="Install from ZIP"
+            description="Select a .zip file that contains plugin.json and the plugin code."
+            fullWidth
+          >
+            <div class="plugin-install-section">
+              <div class="plugin-install-row">
+                <input type="file" accept=".zip" onChange={handleFileSelected} style={{ flex: 1 }} />
+                <button type="button" disabled={!zipFilePath() || isBusy("__zip__")} onClick={handleInstallFromZip}>
+                  {isBusy("__zip__") ? "Installing…" : "Install"}
+                </button>
+              </div>
+            </div>
+          </SettingRow>
+        </SettingGroup>
+      </SettingsSection>
 
-      {/* ── Install from ZIP ──────────────────────────────────────── */}
-      <div class="plugin-install-section">
-        <h4>Install from ZIP</h4>
-        <div class="plugin-install-row">
-          <input type="file" accept=".zip" onChange={handleFileSelected} style={{ flex: 1 }} />
-          <button type="button" disabled={!zipFilePath() || isBusy("__zip__")} onClick={handleInstallFromZip}>
-            {isBusy("__zip__") ? "Installing…" : "Install"}
-          </button>
-        </div>
-        <p class="plugin-install-hint">
-          Select a <strong>.zip</strong> file that contains <code>plugin.json</code> and the plugin code.
-        </p>
-      </div>
-
-      {/* ── Registry browse ───────────────────────────────────────── */}
-      <div class="plugin-install-section">
-        <div class="plugin-installed-header">
+      <SettingsSection
+        id="plugins.available"
+        title="Available plugins"
+        description="Browse the published plugin registry."
+      >
+        <SettingGroup>
+          <SettingRow
+            id="plugins.available.registry"
+            label="Registry"
+            description="Plugins published to Flurer's registry, installable in one click."
+            fullWidth
+          >
+            <div class="plugin-install-section">
+              <div class="plugin-installed-header">
           <h4>Available Plugins</h4>
           <button type="button" disabled={registryLoading()} onClick={loadRegistry}>
             {registryLoading() ? "Loading…" : "Refresh"}
@@ -406,11 +424,25 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
             </Show>
           )}
         </Show>
-      </div>
+            </div>
+          </SettingRow>
+        </SettingGroup>
+      </SettingsSection>
 
-      {/* ── Installed plugins ─────────────────────────────────────── */}
-      <div class="plugin-installed-section">
-        <div class="plugin-installed-header">
+      <SettingsSection
+        id="plugins.installed"
+        title="Installed plugins"
+        description="Enable, update or remove plugins you have installed."
+      >
+        <SettingGroup>
+          <SettingRow
+            id="plugins.installed.list"
+            label="Installed plugins"
+            description="Disable a plugin to unload it without uninstalling it."
+            fullWidth
+          >
+            <div class="plugin-installed-section">
+              <div class="plugin-installed-header">
           <h4>Installed Plugins</h4>
           <button type="button" disabled={checkingUpdates()} onClick={checkForUpdates}>
             {checkingUpdates() ? "Checking…" : "Check for updates"}
@@ -494,7 +526,10 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
             </For>
           </div>
         </Show>
-      </div>
+            </div>
+          </SettingRow>
+        </SettingGroup>
+      </SettingsSection>
     </div>
   );
 }

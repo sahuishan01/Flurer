@@ -7,6 +7,16 @@ import {
   type InAppShortcutAction,
 } from "../lib/shortcuts";
 import { DEFAULT_GLOBAL_SHORTCUT } from "../lib/settings";
+import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+
+// Section ids mirror the settings registry (src/lib/settingsRegistry.ts)
+// so the sub-nav and the search index can find these cards. The group
+// slugs must stay in step with SHORTCUT_GROUP_SLUGS over there.
+const GROUP_SLUGS: Record<string, string> = {
+  "File Operations": "files",
+  Navigation: "navigation",
+  "Tabs & Panes": "tabs",
+};
 
 type ShortcutsSettingsProps = {
   globalShortcut: string;
@@ -58,102 +68,105 @@ export function ShortcutsSettings(props: ShortcutsSettingsProps) {
 
   return (
     <div class="shortcuts-settings">
-      <section class="settings-section">
-        <h3>System & Global</h3>
-        <p class="settings-hint">
-          Control how Flurer integrates with your system shortcuts.
-        </p>
-
-        <div class="shortcut-card">
-          <div class="shortcut-card-info">
-            <span class="shortcut-title">Global hotkey to open Flurer</span>
-            <span class="shortcut-description">
-              Opens a new window from anywhere across Windows, even when Flurer is minimized or in the background.
-            </span>
-          </div>
-          <div class="shortcut-recorder-row">
-            <button
-              type="button"
-              class="shortcut-recorder"
-              classList={{ recording: recordingShortcut() }}
-              onClick={() => setRecordingShortcut(true)}
-              onKeyDown={(e) => recordingShortcut() && handleShortcutRecorderKeyDown(e)}
-              onBlur={() => setRecordingShortcut(false)}
-            >
-              {recordingShortcut()
-                ? "Press key combo… (Esc to cancel)"
-                : props.globalShortcut || "Click to set shortcut"}
-            </button>
-            <Show when={props.globalShortcut}>
-              <button type="button" class="danger" onClick={() => props.onGlobalShortcutChange("")}>
-                Clear
+      <SettingsSection
+        id="shortcuts.global"
+        title="System & global"
+        description="Flurer's own hotkeys, including the one that works outside the app."
+      >
+        <SettingGroup>
+          <SettingRow
+            id="shortcuts.global.hotkey"
+            label="Global hotkey to open Flurer"
+            description="Opens a new window from anywhere across Windows, even when Flurer is minimized or in the background."
+          >
+            <div class="setting-control-inline">
+              <button
+                type="button"
+                class="shortcut-recorder"
+                classList={{ recording: recordingShortcut() }}
+                onClick={() => setRecordingShortcut(true)}
+                onKeyDown={(e) => recordingShortcut() && handleShortcutRecorderKeyDown(e)}
+                onBlur={() => setRecordingShortcut(false)}
+              >
+                {recordingShortcut()
+                  ? "Press key combo… (Esc to cancel)"
+                  : props.globalShortcut || "Click to set shortcut"}
               </button>
-            </Show>
-            <Show when={props.globalShortcut !== DEFAULT_GLOBAL_SHORTCUT}>
-              <button type="button" onClick={() => props.onGlobalShortcutChange(DEFAULT_GLOBAL_SHORTCUT)}>
-                Reset
-              </button>
-            </Show>
-          </div>
-        </div>
-      </section>
+              <Show when={props.globalShortcut}>
+                <button type="button" class="danger" onClick={() => props.onGlobalShortcutChange("")}>
+                  Clear
+                </button>
+              </Show>
+              <Show when={props.globalShortcut !== DEFAULT_GLOBAL_SHORTCUT}>
+                <button type="button" onClick={() => props.onGlobalShortcutChange(DEFAULT_GLOBAL_SHORTCUT)}>
+                  Reset
+                </button>
+              </Show>
+            </div>
+          </SettingRow>
+        </SettingGroup>
+      </SettingsSection>
 
       <For each={IN_APP_SHORTCUT_CATEGORIES}>
-        {(group) => (
-          <section class="settings-section">
-            <h3>{group.category}</h3>
-            <div class="shortcut-grid">
-              <For each={group.actions}>
-                {(action) => {
-                  const currentCombo = () =>
-                    props.inAppShortcuts[action] || DEFAULT_IN_APP_SHORTCUTS[action];
-                  const isModified = () =>
-                    currentCombo() !== DEFAULT_IN_APP_SHORTCUTS[action];
+        {(group) => {
+          const slug = GROUP_SLUGS[group.category] ?? group.category.toLowerCase().replace(/\s+/g, "-");
+          return (
+            <SettingsSection
+              id={`shortcuts.${slug}`}
+              title={group.category}
+              description={`Shortcuts for ${group.category.toLowerCase()}.`}
+            >
+              <SettingGroup>
+                <For each={group.actions}>
+                  {(action) => {
+                    const currentCombo = () =>
+                      props.inAppShortcuts[action] || DEFAULT_IN_APP_SHORTCUTS[action];
+                    const isModified = () =>
+                      currentCombo() !== DEFAULT_IN_APP_SHORTCUTS[action];
 
-                  return (
-                    <div class="shortcut-card">
-                      <div class="shortcut-card-info">
-                        <span class="shortcut-title">{IN_APP_SHORTCUT_LABELS[action]}</span>
-                        <span class="shortcut-default-hint">
-                          Default: {DEFAULT_IN_APP_SHORTCUTS[action]}
-                        </span>
-                      </div>
-                      <div class="shortcut-recorder-row">
-                        <button
-                          type="button"
-                          class="shortcut-recorder"
-                          classList={{ recording: recordingInAppAction() === action }}
-                          onClick={() => setRecordingInAppAction(action)}
-                          onKeyDown={(e) =>
-                            recordingInAppAction() === action &&
-                            handleInAppShortcutRecorderKeyDown(e, action)
-                          }
-                          onBlur={() =>
-                            setRecordingInAppAction((cur) => (cur === action ? null : cur))
-                          }
-                        >
-                          {recordingInAppAction() === action
-                            ? "Press keys… (Esc)"
-                            : currentCombo()}
-                        </button>
-                        <Show when={isModified()}>
+                    return (
+                      <SettingRow
+                        id={`shortcuts.${slug}.${action}`}
+                        label={IN_APP_SHORTCUT_LABELS[action]}
+                        description={`Default: ${DEFAULT_IN_APP_SHORTCUTS[action]}`}
+                      >
+                        <div class="setting-control-inline">
                           <button
                             type="button"
-                            class="shortcut-reset-btn"
-                            title="Reset to default"
-                            onClick={() => props.onResetInAppShortcut(action)}
+                            class="shortcut-recorder"
+                            classList={{ recording: recordingInAppAction() === action }}
+                            onClick={() => setRecordingInAppAction(action)}
+                            onKeyDown={(e) =>
+                              recordingInAppAction() === action &&
+                              handleInAppShortcutRecorderKeyDown(e, action)
+                            }
+                            onBlur={() =>
+                              setRecordingInAppAction((cur) => (cur === action ? null : cur))
+                            }
                           >
-                            Reset
+                            {recordingInAppAction() === action
+                              ? "Press keys… (Esc)"
+                              : currentCombo()}
                           </button>
-                        </Show>
-                      </div>
-                    </div>
-                  );
-                }}
-              </For>
-            </div>
-          </section>
-        )}
+                          <Show when={isModified()}>
+                            <button
+                              type="button"
+                              class="shortcut-reset-btn"
+                              title="Reset to default"
+                              onClick={() => props.onResetInAppShortcut(action)}
+                            >
+                              Reset
+                            </button>
+                          </Show>
+                        </div>
+                      </SettingRow>
+                    );
+                  }}
+                </For>
+              </SettingGroup>
+            </SettingsSection>
+          );
+        }}
       </For>
     </div>
   );

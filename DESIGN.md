@@ -295,6 +295,50 @@ Input-like control using control material. On hover, the chiseled border deepens
 ### `skeleton-shimmer`
 Loading placeholder for file list rows. Animated shimmer gradient at 1.5s infinite looping. 4px border-radius.
 
+### Settings shell
+
+The Settings screen is three stacked zones: a **header** (mica strip), a **category rail**
+(acrylic), and the **content pane** (glass) with a **sub-nav** strip above it.
+
+- **Header** — app mark, the page title in `--font-display`, the active category as a
+  subtitle, the cross-category settings search, then the export and close buttons. The
+  header is lifted (`position: relative; z-index`) because its `backdrop-filter` would
+  otherwise make it a stacking context that traps the search popover under the content.
+- **Category rail** — one item per category. Selection is a 3px accent rail on the left
+  edge plus an accent-tinted fill; there is no border and no shadow, because both read
+  as a pressed button and turn the rail into a stack of grey chips.
+- **Sub-nav** — a horizontal strip of pills listing the sections of the active category.
+  It sits *outside* the scrolling pane, so it stays put without `position: sticky`. The
+  active pill follows the scroll position (scroll-spy). Shown only when the category has
+  more than one section.
+- **Section card** — `.settings-section`. A disclosure: the header is a button carrying a
+  chevron, the title and a one-line description. Folded state persists per section in
+  `localStorage` (`flurer.settings.collapsed`) — it is UI state, so it deliberately does
+  not live in the persisted `settings.json`. Cards use an inset top highlight instead of a
+  drop shadow: blur and tint carry the depth in this design language.
+- **Setting row** — `.setting-row`. Two columns: label and explanation on the left,
+  control on the right. Scalars (sliders, selects, checkboxes, numbers) use this;
+  choice sets (option groups, swatch rows, image grids) set `fullWidth` and put the
+  control on its own line beneath the label.
+- **Settings search** — a fuzzy match over every individual setting in the app, not just
+  the current page. It *navigates*: a hit switches category, expands the section, scrolls
+  to the control and flashes it. Nothing is ever hidden by a query — the old behaviour
+  (the panel reused the global file-search query and hid every section that didn't match)
+  made the page quietly lose content.
+
+### Settings search matching
+
+Two matchers, deliberately different:
+
+- `fuzzyScore` — plain subsequence scoring, used by the command palette.
+- `matchScore` — stricter, used by the settings search. A query matches a label when it
+  is a substring of the label, a substring of one of its words, or a subsequence of the
+  label whose matched characters sit close together. The proximity rule is what stops
+  "blur" from matching "Global hotkey to open Flurer" — the letters are all there, but
+  twenty characters apart, and that is an accident of spelling rather than intent.
+  Keywords are scored one at a time for the same reason: scoring the whole keyword list
+  as a single string lets a query scatter across unrelated words.
+
 ## Do's and Don'ts
 
 - **Do** use translucent `rgba()` surfaces with backdrop blur — the app is designed around material layering over dynamic wallpaper.

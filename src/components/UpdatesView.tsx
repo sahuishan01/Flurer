@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { RefreshIcon } from "./icons";
+import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
 import { formatBytes } from "../lib/fs";
 
 type UpdateInfo = {
@@ -107,71 +108,88 @@ export function UpdatesView(props: UpdatesViewProps) {
 
   return (
     <div class="updates-view">
-      <div class="settings-section">
-        <h3>App Updates</h3>
-        <p class="updates-meta">
-          Current version: <strong>v{appVersion()}</strong>
-        </p>
+      <SettingsSection
+        id="updates.updates"
+        title="App updates"
+        description="Version checks and the updater."
+      >
+        <SettingGroup>
+          <SettingRow
+            id="updates.updates.autoCheck"
+            label="Automatically check for updates"
+            description="Check for updates in the background and prompt when a new version is available."
+          >
+            <input
+              type="checkbox"
+              class="setting-checkbox"
+              aria-label="Automatically check for updates"
+              checked={props.autoCheckUpdates ?? true}
+              onChange={(e) => props.onAutoCheckUpdatesChange?.(e.currentTarget.checked)}
+            />
+          </SettingRow>
 
-        <label class="settings-checkbox" style={{ "margin-bottom": "1em" }}>
-          <input
-            type="checkbox"
-            checked={props.autoCheckUpdates ?? true}
-            onChange={(e) => props.onAutoCheckUpdatesChange?.(e.currentTarget.checked)}
-          />
-          <span>Automatically check & prompt for updates in the background</span>
-        </label>
-
-        <Show when={props.autoCheckUpdates ?? true}>
-          <div class="settings-field-group" style={{ "margin-bottom": "1em" }}>
-            <label class="settings-label">
-              <span>Auto-check Interval (seconds, min 10s):</span>
-              <input
-                type="number"
-                class="settings-number-input"
-                min="10"
-                step="5"
-                value={props.autoCheckUpdateIntervalSeconds ?? 14400}
-                onInput={(e) => {
-                  const val = parseInt(e.currentTarget.value, 10);
-                  if (!isNaN(val)) {
-                    props.onAutoCheckUpdateIntervalSecondsChange?.(Math.max(10, val));
-                  }
-                }}
-              />
-            </label>
-            <p class="settings-hint">Changing this value resets the update check timer immediately.</p>
-          </div>
-        </Show>
-
-        <Show when={props.ignoredUpdateVersion}>
-          <div class="settings-field-group" style={{ "margin-bottom": "1em" }}>
-            <p class="settings-hint">
-              Ignored update: <strong>v{props.ignoredUpdateVersion}</strong>
-              <button
-                type="button"
-                style={{ "margin-left": "10px", padding: "2px 8px", "font-size": "var(--text-caption)" }}
-                onClick={() => props.onResetIgnoredUpdateVersion?.()}
-              >
-                Clear / Reset Ignored Version
-              </button>
-            </p>
-          </div>
-        </Show>
-        <div class="updates-actions">
-          <button type="button" onClick={check} disabled={checking() || !appVersion() || downloading()}>
-            <RefreshIcon size={14} />
-            {checking() ? "Checking…" : "Check for Updates"}
-          </button>
-          <Show when={canUpdate()}>
-            <button type="button" class="btn-accent" onClick={downloadAndInstall} disabled={downloading()}>
-              {downloading() ? "Updating…" : "Update Now"}
-            </button>
-            <button type="button" onClick={openRelease}>
-              View on GitHub
-            </button>
+          <Show when={props.autoCheckUpdates ?? true}>
+            <SettingRow
+              id="updates.updates.interval"
+              label="Auto-check interval"
+              description="How often Flurer checks in the background. Changing this resets the check timer immediately."
+            >
+              <div class="setting-control-select">
+                <input
+                  type="number"
+                  class="settings-number-input"
+                  min="10"
+                  step="5"
+                  value={props.autoCheckUpdateIntervalSeconds ?? 14400}
+                  onInput={(e) => {
+                    const val = parseInt(e.currentTarget.value, 10);
+                    if (!isNaN(val)) {
+                      props.onAutoCheckUpdateIntervalSecondsChange?.(Math.max(10, val));
+                    }
+                  }}
+                />
+                <span class="setting-value">s</span>
+              </div>
+            </SettingRow>
           </Show>
-        </div>
+
+          <Show when={props.ignoredUpdateVersion}>
+            <SettingRow
+              id="updates.updates.ignored"
+              label="Ignored version"
+              description="Flurer won't notify you about this version again."
+            >
+              <div class="setting-control-inline">
+                <span class="setting-value">v{props.ignoredUpdateVersion}</span>
+                <button type="button" onClick={() => props.onResetIgnoredUpdateVersion?.()}>
+                  Clear
+                </button>
+              </div>
+            </SettingRow>
+          </Show>
+
+          <SettingRow
+            id="updates.updates.now"
+            label="Check for updates"
+            description="Look for a newer release right now."
+            fullWidth
+          >
+            <div class="updates-actions">
+              <button type="button" onClick={check} disabled={checking() || !appVersion() || downloading()}>
+                <RefreshIcon size={14} />
+                {checking() ? "Checking…" : "Check for Updates"}
+              </button>
+              <Show when={canUpdate()}>
+                <button type="button" class="btn-accent" onClick={downloadAndInstall} disabled={downloading()}>
+                  {downloading() ? "Updating…" : "Update Now"}
+                </button>
+                <button type="button" onClick={openRelease}>
+                  View on GitHub
+                </button>
+              </Show>
+            </div>
+          </SettingRow>
+        </SettingGroup>
 
         <Show when={downloading() || progress()}>
           <div class="update-progress-container">
@@ -192,37 +210,39 @@ export function UpdatesView(props: UpdatesViewProps) {
           </div>
         </Show>
 
+        <Show when={error()}>
+          <div class="settings-error-alert">{error()}</div>
+        </Show>
+
+        {/* Up to date — use signal directly, not Show function-child, so version renders */}
+        <Show when={info() && !canUpdate() && !error()}>
+          <p class="settings-success">✓ You're up to date — Flurer <strong>v{info()!.currentVersion}</strong></p>
+        </Show>
+
         <Show when={canUpdate()}>
           <p class="settings-hint">
             Installs silently in the background (you'll still see Windows' permission prompt) — no setup wizard. Flurer
             closes during the update and reopens on its own once it's done.
           </p>
-        </Show>
-      </div>
-
-      <Show when={error()}>
-        <div class="settings-error-alert">{error()}</div>
-      </Show>
-
-      {/* Up to date — use signal directly, not Show function-child, so version renders */}
-      <Show when={info() && !canUpdate() && !error()}>
-        <div class="settings-section">
-          <p class="settings-success">✓ You're up to date — Flurer <strong>v{info()!.currentVersion}</strong></p>
-        </div>
-      </Show>
-
-      {/* Update available */}
-      <Show when={canUpdate()}>
-        <div class="settings-section">
-          <h3>v{info()!.latestVersion} Available</h3>
-          <p class="updates-meta">
-            Current: <strong>v{info()!.currentVersion}</strong> → Latest: <strong>v{info()!.latestVersion}</strong>
-          </p>
           <Show when={info()!.releaseBody}>
             <div class="updates-release-notes">{info()!.releaseBody}</div>
           </Show>
-        </div>
-      </Show>
+        </Show>
+      </SettingsSection>
+
+      <SettingsSection
+        id="updates.about"
+        title="About"
+        description="What version you're running."
+      >
+        <SettingGroup>
+          <SettingRow id="updates.about.version" label="Current version">
+            <div class="setting-control-inline">
+              <span class="setting-value">v{appVersion()}</span>
+            </div>
+          </SettingRow>
+        </SettingGroup>
+      </SettingsSection>
     </div>
   );
 }

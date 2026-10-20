@@ -906,7 +906,21 @@ function App() {
         const pathBtn = document.querySelector(".explorer-path-bar .icon-btn") as HTMLButtonElement | null;
         pathBtn?.click();
         return;
-      } else if (bound("focusSearch") || e.key === "F3") {
+      } else if (bound("focusSearch")) {
+        e.preventDefault();
+        // The Settings screen has its own search across every setting in
+        // the app; the file search is for the explorer. Route the same
+        // shortcut to whichever one is actually in front of the user.
+        if (mainView() === "settings") {
+          const settingsSearch = document.querySelector(".settings-search-input") as HTMLInputElement | null;
+          settingsSearch?.focus();
+          settingsSearch?.select();
+        } else {
+          const searchBtn = document.querySelector(".search-trigger .icon-btn") as HTMLButtonElement | null;
+          searchBtn?.click();
+        }
+        return;
+      } else if (e.key === "F3") {
         e.preventDefault();
         const searchBtn = document.querySelector(".search-trigger .icon-btn") as HTMLButtonElement | null;
         searchBtn?.click();
@@ -1779,7 +1793,6 @@ function App() {
                 <SettingsPanel
                   data-bg-lightness={fileListLightness()}
                   onClose={closeSettings}
-                  searchQuery={searchQuery()}
                   background={settings.background}
                   onBackgroundChange={updateBackground}
                   theme={settings.theme}
