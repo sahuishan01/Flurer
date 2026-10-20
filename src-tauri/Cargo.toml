@@ -11,7 +11,7 @@ resolver = "2"
 
 [package]
 name = "flurer"
-version = "0.4.220"
+version = "0.4.221"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -79,6 +79,7 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Threading",
   "Win32_UI_WindowsAndMessaging",
   "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_System_Com",
 ] }
 # Pinned to the same version Tauri's own Windows runtime vendors (see
 # webview2-com in Cargo.lock) so ICoreWebView2Controller4 (cast target in

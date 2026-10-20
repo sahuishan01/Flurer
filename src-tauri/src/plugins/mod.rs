@@ -224,7 +224,7 @@ pub async fn attach_child_webview_shortcuts(
                 COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
                 COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN,
             };
-            use webview2_com::AcceleratorKeyPressedEventHandler;
+            use webview2_com::{AcceleratorKeyPressedEventHandler, NewWindowRequestedEventHandler};
             use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
             use tauri::Emitter;
 
@@ -364,6 +364,41 @@ pub async fn attach_child_webview_shortcuts(
                     }));
 
                     let _ = unsafe { controller.add_AcceleratorKeyPressed(&handler, &mut token) };
+
+                    // Intercept NewWindowRequested (e.g. <a target="_blank"> or window.open)
+                    if let Ok(core) = unsafe { controller.CoreWebView2() } {
+                        let mut nw_token: i64 = 0;
+                        let app_handle_nw = app_handle.clone();
+                        let target_label_nw = target_label.clone();
+                        let target_pid_nw = target_pid.clone();
+
+                        let nw_handler = NewWindowRequestedEventHandler::create(Box::new(move |_webview, args| {
+                            if let Some(args) = args {
+                                let mut uri = windows_core::PWSTR::null();
+                                if unsafe { args.Uri(&mut uri) }.is_ok() && !uri.is_null() {
+                                    let url_str = unsafe { uri.to_string().unwrap_or_default() };
+                                    unsafe { windows_sys::Win32::System::Com::CoTaskMemFree(uri.0 as _) };
+                                    if !url_str.is_empty() && url_str != "about:blank" {
+                                        let payload = serde_json::json!({
+                                            "url": url_str,
+                                            "sourceWebview": &target_label_nw,
+                                            "pluginId": &target_pid_nw,
+                                        });
+
+                                        let _ = app_handle_nw.emit("flurer:webview-new-window", &payload);
+                                        let _ = app_handle_nw.emit(&format!("{}:new-window", target_pid_nw), &payload);
+                                        if target_pid_nw != "web-loader" && target_label_nw.starts_with("web-") {
+                                            let _ = app_handle_nw.emit("web-loader:new-window", &payload);
+                                        }
+                                        let _ = unsafe { args.SetHandled(true) };
+                                    }
+                                }
+                            }
+                            Ok(())
+                        }));
+
+                        let _ = unsafe { core.add_NewWindowRequested(&nw_handler, &mut nw_token) };
+                    }
                 })
                 .map_err(|e| e.to_string())?;
         }
