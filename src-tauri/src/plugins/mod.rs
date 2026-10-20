@@ -254,6 +254,10 @@ pub async fn attach_child_webview_shortcuts(
                     let mut token: i64 = 0;
                     let target_pid = pid.clone();
                     let target_label = label_clone.clone();
+                    let app_handle_accel = app_handle.clone();
+                    let app_handle_nw = app_handle.clone();
+                    let target_label_nw = label_clone.clone();
+                    let target_pid_nw = pid.clone();
 
                     let handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_controller, args| {
                         if let Some(args) = args {
@@ -346,14 +350,14 @@ pub async fn attach_child_webview_shortcuts(
                                         });
 
                                         // 1. Emit globally for Flurer system and host
-                                        let _ = app_handle.emit("flurer:webview-shortcut", &payload);
+                                        let _ = app_handle_accel.emit("flurer:webview-shortcut", &payload);
 
                                         // 2. Emit to plugin-specific channel
-                                        let _ = app_handle.emit(&format!("{}:shortcut", target_pid), &payload);
+                                        let _ = app_handle_accel.emit(&format!("{}:shortcut", target_pid), &payload);
 
                                         // 3. Backwards-compatibility alias for web-loader (if not already emitted above)
                                         if target_pid != "web-loader" && target_label.starts_with("web-") {
-                                            let _ = app_handle.emit("web-loader:shortcut", &payload);
+                                            let _ = app_handle_accel.emit("web-loader:shortcut", &payload);
                                         }
 
                                         let _ = unsafe { args.SetHandled(true) };
@@ -369,9 +373,6 @@ pub async fn attach_child_webview_shortcuts(
                     // Intercept NewWindowRequested (e.g. <a target="_blank"> or window.open)
                     if let Ok(core) = unsafe { controller.CoreWebView2() } {
                         let mut nw_token: i64 = 0;
-                        let app_handle_nw = app_handle.clone();
-                        let target_label_nw = target_label.clone();
-                        let target_pid_nw = target_pid.clone();
 
                         let nw_handler = NewWindowRequestedEventHandler::create(Box::new(move |_webview, args| {
                             if let Some(args) = args {
