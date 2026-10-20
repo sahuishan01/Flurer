@@ -1,9 +1,9 @@
 # Flurer — Handoff: reintroducing the 5 reverted features
 
-**STATUS UPDATE (v0.4.204): the 5-feature reintroduction is long finished;
-the current active project is the "UX improvements in chunks" project —
-see that section at the bottom of this file for exactly what's done,
-what's mid-flight, and what's next.** See "Post-revert work" below for
+**STATUS UPDATE (v0.4.225): the 5-feature reintroduction is long finished;
+the most recent work is the Settings redesign (v0.4.225) — see that
+section below. The "UX improvements in chunks" project that came before it
+is also complete.** See "Post-revert work" below for
 everything shipped since v0.4.109. The historical story below is kept
 because its lessons (one feature per version, never guess-and-patch, Rust
 compiles only in CI) still govern how this repo is worked on.
@@ -444,13 +444,20 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.215**. The UX improvements project (all 8 chunks,
-command palette through tab polish) is complete: every chunk shipped
-through the full release ritual and its Release workflow succeeded.
-Post-project follow-ups v0.4.212 (live plugin progress), v0.4.213 (in-app
-child webviews), v0.4.214 (explorer view-type selector) and v0.4.215
-(plugin-extensible view types) are each also shipped through the same
-ritual.
+`main` is at **v0.4.225** (tag `v0.4.225`; `git describe` reports
+`v0.4.225-2-g...` because the CI-runner commit `4155a68` landed on main
+*during* the release and was merged in afterwards — the merge commit
+`b6ab6ca` keeps the released tag in main's history, which a rebase
+would not have). The Settings redesign (below) shipped in that release
+through the full ritual: Build CI green → bump → tag-only push →
+Release CI green → bump commit pushed → ntfy agent-tasks + agent-releases.
+
+The UX improvements project (all 8 chunks, command palette through tab
+polish) is complete: every chunk shipped through the full release ritual
+and its Release workflow succeeded. Post-project follow-ups v0.4.212
+(live plugin progress), v0.4.213 (in-app child webviews), v0.4.214
+(explorer view-type selector) and v0.4.215 (plugin-extensible view types)
+are each also shipped through the same ritual.
 Settings live in
 `~/.config/flurer/<version>/settings.json` with serde defaults bridging
 old files (see "Settings compatibility" below). The per-version ritual in
@@ -458,6 +465,78 @@ old files (see "Settings compatibility" below). The per-version ritual in
 only after a green build, tag-only push) is the required workflow for any
 new change. This file and AGENTS.md are the source of truth for working
 on this repo.
+
+## Settings redesign (2026-10) — DONE, shipped as v0.4.225
+
+User request: "the settings looks like a ai slop. Redesign it to give it
+a fresh modern look with advanced ux for quick navigation between
+settings, currently I need to scroll a lot."
+
+Commit `ac1c383` (feature) + `70eb22d` (bump) + tag `v0.4.225`.
+Frontend only — **no Rust changes**, so no Rust CI risk. Files:
+new `src/lib/settingsRegistry.ts` (categories, sections, searchable
+items, visibility predicates — data only, no JSX, so icon keys map to
+SVG in the panel), new `src/lib/fuzzy.ts` (`fuzzyScore` extracted from
+`CommandPalette.tsx` plus a stricter `matchScore`), new
+`src/components/settings-ui.tsx` (`SettingsSection`, `SettingRow`,
+`SettingGroup`, and the collapse-state context), new
+`src/components/SettingsSearch.tsx`, rewritten
+`src/components/SettingsPanel.tsx`, restructured
+`src/components/CustomizationSettings.tsx` (1137 → 1302 lines but split
+into 10 anchored sections instead of 3 huge cards), plus
+`ShortcutsSettings`, `UpdatesView`, `SearchIndexSettings`,
+`PluginMarketplace`, `PluginAppearanceSettings`, `App.tsx`, `App.css`,
+`src/lib/plugins.ts`.
+
+What shipped:
+- **Cross-category search** in the header. Fuzzy-matches every
+  individual setting across all categories; a hit switches category,
+  expands the section, scrolls to the control and flashes it. It
+  *navigates* — a query never hides content.
+- **Sticky sub-nav** of section pills per category, acting as a
+  scroll-spy that tracks the scroll position.
+- **Collapsible section cards**; folded state persists per section in
+  `localStorage` (`flurer.settings.collapsed`) — UI state, so no
+  `settings.json` schema change and no Rust migration.
+- **Two-column setting rows** (label + explanation left, control right).
+- **Appearance & Theme split** into Background / Gradient / Solid colour
+  / Wallpaper / Theme / Typography / Behavior / Top bar metrics /
+  Startup & system / Storage. Gradient, Solid colour and Wallpaper are
+  conditional on `backgroundType`.
+
+Three bugs fixed along the way, worth remembering:
+- `SettingsPanel.tsx` called `invoke("get_settings")` **without
+  importing `invoke`** — "Export Settings JSON" threw a `ReferenceError`
+  when clicked. It had been broken since the button was added.
+- The search results popover rendered **underneath** the content pane.
+  `backdrop-filter` on `.settings-header` makes it a stacking context, so
+  the popover's `z-index: 120` was trapped inside it and the later
+  `.settings-body` painted over it. Fixed with
+  `position: relative; z-index: 20` on the header.
+- A plugin "Update" button never showed its busy state.
+
+Two lessons from this work, both about verifying rather than assuming:
+- **A plain subsequence fuzzy match is too permissive for long labels.**
+  "blur" matched "**G**lo**b**al hotkey to ope**n** Fl**u**r**er**" — every
+  letter is present, twenty characters apart. `matchScore` in
+  `src/lib/fuzzy.ts` adds a proximity rule (matched characters must sit
+  within `len * 2 + 2` of each other) and scores keywords one at a
+  time, because scoring a whole keyword list as one string lets a query
+  scatter across unrelated words ("blur" matched "rebuild").
+- **A screenshot is worth more than a careful read of the JSX.** The
+  popover z-index bug was invisible in the code and obvious in a
+  rendered screenshot. The settings screen can be rendered outside the
+  Tauri app with a throwaway `preview.html` + `src/preview.tsx` entry
+  and headless Chromium (`~/.cache/ms-playwright/.../chrome
+  --headless --screenshot`); drive it with a small CDP script over
+  Node's global `WebSocket` when an interaction needs verifying.
+
+Also note: `bun run build` is `vite build` and does **not** typecheck —
+CI will not catch a TypeScript error. Run `./node_modules/.bin/tsc
+--noEmit` locally. The pre-existing baseline on `main` is 12 errors
+(TS6133 unused vars, a missing `openTerminalHere` in App.tsx, an
+`autoComplete`/`autocomplete` casing error in CommandPalette, and two
+more); the redesign removed 5 of them and added none.
 
 ## UX improvements project (2026-09) — CURRENT ACTIVE WORK
 
