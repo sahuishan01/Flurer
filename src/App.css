@@ -2071,6 +2071,10 @@ button.sidebar-drive,
 .file-table th,
 .file-table td,
 .progress-task-label,
+.settings-title,
+.settings-section-title {
+    text-shadow: var(--text-shadow);
+}
 
 .file-list-error-banner {
     display: flex;
