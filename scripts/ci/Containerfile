@@ -1,8 +1,14 @@
 FROM docker.io/library/ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+# xdg-utils provides /usr/bin/xdg-open, which Tauri's AppImage bundler
+# shells out to when it registers the finished image with the desktop.
+# Without it the bundle step dies with "xdg-open binary not found" and
+# takes the whole release with it. desktop-file-utils is the matching
+# dependency for the AppImage plugin's desktop-file validation.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl wget file git unzip xz-utils build-essential \
     libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev \
     libayatana-appindicator3-dev patchelf libfuse2 \
+    xdg-utils desktop-file-utils \
     && rm -rf /var/lib/apt/lists/*
