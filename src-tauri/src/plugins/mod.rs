@@ -164,12 +164,12 @@ pub async fn uninstall_plugin(id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Option<String>, String> {
-    use tauri::Manager;
+    use tauri::{Emitter, Manager};
     if let Some(webview) = app.get_webview(&label) {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
         let eval_res = webview.eval_with_callback(
-            r#"window.location.href"#,
+            r#"(function(){try{if(!window.__flurer_hooked){window.__flurer_hooked=true;window.__flurer_nw=[];document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a"):null;if(a&&a.href){var isB=a.target==="_blank"||a.getAttribute("target")==="_blank";var isM=e.button===1;var isC=(e.ctrlKey||e.metaKey)&&e.button===0;if(isB||isM||isC){e.preventDefault();e.stopPropagation();window.__flurer_nw.push(a.href);}}},true);var _origOpen=window.open;window.open=function(u){if(u){window.__flurer_nw.push(String(u));}return null;};}}catch(e){}var p=(window.__flurer_nw&&window.__flurer_nw.length)?window.__flurer_nw.splice(0):[];return JSON.stringify({url:window.location.href,nw:p});})()"#,
             move |res| {
                 if let Ok(mut guard) = tx.lock() {
                     if let Some(sender) = guard.take() {
@@ -181,10 +181,33 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
 
         if eval_res.is_ok() {
             if let Ok(Ok(raw_json)) = tokio::time::timeout(std::time::Duration::from_millis(400), rx).await {
-                // Parse JSON string returned by eval_with_callback (e.g. "\"https://...\"")
-                if let Ok(parsed_url) = serde_json::from_str::<String>(&raw_json) {
-                    if !parsed_url.is_empty() && parsed_url != "about:blank" {
-                        return Ok(Some(parsed_url));
+                // If it returned JSON with { url, nw }:
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw_json) {
+                    if let Some(obj) = parsed.as_object() {
+                        if let Some(nw_list) = obj.get("nw").and_then(|v| v.as_array()) {
+                            for nw_item in nw_list {
+                                if let Some(target_url) = nw_item.as_str() {
+                                    if !target_url.is_empty() && target_url != "about:blank" {
+                                        let payload = serde_json::json!({
+                                            "url": target_url,
+                                            "sourceWebview": &label,
+                                            "pluginId": "web-loader",
+                                        });
+                                        let _ = app.emit("flurer:webview-new-window", &payload);
+                                        let _ = app.emit("web-loader:new-window", &payload);
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(curr_url) = obj.get("url").and_then(|v| v.as_str()) {
+                            if !curr_url.is_empty() && curr_url != "about:blank" {
+                                return Ok(Some(curr_url.to_string()));
+                            }
+                        }
+                    } else if let Some(parsed_str) = parsed.as_str() {
+                        if !parsed_str.is_empty() && parsed_str != "about:blank" {
+                            return Ok(Some(parsed_str.to_string()));
+                        }
                     }
                 } else if !raw_json.is_empty() && raw_json != "null" && raw_json != "about:blank" {
                     let cleaned = raw_json.trim_matches('"').to_string();
