@@ -1,0 +1,8 @@
+FROM docker.io/library/ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl wget file git unzip xz-utils build-essential \
+    libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev \
+    libayatana-appindicator3-dev patchelf libfuse2 \
+    && rm -rf /var/lib/apt/lists/*
