@@ -225,6 +225,7 @@ pub async fn attach_child_webview_shortcuts(
                 COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN,
             };
             use webview2_com::{AcceleratorKeyPressedEventHandler, NewWindowRequestedEventHandler};
+            use windows_core::PWSTR;
             use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
             use tauri::Emitter;
 
@@ -374,7 +375,7 @@ pub async fn attach_child_webview_shortcuts(
 
                         let nw_handler = NewWindowRequestedEventHandler::create(Box::new(move |_webview, args| {
                             if let Some(args) = args {
-                                let mut uri = windows_core::PWSTR::null();
+                                let mut uri = PWSTR::null();
                                 if unsafe { args.Uri(&mut uri) }.is_ok() && !uri.is_null() {
                                     let url_str = unsafe { uri.to_string().unwrap_or_default() };
                                     unsafe { windows_sys::Win32::System::Com::CoTaskMemFree(uri.0 as _) };

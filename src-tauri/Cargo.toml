@@ -11,7 +11,7 @@ resolver = "2"
 
 [package]
 name = "flurer"
-version = "0.4.221"
+version = "0.4.222"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -91,6 +91,7 @@ windows-sys = { version = "0.59", features = [
 # node/segment stats for utilization and VRAM-in-use. D3DKMT lives under
 # Windows::Wdk in windows-rs, hence the Wdk features.
 webview2-com = "=0.38.2"
+windows-core = "=0.61.2"
 windows = { version = "=0.61.3", features = [
   "Wdk",
   "Wdk_Graphics_Direct3D",

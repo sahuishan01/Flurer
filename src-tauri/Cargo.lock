@@ -1207,7 +1207,7 @@ dependencies = [
 
 [[package]]
 name = "flurer"
-version = "0.4.221"
+version = "0.4.222"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1240,6 +1240,7 @@ dependencies = [
  "watch-protocol",
  "webview2-com",
  "windows 0.61.3",
+ "windows-core 0.61.2",
  "windows-sys 0.59.0",
  "winreg 0.55.0",
  "wmi",
