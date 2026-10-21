@@ -720,6 +720,11 @@ Those two selectors were the **tail of a longer shared selector list**:
 .file-list-error-banner { ... }
 ```
 
+(The `.settings-section` class in these quotes was later renamed to
+`.ui-section` when the settings primitives moved into the shared UI
+kit — see "UI quality pass" above. The quote is left as it was, because
+that is the code the lesson is about.)
+
 Deleting the tail removed the rule's **closing brace** as well, so the
 list ran straight into the next rule and merged with it. Everything in
 the list inherited `.file-list-error-banner`'s declarations — a red
@@ -747,10 +752,14 @@ Rules to take from it:
 
 Also note: `bun run build` is `vite build` and does **not** typecheck —
 CI will not catch a TypeScript error. Run `./node_modules/.bin/tsc
---noEmit` locally. The pre-existing baseline on `main` is 12 errors
-(TS6133 unused vars, a missing `openTerminalHere` in App.tsx, an
-`autoComplete`/`autocomplete` casing error in CommandPalette, and two
-more); the redesign removed 5 of them and added none.
+--noEmit` locally. The pre-existing baseline on `main` is **7 errors**
+(TS6133 unused vars in `App.tsx`, `ExplorerPathBar.tsx` and
+`FileList.tsx`; a missing `openTerminalHere` in `App.tsx`; an
+`autoComplete`/`autocomplete` casing error in `CommandPalette`; a wrong
+arity call in `ExplorerPathBar`; and a MouseEvent/PointerEvent mismatch
+in `ExplorerTabs`). These are pre-existing and out of scope — do not
+fix them opportunistically; just do not add to them. A change is clean
+when the count stays at 7 and the distribution is unchanged.
 
 ## UX improvements project (2026-09) — CURRENT ACTIVE WORK
 
