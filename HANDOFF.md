@@ -444,10 +444,15 @@ unverified until CI is green.
 
 ## Current git state
 
-`main` is at **v0.4.227**. The Settings redesign shipped in v0.4.225
-(plus the CI image fix in v0.4.226) and the explorer layout regression
-it introduced was fixed in v0.4.227 — see "The CSS merge that broke the
-explorer" below for what went wrong and how it was caught.
+`main` is at **v0.4.231**. The Settings redesign shipped in v0.4.225
+(plus the CI image fix in v0.4.226); the explorer layout regression it
+introduced was fixed in v0.4.227 — see "The CSS merge that broke the
+explorer" below for what went wrong and how it was caught — and the
+plugin-to-plugin settings switch was fixed in v0.4.231 (see "Solid's
+`<Show>` needs `keyed`" below).
+
+v0.4.228–v0.4.230 were the child-webview shortcut work, landed
+separately.
 
 The release ritual is unchanged: Build CI green → bump → tag-only push
 → Release CI green → bump commit pushed → ntfy agent-tasks +
@@ -522,6 +527,44 @@ Three bugs fixed along the way, worth remembering:
   `.settings-body` painted over it. Fixed with
   `position: relative; z-index: 20` on the header.
 - A plugin "Update" button never showed its busy state.
+
+### Solid's `<Show>` needs `keyed` when `when` is a value, not a boolean
+
+Switching from one plugin's settings straight to another plugin's
+settings left the first plugin's panel on screen. Switching from a
+global settings category into a plugin worked, which made it look like
+a plugin problem rather than a rendering one.
+
+It is neither — it is Solid's `<Show>`. Without `keyed`, Show's
+condition memo uses `equals: (a, b) => !a === !b`, i.e. it only
+re-renders its children when the **truthiness** of `when` changes:
+
+```js
+const condition = keyed ? conditionValue : createMemo(conditionValue, undefined, {
+  equals: (a, b) => !a === !b
+});
+```
+
+`SettingsPanel` passed the plugin id as `when`, which is always a
+truthy string, so going from `"plugin-alpha"` to `"plugin-beta"` never
+re-invoked the children function and the previous panel stayed mounted.
+Coming from a global category changed truthiness (`undefined` → string),
+which is why that direction worked.
+
+`keyed` makes Show compare the value itself, so the children are
+recreated for the newly selected plugin. Note that with `keyed` the
+child receives the **value**, not an accessor — `pluginCategory` rather
+than `pluginCategory()`.
+
+This bug predates the settings redesign; the same `<Show>` was there
+before it. The general rule: **if `when` can be truthy in more than one
+distinct state, `<Show>` needs `keyed`** — otherwise it only reacts to
+the truthiness edge. The same trap applies to `<Switch>`/`<Match>` and
+to any conditional rendering keyed on a changing value.
+
+Fix: `1483ade` (v0.4.231). Verified with two mock plugins registered
+in the preview harness — alpha → beta, beta → alpha and global → plugin
+all render the right panel and the right `pluginSettings`.
 
 Two lessons from this work, both about verifying rather than assuming:
 - **A plain subsequence fuzzy match is too permissive for long labels.**
