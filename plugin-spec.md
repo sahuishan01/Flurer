@@ -284,11 +284,18 @@ Two things to know:
   and no hits in the search. That is deliberate: the registry is the
   single source of truth for the core settings, and a plugin that wants
   to be findable can expose its own controls inside its panel.
-- **Use the shared primitives.** `SettingsSection` and `SettingRow`
-  from `src/components/settings-ui.tsx` give your panel the same
+- **Use the shared primitives.** `CollapsibleSection`, `FieldRow` and
+  `FieldGroup` from Flurer's shared UI kit give your panel the same
   collapsible cards and two-column rows as the core settings, and they
-  keep working when the user changes theme. The same theme tokens
-  listed above apply.
+  keep working when the user changes theme. Plugins are IIFE bundles
+  with no module loader, so reach them through the global
+  `window.FlurerUI` rather than importing them:
+
+  ```js
+  const { CollapsibleSection, FieldRow } = window.FlurerUI;
+  ```
+
+  The same theme tokens listed above apply.
 
 ## 6. Reserved `pluginSettings` keys
 

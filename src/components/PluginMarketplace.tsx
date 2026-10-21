@@ -10,7 +10,8 @@ import {
 } from "../lib/plugins";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+import { FieldGroup, FieldRow } from "./ui/Field";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 
 type PluginMarketplaceProps = {
   disabledPlugins: string[];
@@ -276,7 +277,7 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
 
   return (
     <div class="plugin-marketplace">
-      <SettingsSection
+      <CollapsibleSection
         id="plugins.marketplace"
         title="Marketplace"
         description="Install plugins from a GitHub repo or a ZIP file."
@@ -304,9 +305,9 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
           )}
         </Show>
 
-        <SettingGroup>
+        <FieldGroup>
           {/* ── Install from GitHub ───────────────────────────────────── */}
-          <SettingRow
+          <FieldRow
             id="plugins.marketplace.github"
             label="Install from GitHub"
             description="Fetches the latest release from the repo and installs the first .zip asset found."
@@ -326,10 +327,10 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                 </button>
               </div>
             </div>
-          </SettingRow>
+          </FieldRow>
 
           {/* ── Install from ZIP ──────────────────────────────────────── */}
-          <SettingRow
+          <FieldRow
             id="plugins.marketplace.zip"
             label="Install from ZIP"
             description="Select a .zip file that contains plugin.json and the plugin code."
@@ -343,17 +344,17 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                 </button>
               </div>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
 
-      <SettingsSection
+      <CollapsibleSection
         id="plugins.available"
         title="Available plugins"
         description="Browse the published plugin registry."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="plugins.available.registry"
             label="Registry"
             description="Plugins published to Flurer's registry, installable in one click."
@@ -425,17 +426,17 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
           )}
         </Show>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
 
-      <SettingsSection
+      <CollapsibleSection
         id="plugins.installed"
         title="Installed plugins"
         description="Enable, update or remove plugins you have installed."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="plugins.installed.list"
             label="Installed plugins"
             description="Disable a plugin to unload it without uninstalling it."
@@ -527,9 +528,9 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
           </div>
         </Show>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
     </div>
   );
 }

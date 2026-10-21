@@ -7,7 +7,8 @@ import {
   type InAppShortcutAction,
 } from "../lib/shortcuts";
 import { DEFAULT_GLOBAL_SHORTCUT } from "../lib/settings";
-import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+import { FieldGroup, FieldRow } from "./ui/Field";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 
 // Section ids mirror the settings registry (src/lib/settingsRegistry.ts)
 // so the sub-nav and the search index can find these cards. The group
@@ -68,13 +69,13 @@ export function ShortcutsSettings(props: ShortcutsSettingsProps) {
 
   return (
     <div class="shortcuts-settings">
-      <SettingsSection
+      <CollapsibleSection
         id="shortcuts.global"
         title="System & global"
         description="Flurer's own hotkeys, including the one that works outside the app."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="shortcuts.global.hotkey"
             label="Global hotkey to open Flurer"
             description="Opens a new window from anywhere across Windows, even when Flurer is minimized or in the background."
@@ -103,20 +104,20 @@ export function ShortcutsSettings(props: ShortcutsSettingsProps) {
                 </button>
               </Show>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
 
       <For each={IN_APP_SHORTCUT_CATEGORIES}>
         {(group) => {
           const slug = GROUP_SLUGS[group.category] ?? group.category.toLowerCase().replace(/\s+/g, "-");
           return (
-            <SettingsSection
+            <CollapsibleSection
               id={`shortcuts.${slug}`}
               title={group.category}
               description={`Shortcuts for ${group.category.toLowerCase()}.`}
             >
-              <SettingGroup>
+              <FieldGroup>
                 <For each={group.actions}>
                   {(action) => {
                     const currentCombo = () =>
@@ -125,7 +126,7 @@ export function ShortcutsSettings(props: ShortcutsSettingsProps) {
                       currentCombo() !== DEFAULT_IN_APP_SHORTCUTS[action];
 
                     return (
-                      <SettingRow
+                      <FieldRow
                         id={`shortcuts.${slug}.${action}`}
                         label={IN_APP_SHORTCUT_LABELS[action]}
                         description={`Default: ${DEFAULT_IN_APP_SHORTCUTS[action]}`}
@@ -159,12 +160,12 @@ export function ShortcutsSettings(props: ShortcutsSettingsProps) {
                             </button>
                           </Show>
                         </div>
-                      </SettingRow>
+                      </FieldRow>
                     );
                   }}
                 </For>
-              </SettingGroup>
-            </SettingsSection>
+              </FieldGroup>
+            </CollapsibleSection>
           );
         }}
       </For>

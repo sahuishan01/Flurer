@@ -13,7 +13,7 @@ import type { MetricKind, TopBarMetrics } from "../lib/settings";
 import { PluginMarketplace } from "./PluginMarketplace";
 import { PluginAppearanceSettings } from "./PluginAppearanceSettings";
 import { SettingsSearch, type SettingsSearchHit } from "./SettingsSearch";
-import { SettingsUiProvider, createSettingsUi } from "./settings-ui";
+import { CollapsibleProvider, createCollapsibleState } from "./ui/CollapsibleSection";
 import {
     SETTINGS_CATEGORIES,
     allVisibleSections,
@@ -25,6 +25,9 @@ import {
 } from "../lib/settingsRegistry";
 
 const LAST_CATEGORY_STORAGE_KEY = "flurer.settings.category";
+// Which sections are folded. Pure UI state, so it stays in localStorage
+// rather than the persisted settings.json.
+const COLLAPSED_STORAGE_KEY = "flurer.settings.collapsed";
 
 const CATEGORY_ICONS: Record<SettingsCategoryIcon, () => any> = {
     palette: () => (
@@ -151,7 +154,8 @@ type SettingsPanelProps = {
 type NavEntry = Omit<SettingsCategoryDef, "id"> & { id: string; iconKey: SettingsCategoryIcon | "plugin" };
 
 export function SettingsPanel(props: SettingsPanelProps) {
-    const ui = createSettingsUi();
+    // Folded sections persist across restarts, keyed per section id.
+    const ui = createCollapsibleState({ storageKey: COLLAPSED_STORAGE_KEY });
 
     const [category, setCategory] = createSignal<string>("customization");
     const [activeSection, setActiveSection] = createSignal<string>("");
@@ -328,7 +332,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
     }
 
     return (
-        <SettingsUiProvider value={ui}>
+        <CollapsibleProvider value={ui}>
             <div class="settings-page" data-bg-lightness={props["data-bg-lightness"]}>
                 <header class="settings-header">
                     <div class="settings-header-identity">
@@ -519,6 +523,6 @@ export function SettingsPanel(props: SettingsPanelProps) {
                     </div>
                 </div>
             </div>
-        </SettingsUiProvider>
+        </CollapsibleProvider>
     );
 }

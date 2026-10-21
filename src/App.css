@@ -2109,7 +2109,7 @@ button.sidebar-drive,
 .file-table td,
 .progress-task-label,
 .settings-title,
-.settings-section-title {
+.ui-section-title {
     text-shadow: var(--text-shadow);
 }
 
@@ -2790,11 +2790,11 @@ button.sidebar-drive,
 /* Two-column setting rows need more width than a phone has; below this
    the control drops under its label. */
 @media (max-width: 900px) {
-    .setting-row {
+    .ui-field-row {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .setting-row-control {
+    .ui-field-row-control {
         justify-content: flex-start;
     }
 
@@ -2871,7 +2871,7 @@ button.sidebar-drive,
 /* Section card — Fluent card treatment: no drop shadow (the design
    system says blur and tint carry the depth), just a 1px border and an
    inset top highlight. */
-.settings-section {
+.ui-section {
     margin-bottom: 0.85em;
     border-radius: var(--radius-md);
     background-color: var(--card-bg);
@@ -2879,7 +2879,7 @@ button.sidebar-drive,
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
-.settings-section-head {
+.ui-section-head {
     display: flex;
     align-items: flex-start;
     gap: 0.5em;
@@ -2895,11 +2895,11 @@ button.sidebar-drive,
     transition: background-color 0.14s ease;
 }
 
-.settings-section-head:hover {
+.ui-section-head:hover {
     background-color: var(--hover-bg);
 }
 
-.settings-section-chevron {
+.ui-section-chevron {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2911,23 +2911,23 @@ button.sidebar-drive,
     transition: transform 0.18s ease;
 }
 
-.settings-section-chevron svg {
+.ui-section-chevron svg {
     width: 1em;
     height: 1em;
 }
 
-.settings-section.is-collapsed .settings-section-chevron {
+.ui-section.is-collapsed .ui-section-chevron {
     transform: rotate(-90deg);
 }
 
-.settings-section-titles {
+.ui-section-titles {
     display: flex;
     flex-direction: column;
     gap: 0.1em;
     min-width: 0;
 }
 
-.settings-section-title {
+.ui-section-title {
     font-family: var(--font-display);
     font-size: 1.02em;
     font-weight: 600;
@@ -2935,29 +2935,29 @@ button.sidebar-drive,
     letter-spacing: -0.005em;
 }
 
-.settings-section-desc {
+.ui-section-desc {
     font-size: var(--text-caption);
     color: var(--text-secondary);
     line-height: 1.4;
 }
 
-.settings-section-body {
+.ui-section-body {
     padding: 0 1em 0.85em;
 }
 
-.settings-section.is-collapsed .settings-section-body {
+.ui-section.is-collapsed .ui-section-body {
     display: none;
 }
 
 /* Setting rows — two columns: label and explanation on the left,
    control on the right. */
-.setting-group {
+.ui-field-group {
     display: flex;
     flex-direction: column;
     gap: 0.05em;
 }
 
-.setting-row {
+.ui-field-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -2967,31 +2967,31 @@ button.sidebar-drive,
     transition: background-color 0.14s ease;
 }
 
-.setting-row:hover {
+.ui-field-row:hover {
     background-color: var(--hover-bg);
 }
 
-.setting-row-text {
+.ui-field-row-text {
     display: flex;
     flex-direction: column;
     gap: 0.1em;
     min-width: 0;
 }
 
-.setting-row-label {
+.ui-field-row-label {
     font-size: var(--text-label);
     font-weight: 500;
     line-height: 1.35;
 }
 
-.setting-row-desc {
+.ui-field-row-desc {
     font-size: var(--text-caption);
     color: var(--text-secondary);
     line-height: 1.4;
     max-width: 54ch;
 }
 
-.setting-row-control {
+.ui-field-row-control {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -2999,7 +2999,7 @@ button.sidebar-drive,
     min-width: 0;
 }
 
-.setting-row-full .setting-row-control {
+.ui-field-row-full .ui-field-row-control {
     grid-column: 1 / -1;
     justify-content: flex-start;
     width: 100%;
@@ -3041,7 +3041,7 @@ button.sidebar-drive,
     gap: 0.6em;
 }
 
-.setting-row-full .setting-control-inline {
+.ui-field-row-full .setting-control-inline {
     justify-content: flex-start;
 }
 
@@ -3597,7 +3597,7 @@ a:hover {
 }
 
 input:not([type="range"]):not([type="color"]):not(.settings-search-input),
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.settings-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
 select {
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
@@ -3615,18 +3615,18 @@ select option {
     background-color: var(--option-bg);
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.settings-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
 select {
     cursor: pointer;
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.settings-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):hover,
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):hover,
 select:hover {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 6%, var(--input-bg));
 }
 
-button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.settings-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):active {
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):active {
     border-color: var(--accent);
     background-color: color-mix(in oklch, var(--accent) 12%, var(--input-bg));
 }
@@ -4623,7 +4623,7 @@ button.danger:not(.context-menu-item):hover {
         padding: 0.5em 0.6em 1.2em;
     }
 
-    .settings-section-body {
+    .ui-section-body {
         padding: 0 0.6em 0.6em;
     }
 
@@ -4693,7 +4693,7 @@ button.danger:not(.context-menu-item):hover {
         padding: 0.4em 0.5em 1em;
     }
 
-    .settings-section-body {
+    .ui-section-body {
         padding: 0 0.5em 0.5em;
     }
 

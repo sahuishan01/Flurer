@@ -4,7 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { RefreshIcon } from "./icons";
-import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+import { FieldGroup, FieldRow } from "./ui/Field";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 import { formatBytes } from "../lib/fs";
 
 type UpdateInfo = {
@@ -108,13 +109,13 @@ export function UpdatesView(props: UpdatesViewProps) {
 
   return (
     <div class="updates-view">
-      <SettingsSection
+      <CollapsibleSection
         id="updates.updates"
         title="App updates"
         description="Version checks and the updater."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="updates.updates.autoCheck"
             label="Automatically check for updates"
             description="Check for updates in the background and prompt when a new version is available."
@@ -126,10 +127,10 @@ export function UpdatesView(props: UpdatesViewProps) {
               checked={props.autoCheckUpdates ?? true}
               onChange={(e) => props.onAutoCheckUpdatesChange?.(e.currentTarget.checked)}
             />
-          </SettingRow>
+          </FieldRow>
 
           <Show when={props.autoCheckUpdates ?? true}>
-            <SettingRow
+            <FieldRow
               id="updates.updates.interval"
               label="Auto-check interval"
               description="How often Flurer checks in the background. Changing this resets the check timer immediately."
@@ -150,11 +151,11 @@ export function UpdatesView(props: UpdatesViewProps) {
                 />
                 <span class="setting-value">s</span>
               </div>
-            </SettingRow>
+            </FieldRow>
           </Show>
 
           <Show when={props.ignoredUpdateVersion}>
-            <SettingRow
+            <FieldRow
               id="updates.updates.ignored"
               label="Ignored version"
               description="Flurer won't notify you about this version again."
@@ -165,10 +166,10 @@ export function UpdatesView(props: UpdatesViewProps) {
                   Clear
                 </button>
               </div>
-            </SettingRow>
+            </FieldRow>
           </Show>
 
-          <SettingRow
+          <FieldRow
             id="updates.updates.now"
             label="Check for updates"
             description="Look for a newer release right now."
@@ -188,8 +189,8 @@ export function UpdatesView(props: UpdatesViewProps) {
                 </button>
               </Show>
             </div>
-          </SettingRow>
-        </SettingGroup>
+          </FieldRow>
+        </FieldGroup>
 
         <Show when={downloading() || progress()}>
           <div class="update-progress-container">
@@ -228,21 +229,21 @@ export function UpdatesView(props: UpdatesViewProps) {
             <div class="updates-release-notes">{info()!.releaseBody}</div>
           </Show>
         </Show>
-      </SettingsSection>
+      </CollapsibleSection>
 
-      <SettingsSection
+      <CollapsibleSection
         id="updates.about"
         title="About"
         description="What version you're running."
       >
-        <SettingGroup>
-          <SettingRow id="updates.about.version" label="Current version">
+        <FieldGroup>
+          <FieldRow id="updates.about.version" label="Current version">
             <div class="setting-control-inline">
               <span class="setting-value">v{appVersion()}</span>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
     </div>
   );
 }

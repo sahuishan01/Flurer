@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderPlusIcon, RefreshIcon, TrashIcon } from "./icons";
 import { DirectoryPickerModal } from "./DirectoryPickerModal";
-import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+import { FieldGroup, FieldRow } from "./ui/Field";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 
 type IndexStatus = {
   roots: string[];
@@ -99,7 +100,7 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
   const busy = () => status()?.rebuilding ?? false;
 
   return (
-    <SettingsSection
+    <CollapsibleSection
       id="search-index.index"
       title="Index"
       description="Folders searched from memory instead of being walked on every keystroke."
@@ -114,8 +115,8 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
         <p class="file-list-error selectable-text">{error()}</p>
       </Show>
 
-      <SettingGroup>
-        <SettingRow
+      <FieldGroup>
+        <FieldRow
           id="search-index.index.roots"
           label="Indexed folders"
           description="Every folder listed here is walked in the background and searched from memory."
@@ -147,9 +148,9 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
               )}
             </For>
           </ul>
-        </SettingRow>
+        </FieldRow>
 
-        <SettingRow
+        <FieldRow
           id="search-index.index.rebuild"
           label="Rebuild or clear the index"
           description="Rebuilding re-walks every indexed folder. Clearing throws the index away."
@@ -174,8 +175,8 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
               <TrashIcon /> Clear index
             </button>
           </div>
-        </SettingRow>
-      </SettingGroup>
+        </FieldRow>
+      </FieldGroup>
 
       <Show when={pickerOpen()}>
         <DirectoryPickerModal
@@ -186,6 +187,6 @@ export function SearchIndexSettings(props: SearchIndexSettingsProps) {
           onClose={() => setPickerOpen(false)}
         />
       </Show>
-    </SettingsSection>
+    </CollapsibleSection>
   );
 }

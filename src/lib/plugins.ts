@@ -4,6 +4,8 @@ import * as SolidWeb from "solid-js/web";
 import * as TauriCore from "@tauri-apps/api/core";
 import * as TauriEvent from "@tauri-apps/api/event";
 import * as TauriShell from "@tauri-apps/plugin-shell";
+import { CollapsibleSection } from "../components/ui/CollapsibleSection";
+import { FieldGroup, FieldRow } from "../components/ui/Field";
 import type { ExplorerViewType } from "./view";
 
 export interface PluginInfo {
@@ -124,6 +126,13 @@ export const pluginRegistry = {
 (window as any).registerPlugin = (plugin: PluginInfo) => pluginRegistry.register(plugin);
 (window as any).attachChildWebviewShortcuts = (label: string, pluginId?: string) =>
   TauriCore.invoke("attach_child_webview_shortcuts", { label, pluginId });
+
+// The shared UI kit, so a plugin's settings panel can use the same
+// collapsible card and label/control row as the core settings. Plugins
+// are loaded as IIFE bundles with no module loader, so a plugin cannot
+// import from src/ — it reaches these through the global instead, the
+// same way it reaches Solid.
+(window as any).FlurerUI = { CollapsibleSection, FieldRow, FieldGroup };
 
 /**
  * Attaches native OS-level accelerator key interception to any child/docked webview.

@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js";
 import { pluginsWithAppearanceOverride } from "../lib/plugins";
-import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+import { FieldGroup, FieldRow } from "./ui/Field";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 
 type PluginAppearanceSettingsProps = {
   pluginSettings: Record<string, any>;
@@ -21,7 +22,7 @@ export function PluginAppearanceSettings(props: PluginAppearanceSettingsProps) {
 
   return (
     <Show when={plugins().length > 0}>
-      <SettingsSection
+      <CollapsibleSection
         id="plugins.appearance"
         title="Plugin appearance"
         description="Override how translucent each plugin's panel looks."
@@ -29,7 +30,7 @@ export function PluginAppearanceSettings(props: PluginAppearanceSettingsProps) {
         <p class="settings-hint">
           Left at "Default", a plugin matches Flurer's own Panel Tint/Blur (Appearance &amp; Theme).
         </p>
-        <SettingGroup>
+        <FieldGroup>
           <For each={plugins()}>
             {(plugin) => {
               const current = () => props.pluginSettings[plugin.id] ?? {};
@@ -38,7 +39,7 @@ export function PluginAppearanceSettings(props: PluginAppearanceSettingsProps) {
               const hasOverride = () => current().surfaceOpacity !== undefined || current().surfaceBlur !== undefined;
 
               return (
-                <SettingRow
+                <FieldRow
                   id={`plugins.appearance.${plugin.id}`}
                   label={plugin.name}
                   description="Panel tint and blur for this plugin's own surface."
@@ -79,12 +80,12 @@ export function PluginAppearanceSettings(props: PluginAppearanceSettingsProps) {
                       </button>
                     </Show>
                   </div>
-                </SettingRow>
+                </FieldRow>
               );
             }}
           </For>
-        </SettingGroup>
-      </SettingsSection>
+        </FieldGroup>
+      </CollapsibleSection>
     </Show>
   );
 }

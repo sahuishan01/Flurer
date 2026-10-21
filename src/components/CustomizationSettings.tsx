@@ -24,7 +24,8 @@ import {
   type WallpaperSearchResult,
 } from "../lib/unsplash";
 
-import { SettingGroup, SettingRow, SettingsSection } from "./settings-ui";
+import { FieldGroup, FieldRow } from "./ui/Field";
+import { CollapsibleSection } from "./ui/CollapsibleSection";
 
 const THUMBNAIL_SIZE = 160;
 
@@ -347,13 +348,13 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   return (
     <div class="customization-settings">
       {/* ── Background ──────────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.background"
         title="Background"
         description="How the wallpaper is drawn behind the app."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="customization.background.type"
             label="Background type"
             description="Nothing, a gradient, a flat colour, or photos from Unsplash."
@@ -372,10 +373,10 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 )}
               </For>
             </div>
-          </SettingRow>
+          </FieldRow>
 
           <Show when={props.background.backgroundType !== "none"}>
-            <SettingRow
+            <FieldRow
               id="customization.background.opacity"
               label="Background opacity"
               description="How much of the wallpaper shows through the interface."
@@ -391,20 +392,20 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 />
                 <span class="setting-value">{(props.background.opacity * 100).toFixed(1)}%</span>
               </div>
-            </SettingRow>
+            </FieldRow>
           </Show>
-        </SettingGroup>
-      </SettingsSection>
+        </FieldGroup>
+      </CollapsibleSection>
 
       {/* ── Gradient ────────────────────────────────────────────── */}
       <Show when={props.background.backgroundType === "gradient"}>
-        <SettingsSection
+        <CollapsibleSection
           id="customization.gradient"
           title="Gradient"
           description="A two-colour gradient behind the interface."
         >
-          <SettingGroup>
-            <SettingRow id="customization.gradient.presets" label="Gradient presets" fullWidth>
+          <FieldGroup>
+            <FieldRow id="customization.gradient.presets" label="Gradient presets" fullWidth>
               <div class="swatch-row">
                 <For each={GRADIENT_PRESETS}>
                   {(preset) => (
@@ -432,9 +433,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   )}
                 </For>
               </div>
-            </SettingRow>
+            </FieldRow>
 
-            <SettingRow
+            <FieldRow
               id="customization.gradient.colors"
               label="Gradient colours"
               description="Start colour, end colour and the direction the gradient runs in."
@@ -467,20 +468,20 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   </select>
                 </label>
               </div>
-            </SettingRow>
-          </SettingGroup>
-        </SettingsSection>
+            </FieldRow>
+          </FieldGroup>
+        </CollapsibleSection>
       </Show>
 
       {/* ── Solid colour ───────────────────────────────────────── */}
       <Show when={props.background.backgroundType === "solid"}>
-        <SettingsSection
+        <CollapsibleSection
           id="customization.solid"
           title="Solid colour"
           description="A single flat colour behind the interface."
         >
-          <SettingGroup>
-            <SettingRow id="customization.solid.presets" label="Colour presets" fullWidth>
+          <FieldGroup>
+            <FieldRow id="customization.solid.presets" label="Colour presets" fullWidth>
               <div class="swatch-row">
                 <For each={SOLID_COLOR_PRESETS}>
                   {(color) => (
@@ -495,9 +496,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   )}
                 </For>
               </div>
-            </SettingRow>
+            </FieldRow>
 
-            <SettingRow
+            <FieldRow
               id="customization.solid.custom"
               label="Custom colour"
               description="Any hex value or rgb() expression."
@@ -517,20 +518,20 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   onChange={(e) => props.onBackgroundChange({ solidColor: e.currentTarget.value })}
                 />
               </div>
-            </SettingRow>
-          </SettingGroup>
-        </SettingsSection>
+            </FieldRow>
+          </FieldGroup>
+        </CollapsibleSection>
       </Show>
 
       {/* ── Wallpaper (Unsplash) ───────────────────────────────── */}
       <Show when={props.background.backgroundType === "unsplash"}>
-        <SettingsSection
+        <CollapsibleSection
           id="customization.wallpaper"
           title="Wallpaper"
           description="Photos from Unsplash, on rotation or fixed."
         >
-          <SettingGroup>
-            <SettingRow
+          <FieldGroup>
+            <FieldRow
               id="customization.wallpaper.apiKey"
               label="Unsplash API key"
               description="Required to fetch and search photos."
@@ -561,9 +562,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   <p class="settings-error">{props.apiKeyError}</p>
                 </Show>
               </div>
-            </SettingRow>
+            </FieldRow>
 
-            <SettingRow
+            <FieldRow
               id="customization.wallpaper.rotation"
               label="Rotation"
               description="Show one fixed photo, or rotate through them automatically."
@@ -591,10 +592,10 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   Auto Rotate
                 </button>
               </div>
-            </SettingRow>
+            </FieldRow>
 
             <Show when={props.background.unsplashMode === "fixed"}>
-              <SettingRow
+              <FieldRow
                 id="customization.wallpaper.fixed"
                 label="Get wallpaper"
                 description="Fetch a photo from the first rotation category."
@@ -605,11 +606,11 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                     Get Wallpaper
                   </button>
                 </div>
-              </SettingRow>
+              </FieldRow>
             </Show>
 
             <Show when={props.background.unsplashMode !== "fixed"}>
-              <SettingRow
+              <FieldRow
                 id="customization.wallpaper.source"
                 label="Source"
                 description="Rotate through Unsplash categories, or through your own saved list."
@@ -631,9 +632,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                     From Fixed List
                   </button>
                 </div>
-              </SettingRow>
+              </FieldRow>
 
-              <SettingRow id="customization.wallpaper.frequency" label="Change every">
+              <FieldRow id="customization.wallpaper.frequency" label="Change every">
                 <div class="setting-control-select">
                   <select
                     value={props.background.unsplashChangeFrequencyMs}
@@ -646,10 +647,10 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                     </For>
                   </select>
                 </div>
-              </SettingRow>
+              </FieldRow>
 
               <Show when={props.background.unsplashMode === "autoRotateCategory"}>
-                <SettingRow
+                <FieldRow
                   id="customization.wallpaper.categories"
                   label="Categories"
                   description="Each category contributes photos to the rotation."
@@ -675,9 +676,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                       )}
                     </For>
                   </div>
-                </SettingRow>
+                </FieldRow>
 
-                <SettingRow id="customization.wallpaper.preview" label="Current photo" fullWidth>
+                <FieldRow id="customization.wallpaper.preview" label="Current photo" fullWidth>
                   <div class="fixed-controls">
                     <button
                       type="button"
@@ -708,11 +709,11 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                         : "Save to Fixed List"}
                     </button>
                   </div>
-                </SettingRow>
+                </FieldRow>
               </Show>
 
               <Show when={props.background.unsplashMode === "autoRotateList"}>
-                <SettingRow
+                <FieldRow
                   id="customization.wallpaper.search"
                   label="Search Unsplash"
                   description="Find photos and tick the ones to add to the rotation."
@@ -781,9 +782,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                       </button>
                     </div>
                   </Show>
-                </SettingRow>
+                </FieldRow>
 
-                <SettingRow
+                <FieldRow
                   id="customization.wallpaper.saved"
                   label="Saved wallpapers"
                   description="Photos in your fixed rotation list."
@@ -812,7 +813,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                       </For>
                     </div>
                   </Show>
-                </SettingRow>
+                </FieldRow>
               </Show>
             </Show>
 
@@ -830,18 +831,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 </p>
               )}
             </Show>
-          </SettingGroup>
-        </SettingsSection>
+          </FieldGroup>
+        </CollapsibleSection>
       </Show>
 
       {/* ── Theme ───────────────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.theme"
         title="Theme"
         description="Colour scheme and how translucent the panels are."
       >
-        <SettingGroup>
-          <SettingRow id="customization.theme.theme" label="Theme" fullWidth>
+        <FieldGroup>
+          <FieldRow id="customization.theme.theme" label="Theme" fullWidth>
             <div class="option-group">
               <For each={THEMES}>
                 {(t) => (
@@ -855,9 +856,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 )}
               </For>
             </div>
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.theme.tint"
             label="Panel tint"
             description="How strongly the panels take on the panel colour."
@@ -873,9 +874,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               />
               <span class="setting-value">{(props.uiTintOpacity * 100).toFixed(1)}%</span>
             </div>
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.theme.blur"
             label="Panel blur"
             description="Softens everything behind the interface."
@@ -891,18 +892,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               />
               <span class="setting-value">{props.uiBlurPx.toFixed(0)}px</span>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
 
       {/* ── Typography ──────────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.typography"
         title="Typography"
         description="Typeface and interface scale."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="customization.typography.family"
             label="Font family"
             description="Pick a preset or search the fonts installed on this machine."
@@ -929,9 +930,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 onFontFamilyChange={props.onFontFamilyChange}
               />
             </div>
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.typography.scale"
             label="UI scale"
             description="Scales every size in the interface, including text."
@@ -967,18 +968,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               />
               <span class="setting-suffix">x</span>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
 
       {/* ── Behavior ────────────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.behavior"
         title="Behavior"
         description="How the interface reacts while you work."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="customization.behavior.tooltipDelay"
             label="Sidebar tooltip delay"
             description="How long to wait before a sidebar tooltip appears."
@@ -994,9 +995,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               />
               <span class="setting-value">{props.sidebarTooltipDelayMs}ms</span>
             </div>
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.behavior.progress"
             label="Always show progress indicator"
             description="Keeps the progress panel visible even when nothing is running."
@@ -1008,9 +1009,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.showProgressWhenIdle}
               onChange={(e) => props.onShowProgressWhenIdleChange(e.currentTarget.checked)}
             />
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.behavior.folderSize"
             label="Automatically update folder sizes"
             description="Uses file changes to keep cached folder sizes current. Disable to avoid background size work while files are changing."
@@ -1022,9 +1023,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.liveFolderSizeUpdates}
               onChange={(e) => props.onLiveFolderSizeUpdatesChange(e.currentTarget.checked)}
             />
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.behavior.history"
             label="Maximum recent history items"
             description="How many recently visited folders are kept in the sidebar."
@@ -1039,9 +1040,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 onChange={(e) => props.onMaxHistoryItemsChange(e.currentTarget.valueAsNumber)}
               />
             </div>
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.behavior.hiddenFiles"
             label="Show hidden files and folders"
             description="Shows items starting with a dot or flagged as hidden in file listings (shortcut: Ctrl+H)."
@@ -1053,9 +1054,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.showHiddenFiles ?? false}
               onChange={(e) => props.onShowHiddenFilesChange?.(e.currentTarget.checked)}
             />
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.behavior.restoreState"
             label="Preserve last folder state on reopen"
             description="Restores the folder location you were viewing when Flurer was last closed instead of starting at the default drive."
@@ -1067,18 +1068,18 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.restoreLastStateOnReopen ?? false}
               onChange={(e) => props.onRestoreLastStateOnReopenChange?.(e.currentTarget.checked)}
             />
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
 
       {/* ── Top bar metrics ─────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.metrics"
         title="Top bar metrics"
         description="Live CPU, memory, GPU, drive and network widgets."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="customization.metrics.enabled"
             label="Show system metrics in the top bar"
             description="Hover a widget for details; click it to keep the panel open."
@@ -1090,10 +1091,10 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.topBarMetrics.enabled}
               onChange={(e) => props.onTopBarMetricsChange({ enabled: e.currentTarget.checked })}
             />
-          </SettingRow>
+          </FieldRow>
 
           <Show when={props.topBarMetrics.enabled}>
-            <SettingRow id="customization.metrics.interval" label="Refresh interval">
+            <FieldRow id="customization.metrics.interval" label="Refresh interval">
               <div class="setting-control-select">
                 <select
                   value={String(props.topBarMetrics.intervalSeconds)}
@@ -1102,9 +1103,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   <For each={[1, 2, 3, 5, 10]}>{(s) => <option value={String(s)}>{s} s</option>}</For>
                 </select>
               </div>
-            </SettingRow>
+            </FieldRow>
 
-            <SettingRow
+            <FieldRow
               id="customization.metrics.devices"
               label="Devices"
               description="Pick which devices get a widget in the top bar."
@@ -1194,19 +1195,19 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                   </Show>
                 </div>
               </div>
-            </SettingRow>
+            </FieldRow>
           </Show>
-        </SettingGroup>
-      </SettingsSection>
+        </FieldGroup>
+      </CollapsibleSection>
 
       {/* ── Startup & system ────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.startup"
         title="Startup & system"
         description="How Flurer launches and integrates with the OS."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="customization.startup.launchAtStartup"
             label="Launch at startup"
             description="Closing the window now minimizes to the tray instead of quitting, so the global hotkey keeps working. Enable this too if you want it live from the moment you log in, not just after opening Flurer once."
@@ -1218,9 +1219,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.launchAtStartup}
               onChange={(e) => props.onLaunchAtStartupChange(e.currentTarget.checked)}
             />
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.startup.launchAsAdmin"
             label="Always run as administrator"
             description="Prompts for UAC and relaunches elevated when enabled, and on every future launch. Turning it off takes effect the next time Flurer is started normally."
@@ -1232,9 +1233,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               checked={props.launchAsAdmin}
               onChange={(e) => props.onLaunchAsAdminChange(e.currentTarget.checked)}
             />
-          </SettingRow>
+          </FieldRow>
 
-          <SettingRow
+          <FieldRow
             id="customization.startup.path"
             label="Environment PATH"
             description="Appends Flurer's installation directory to your user PATH environment variable so you can launch `flurer .` or `flurer <folder>` directly from any terminal."
@@ -1256,22 +1257,22 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 <span class="settings-success">✓ Flurer is in user PATH</span>
               </Show>
             </div>
-          </SettingRow>
+          </FieldRow>
 
           <Show when={pathMessage()}>
             <p class="setting-note">{pathMessage()}</p>
           </Show>
-        </SettingGroup>
-      </SettingsSection>
+        </FieldGroup>
+      </CollapsibleSection>
 
       {/* ── Storage ─────────────────────────────────────────────── */}
-      <SettingsSection
+      <CollapsibleSection
         id="customization.storage"
         title="Storage"
         description="The folder-size cache and how much it holds."
       >
-        <SettingGroup>
-          <SettingRow
+        <FieldGroup>
+          <FieldRow
             id="customization.storage.cache"
             label="Folder size cache"
             description="Sizes recompute automatically as folders are revisited — clearing just frees the memory and disk this has built up, it doesn't affect anything else."
@@ -1293,9 +1294,9 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 {clearingCache() ? "Clearing…" : "Clear cache"}
               </button>
             </div>
-          </SettingRow>
-        </SettingGroup>
-      </SettingsSection>
+          </FieldRow>
+        </FieldGroup>
+      </CollapsibleSection>
     </div>
   );
 }

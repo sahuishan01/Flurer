@@ -323,15 +323,20 @@ The Settings screen is three stacked zones: a **header** (mica strip), a **categ
   It sits *outside* the scrolling pane, so it stays put without `position: sticky`. The
   active pill follows the scroll position (scroll-spy). Shown only when the category has
   more than one section.
-- **Section card** — `.settings-section`. A disclosure: the header is a button carrying a
+- **Section card** — `.ui-section`. A disclosure: the header is a button carrying a
   chevron, the title and a one-line description. Folded state persists per section in
   `localStorage` (`flurer.settings.collapsed`) — it is UI state, so it deliberately does
   not live in the persisted `settings.json`. Cards use an inset top highlight instead of a
   drop shadow: blur and tint carry the depth in this design language.
-- **Setting row** — `.setting-row`. Two columns: label and explanation on the left,
+- **Field row** — `.ui-field-row`. Two columns: label and explanation on the left,
   control on the right. Scalars (sliders, selects, checkboxes, numbers) use this;
   choice sets (option groups, swatch rows, image grids) set `fullWidth` and put the
   control on its own line beneath the label.
+
+  Both the section card and the field row are shared UI-kit primitives
+  (`src/components/ui/`), not settings-only markup: a modal, a plugin panel, or
+  the properties dialog can render the same disclosure and row. Plugins reach
+  them through `window.FlurerUI`.
 - **Settings search** — a fuzzy match over every individual setting in the app, not just
   the current page. It *navigates*: a hit switches category, expands the section, scrolls
   to the control and flashes it. Nothing is ever hidden by a query — the old behaviour
