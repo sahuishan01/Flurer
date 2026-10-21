@@ -474,9 +474,18 @@ export function SettingsPanel(props: SettingsPanelProps) {
                                 />
                             </Show>
 
-                            <Show when={category().startsWith("plugin-") ? category() : undefined}>
+                            {/* `keyed` is required here: without it Solid's Show
+                                only re-renders its children when the truthiness
+                                of `when` changes, and `when` is a plugin id —
+                                always a truthy string. Switching straight from
+                                a plugin to another plugin would therefore keep
+                                the first plugin's panel on screen. */}
+                            <Show
+                                when={category().startsWith("plugin-") ? category() : undefined}
+                                keyed
+                            >
                                 {(pluginCategory) => {
-                                    const id = pluginCategory().substring(7); // "plugin-".length is 7
+                                    const id = pluginCategory.substring(7); // "plugin-".length is 7
                                     const p = registeredPlugins().find((x) => x.id === id);
                                     if (!p || !p.settingsPanel) return null;
                                     return p.settingsPanel({
