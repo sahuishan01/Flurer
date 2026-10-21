@@ -304,6 +304,16 @@ pub async fn get_docked_webview_info(app: AppHandle, label: String) -> Result<Op
     Ok(None)
 }
 
+#[cfg(windows)]
+static LETTER_SHORTCUTS: [(&'static str, &'static str); 26] = [
+    ("a", "KeyA"), ("b", "KeyB"), ("c", "KeyC"), ("d", "KeyD"), ("e", "KeyE"),
+    ("f", "KeyF"), ("g", "KeyG"), ("h", "KeyH"), ("i", "KeyI"), ("j", "KeyJ"),
+    ("k", "KeyK"), ("l", "KeyL"), ("m", "KeyM"), ("n", "KeyN"), ("o", "KeyO"),
+    ("p", "KeyP"), ("q", "KeyQ"), ("r", "KeyR"), ("s", "KeyS"), ("t", "KeyT"),
+    ("u", "KeyU"), ("v", "KeyV"), ("w", "KeyW"), ("x", "KeyX"), ("y", "KeyY"),
+    ("z", "KeyZ"),
+];
+
 /// Native Windows accelerator key interception (Solution 2) for child/docked webviews.
 /// Intercepts accelerator keys on the ICoreWebView2Controller before WebView2 consumes
 /// or drops them, and emits:
@@ -407,10 +417,18 @@ pub async fn attach_child_webview_shortcuts(
                                         0x72 => Some(("F3", "F3")),
                                         // 'B' = 0x42 (Ctrl+B: Sidebar)
                                         0x42 if is_ctrl => Some(("b", "KeyB")),
-                                        // 'C' = 0x43 (Ctrl+Shift+C: Toggle Compact Tab View)
-                                        0x43 if is_ctrl && is_shift => Some(("C", "KeyC")),
-                                        // 'G' = 0x47 (Ctrl+Shift+G: New Group / Workspace)
-                                        0x47 if is_ctrl && is_shift => Some(("G", "KeyG")),
+                                        // Any Ctrl+Alt+<letter> combination (A..Z)
+                                        c @ 0x41..=0x5A if is_ctrl && is_alt => {
+                                            Some(LETTER_SHORTCUTS[(c - 0x41) as usize])
+                                        }
+                                        // 'C' = 0x43 (Ctrl+Shift+C / Ctrl+Alt+C / Alt+C)
+                                        0x43 if (is_ctrl && (is_shift || is_alt)) || is_alt => {
+                                            if is_shift { Some(("C", "KeyC")) } else { Some(("c", "KeyC")) }
+                                        }
+                                        // 'G' = 0x47 (Ctrl+Shift+G / Ctrl+Alt+G / Ctrl+G)
+                                        0x47 if is_ctrl => {
+                                            if is_shift { Some(("G", "KeyG")) } else { Some(("g", "KeyG")) }
+                                        }
                                         // Tab = 0x09 (Ctrl+Tab)
                                         0x09 if is_ctrl => Some(("tab", "Tab")),
                                         // Digits '1'..='9' (0x31..=0x39)
