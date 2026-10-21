@@ -18,9 +18,11 @@ rustup_home=${RUSTUP_HOME:-$HOME/.rustup}
 bun_home=${BUN_INSTALL:-$HOME/.bun}
 node_home=$(dirname "$(dirname "$(command -v node)")")
 build_home="$HOME/.cache/flurer-linux-home"
-# RUNNER_TEMP is a CI-only variable. Fall back to a local temp directory
-# so the script can also be run by hand on a build host.
-runner_temp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+# RUNNER_TEMP is a CI-only variable. Fall back to a local directory so
+# the script can also be run by hand on a build host. It lives under the
+# build home rather than /tmp because /tmp cannot be relabelled by
+# SELinux, and a relabelled mount is needed on such a host.
+runner_temp=${RUNNER_TEMP:-$build_home/tmp}
 mkdir -p "$build_home" "$cargo_home" "$rustup_home" "$bun_home" "$runner_temp"
 
 # Locate a usable bun binary. On CI, setup-bun puts one at
@@ -43,10 +45,11 @@ bun_bin_dir=$(dirname "$bun_bin")
 bun_bin_name=$(basename "$bun_bin")
 
 # On a SELinux-enforcing host, a volume mounted from a directory the
-# container cannot traverse is unreadable unless it is relabelled. CI
-# runners do not need this, so it is applied only when SELinux is on.
+# container cannot traverse is unreadable unless it is relabelled. This
+# is applied only outside CI, so the CI mounts stay exactly as they were
+# and a CI runner's own temp directory is never relabelled.
 label=""
-if [ "$(getenforce 2>/dev/null || true)" = "Enforcing" ]; then
+if [ -z "${GITHUB_ACTIONS:-}" ] && [ "$(getenforce 2>/dev/null || true)" = "Enforcing" ]; then
   label=":z"
 fi
 # vol HOST_PATH:CONTAINER_PATH[:ro] — the SELinux label goes on the
