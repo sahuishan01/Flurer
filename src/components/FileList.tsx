@@ -128,6 +128,10 @@ function formatModified(modified: number | null): string {
   return new Date(modified * 1000).toLocaleString();
 }
 
+// The sort arrow glyph. Purely decorative — aria-sort on the <th> is what
+// carries the sort state to assistive tech, so the glyph is rendered inside
+// an aria-hidden span (see renderSortHeader) to keep it from being read out
+// as stray punctuation.
 function sortIndicator(active: boolean, direction: SortDirection): string {
   if (!active) return "";
   return direction === "ascending" ? " ▲" : " ▼";
@@ -1270,6 +1274,23 @@ export function FileList(props: FileListProps) {
     return flatItems().slice(start, end);
   });
 
+  // The "nothing here" placeholder row, shown in place of the (zero) rows.
+  const showEmptyState = createMemo(() => sortedEntries().length === 0 && !listingInFlight());
+
+  // The details table is an ARIA grid, and its rows are virtualized past
+  // 200 entries — only a window of the full listing is ever in the DOM.
+  // Screen readers need the true total (aria-rowcount) and each rendered
+  // row's position within it (aria-rowindex) to make sense of the window
+  // they can see; without them they report "row 3 of 28" for a folder
+  // holding 5,000 files.
+  const gridRowCount = createMemo(() => 1 + flatItems().length + (showEmptyState() ? 1 : 0));
+
+  // aria-rowindex for a row in <tbody>. The <thead> row is row 1, so the
+  // first body row is row 2. The list is virtualized, so only a window of
+  // the rows is ever in the DOM — a rendered row's position is the window's
+  // start plus its offset within the window.
+  const bodyRowIndex = (visibleIndex: number) => 2 + visibleRange().start + visibleIndex;
+
   const topSpacerHeight = createMemo(() => (virtualized() ? itemOffsets()[visibleRange().start] : 0));
   const bottomSpacerHeight = createMemo(() => {
     if (!virtualized()) return 0;
@@ -2152,6 +2173,8 @@ export function FileList(props: FileListProps) {
           "file-grid-tile-selected": selected().has(entry.path),
           "file-grid-tile-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
         }}
+        role="option"
+        aria-selected={selected().has(entry.path)}
         tabIndex={0}
         data-row-path={entry.path}
         data-drop-path={entry.isDir ? entry.path : undefined}
@@ -2189,7 +2212,38 @@ export function FileList(props: FileListProps) {
     );
   }
 
-  function renderRow(entry: DirEntry, index: () => number) {
+  // Sortable column header. The grid pattern expects a header that offers
+  // a sort function to be reachable by keyboard, so the <th> is focusable
+  // and Enter/Space sort just like a click does.
+  //
+  // stopImmediatePropagation on those two keys: the file list's own keydown
+  // listener also lives on `document` (same node as Solid's delegated
+  // handler), where a plain stopPropagation doesn't prevent it from firing —
+  // Space would otherwise also run the row-selection path and Enter would
+  // open the selected file.
+  function renderSortHeader(label: string, key: SortKey) {
+    const active = () => props.sortKey === key;
+    return (
+      <th
+        class="sortable"
+        scope="col"
+        aria-sort={active() ? props.sortDirection : "none"}
+        tabIndex={0}
+        onClick={() => props.onSortChange(key)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          props.onSortChange(key);
+        }}
+      >
+        {label}
+        <span aria-hidden="true">{sortIndicator(active(), props.sortDirection)}</span>
+      </th>
+    );
+  }
+
+  function renderRow(entry: DirEntry, index: () => number, ariaRowIndex: () => number) {
     return (
       <tr
         class="file-row"
@@ -2202,7 +2256,8 @@ export function FileList(props: FileListProps) {
           "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
         }}
         tabIndex={0}
-        role="row"
+        aria-selected={selected().has(entry.path)}
+        aria-rowindex={ariaRowIndex()}
         data-row-path={entry.path}
         data-drop-path={entry.isDir ? entry.path : undefined}
         onMouseDown={(e) => handleRowMouseDown(e, entry)}
@@ -2297,9 +2352,9 @@ export function FileList(props: FileListProps) {
             />
           )}
         </Show>
-        <div class="file-grid">
-          <Show when={sortedEntries().length === 0 && !listingInFlight()}>
-            <div class="file-grid-empty">
+        <div class="file-grid" role="listbox" aria-label={`Files in ${baseName(props.path)}`} aria-multiselectable="true">
+          <Show when={showEmptyState()}>
+            <div class="file-grid-empty" role="presentation">
               <FolderIcon size={24} />
               <span>{isSearching() ? "No results match your search" : "This folder is empty"}</span>
             </div>
@@ -2316,7 +2371,7 @@ export function FileList(props: FileListProps) {
               <For each={sections()}>
                 {(section) => (
                   <>
-                    <div class="file-grid-section-header">
+                    <div class="file-grid-section-header" role="presentation">
                       <span class="group-header-label">{section.label}</span>
                       <span class="group-header-count">{section.entries.length}</span>
                     </div>
@@ -2458,24 +2513,24 @@ export function FileList(props: FileListProps) {
             />
           )}
         </Show>
-        <table class="file-table">
+        <table
+          class="file-table"
+          role="grid"
+          aria-label={`Files in ${baseName(props.path)}`}
+          aria-multiselectable="true"
+          aria-rowcount={gridRowCount()}
+        >
           <thead>
-            <tr>
-              <th class="sortable" onClick={() => props.onSortChange("name")}>
-                Name{sortIndicator(props.sortKey === "name", props.sortDirection)}
-              </th>
-              <th class="sortable" onClick={() => props.onSortChange("size")}>
-                Size{sortIndicator(props.sortKey === "size", props.sortDirection)}
-              </th>
-              <th class="sortable" onClick={() => props.onSortChange("modified")}>
-                Modified{sortIndicator(props.sortKey === "modified", props.sortDirection)}
-              </th>
-              {isSearching() && <th>Location</th>}
+            <tr aria-rowindex={1}>
+              {renderSortHeader("Name", "name")}
+              {renderSortHeader("Size", "size")}
+              {renderSortHeader("Modified", "modified")}
+              {isSearching() && <th scope="col">Location</th>}
             </tr>
           </thead>
           <tbody>
-            <Show when={sortedEntries().length === 0 && !listingInFlight()}>
-              <tr>
+            <Show when={showEmptyState()}>
+              <tr aria-rowindex={2}>
                 <td colspan={isSearching() ? 4 : 3} style="text-align:center;padding:3em 1em;opacity:0.5;">
                   <div style="display:flex;flex-direction:column;align-items:center;gap:0.6em;">
                     <FolderIcon size={24} />
@@ -2490,16 +2545,20 @@ export function FileList(props: FileListProps) {
               </tr>
             </Show>
             <For each={visibleItems()}>
-              {(item) =>
+              {(item, i) =>
                 item.kind === "header" ? (
-                  <tr class="group-header-row">
+                  <tr class="group-header-row" aria-rowindex={bodyRowIndex(i())}>
                     <td colspan={isSearching() ? 4 : 3}>
                       <span class="group-header-label">{item.label}</span>
                       <span class="group-header-count">{item.count}</span>
                     </td>
                   </tr>
                 ) : (
-                  renderRow(item.entry, () => indexByPath().get(item.entry.path) ?? 0)
+                  renderRow(
+                    item.entry,
+                    () => indexByPath().get(item.entry.path) ?? 0,
+                    () => bodyRowIndex(i()),
+                  )
                 )
               }
             </For>
