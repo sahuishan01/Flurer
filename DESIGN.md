@@ -348,6 +348,12 @@ The Settings screen is three stacked zones: a **header** (mica strip), a **categ
   (`src/components/ui/`), not settings-only markup: a modal, a plugin panel, or
   the properties dialog can render the same disclosure and row. Plugins reach
   them through `window.FlurerUI`.
+
+  A field row has two forms. The editable one puts a control on the right; the
+  read-only one (`readOnly`) puts a value there instead, sized so a long path
+  truncates with an ellipsis rather than stretching the row. The properties
+  dialog uses the read-only form — and the group, not the row, owns the grid
+  tracks, so every value in the list starts at the same x.
 - **Settings search** — a fuzzy match over every individual setting in the app, not just
   the current page. It *navigates*: a hit switches category, expands the section, scrolls
   to the control and flashes it. Nothing is ever hidden by a query — the old behaviour

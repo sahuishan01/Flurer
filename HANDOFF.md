@@ -540,6 +540,25 @@ The Windows leg is the only place these three bugs could show up — it
 is the one that checks out CRLF and mangles drive-letter paths. **A
 green Linux run is not evidence that a test file is portable.**
 
+Two further items landed after v0.4.232, in the same vein:
+
+- **TrashView ARIA** (commit `d775feb`). The recycle bin has a second
+  table, and the earlier ARIA work only fixed the main file table —
+  two tables with the same shape should not have different semantics.
+  It now carries `role="grid"`, `aria-multiselectable`,
+  `aria-selected` and `aria-rowindex` like the other one.
+- **PropertiesDialog on the shared kit** (commit `d074afd`). The
+  properties dialog had its own grid of label/value pairs, the same
+  shape the kit's field row already provides. It now uses `FieldRow`
+  with a new `readOnly` variant. The read-only form is not the
+  editable row with a value dropped in: the value is the flexible
+  column so a long path truncates, and the *group* owns the grid
+  tracks (the rows are `display:contents`) so every value in the list
+  starts at the same x.
+
+That second item also fixed a bug that predated both the kit and the
+CSS split — see "A media query that never applied" below.
+
 **Do not re-litigate the spacing scale, the `rem` vs `em` decision, the
 `calc(-1 * …)` form, or the CSS split's contiguity rule** — each was
 chosen deliberately, and each has a failure mode recorded above.
@@ -596,6 +615,40 @@ Note that this host is **aarch64**, so a local build produces arm64
 artifacts (`flurer_0.4.233_arm64.deb`), while CI's runner is x64 and
 produces amd64 ones. A local build proves the code compiles and
 bundles; it is not a substitute for the published amd64 artifacts.
+
+### A media query that never applied
+
+The narrow-window layout for the settings rows — the control dropping
+under its label, and the slider widening — **never worked**. The
+`@media (max-width: 900px)` block sat *earlier* in the file than the
+base `.ui-field-row` and `.setting-control-slider` rules, and with
+equal specificity the later rule wins, so the base layout always
+applied. This was true before the CSS split too (the media query was at
+line 2792 and the base rule at 2960 of the old `App.css`); the split
+just made it easier to see.
+
+The fix was to move the media query below the rules it overrides. A
+headless-Chromium check of the *computed* styles at 1200/900/700/500/380px
+is what caught it — reading the CSS, the rule looks right.
+
+Two lessons:
+- **A media query must come after the rules it overrides.** If it comes
+  before, it silently loses on equal specificity.
+- **Check computed styles, not the stylesheet.** This is the same
+  lesson as "verify CSS changes by their effect, not by their
+  selectors" above, and it caught a bug that had survived two CSS
+  refactors.
+
+The same trap applies to the shared kit's read-only row: its selector
+is deliberately two classes (`.ui-field-row.ui-field-row-readonly`), so
+that the narrow-viewport media query — which restyles `.ui-field-row`
+itself — cannot beat it on specificity.
+
+Chromium for these checks is at
+`~/.cache/ms-playwright/chromium-1234/chrome-linux/chrome`; drive it
+over the DevTools protocol (the WebSocket URL is printed on stderr)
+and read `getComputedStyle` / `getBoundingClientRect` out of
+`Runtime.evaluate`.
 
 The UX improvements project (all 8 chunks, command palette through tab
 polish) is complete: every chunk shipped through the full release ritual
