@@ -442,9 +442,113 @@ sysinfo targets; serde derives needed by cross-platform command payloads).
 Treat any "compiles on my reasoning" claim about windows-cfg code as
 unverified until CI is green.
 
+## UI quality pass (2026-10) — six items, all shipped as commits
+
+User request: "how can we create a better ui?" → six suggestions, then
+"do it in the correct order". The order chosen was **dependency order,
+not list order**: ARIA first (a real bug with a small blast radius),
+then the design-token foundation, then the shared kit, then the CSS
+split. Each item was a separate commit, pushed, and watched through
+Build CI.
+
+1. **File table ARIA** — commit `f5f5740` (Build `39583926561` green).
+   `FileList.tsx` was a `<tr role="row">` inside a table with no
+   `role="grid"`, and 56 selection references with no `aria-selected`.
+   Now: `role="grid"`, `aria-multiselectable`, an accessible name
+   derived from `baseName`, `aria-rowcount`; body and group rows carry
+   reactive `aria-rowindex` and `aria-selected`; `<th>` uses
+   `aria-sort`; sortable headers are keyboard-operable (Enter/Space);
+   the icon-grid view became a `role="listbox"`.
+   - `role="row"` on `<tr>` was **removed**: HTML-AAM maps `<td>` to
+     `gridcell` and `<th>` in `<thead>` to `columnheader` (which is
+     what supports `aria-sort`) automatically, so the explicit role
+     was redundant.
+   - The grid view needs `aria-rowcount` + `aria-rowindex` because it
+     is virtualized, and those indices must be **reactive** or they go
+     stale when the virtual window scrolls. A function-valued
+     attribute is not reactive-ified by Solid — the accessor form
+     (`x(T,"aria-rowindex",oe.n=Ue)`) is required, not
+     `x(ye,"aria-rowindex",()=>Nn(Se()))`.
+2. **Design token foundation** — commit `5f7546a`. Added a `--space-*`
+   scale (63 hardcoded px values replaced across 42 declarations),
+   named all 6 `transition: all` declarations with explicit property
+   lists, and wired `DESIGN.md` to the code with a drift test
+   (`tests/design.test.ts`, 8 assertions) that parses the spec's YAML
+   frontmatter and the stylesheets' token blocks and asserts they
+   agree. The drift test found a genuine unit mismatch in the spec
+   (the badge was documented as `10px` while CSS uses `0.625em`).
+   - **The spacing tokens are `rem` while the app CSS stays `em`, on
+     purpose.** An `em` length inside a custom property resolves
+     against the *using* element's font-size, not the declaration
+     site, so switching the tokens to `em` would have silently changed
+     rendering in 14 rules. The app's own `em` usage is deliberate (it
+     scales with the user's font-size setting) and must be preserved.
+   - **Negative spacing must be `calc(-1 * var(--space-N))`.**
+     `-var(--space-3)` tokenizes as a *function named `-var`*, not a
+     negation, and computes to the initial value. This was a real bug
+     introduced and then fixed at 3 sites.
+3. **Shared UI kit** — commit `47ef903`. `SettingsSection` /
+   `SettingRow` / `SettingGroup` were well-built and already reused by
+   six components, but they lived under a settings-only name and path,
+   which read as "not for you" to the plugin panels the plugin spec
+   tells to use them. They now live in `src/components/ui/` as
+   `CollapsibleSection`, `FieldRow` and `FieldGroup`, with their CSS
+   renamed to match (`.ui-section`, `.ui-field-row` and friends).
+   - The collapse state is now created per surface through
+     `createCollapsibleState({ storageKey })`, so a surface with no
+     provider still folds. The old fallback was a no-op state, which
+     meant a section outside the settings provider rendered a
+     disclosure button that did nothing.
+   - The kit is exposed on `window.FlurerUI`. Plugins are IIFE bundles
+     loaded via `new Function` with no module loader, so they cannot
+     import from `src/` — the plugin spec's advice to use these
+     primitives was not actionable until this.
+   - `data-section-id` was dropped from the section card: nothing read
+     it, and the sidebar's drag hit-test does
+     `closest("[data-section-id]")`, so a shared card carrying that
+     attribute could be mistaken for a drag target.
+4. **CSS split** — commit `34d9235`. `App.css` was 5,452 lines; it is
+   now 20 files under `src/styles/`, one per component region, with
+   `App.css` reduced to the `@import` list.
+   - **The split is by contiguous region, chosen at component seams,
+     and the import order is the original file order.** That is the
+     whole point: the cascade in this file is order-sensitive (the
+     global `button:not(...)` rule, the per-theme accent blocks, the
+     media queries and several later overrides of earlier rules all
+     depend on source order), so keeping the regions contiguous and
+     importing them in order leaves the cascade untouched. The built
+     stylesheet is **byte-for-byte identical** to before the split
+     (verified by checksum), which makes this provably a pure refactor
+     rather than a restyle.
+   - The `@import "./theme.css"` moved into `src/styles/base.css` and
+     had to become `@import "../theme.css"` — the relative path
+     changed when the file moved.
+5. **CI-only fixes** — commits `91fa36d` and (in `34d9235`) the drift
+   test's rewrite. Both were the new drift test failing on the
+   **Windows** leg only:
+   - `new URL("..", import.meta.url).pathname` yields `/D:/a/b` on
+     Windows, and `readFileSync` cannot open a path that starts with a
+     slash before a drive letter. Fixed with `fileURLToPath` +
+     `node:path`'s `join`.
+   - Windows checkouts have **CRLF** line endings, and the frontmatter
+     parser matches on `"\n"`. Fixed by normalising `\r\n` on read.
+   - The Windows runner also caught the drift test still pointing at
+     `App.css` after the split; it now reads the stylesheets in
+     `App.css`'s import order.
+
+**Do not re-litigate the spacing scale, the `rem` vs `em` decision, the
+`calc(-1 * …)` form, or the CSS split's contiguity rule** — each was
+chosen deliberately, and each has a failure mode recorded above.
+
 ## Current git state
 
-`main` is at **v0.4.231**. The Settings redesign shipped in v0.4.225
+`main` is at **v0.4.231**, with the six UI-quality items above committed
+on top of it (`f5f5740`, `5f7546a`, `47ef903`, `91fa36d`, `34d9235`).
+They are pushed but **not yet released**: the release ritual (bump → tag
+→ push tag only → watch Release CI) had not run for them when this
+file was last updated. Check `gh run list` before assuming a version.
+
+The Settings redesign shipped in v0.4.225
 (plus the CI image fix in v0.4.226); the explorer layout regression it
 introduced was fixed in v0.4.227 — see "The CSS merge that broke the
 explorer" below for what went wrong and how it was caught — and the
