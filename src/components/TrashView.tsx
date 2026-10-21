@@ -123,9 +123,15 @@ export function TrashView(props: TrashViewProps) {
           when={entries().length > 0}
           fallback={<p class="settings-hint">The Recycle Bin is empty.</p>}
         >
-          <table class="file-table trash-table">
+          <table
+            class="file-table trash-table"
+            role="grid"
+            aria-label="Recycle Bin"
+            aria-multiselectable="true"
+            aria-rowcount={1 + entries().length}
+          >
             <thead>
-              <tr>
+              <tr aria-rowindex={1}>
                 <th>
                   <input type="checkbox" checked={allSelected()} onChange={toggleAll} aria-label="Select all" />
                 </th>
@@ -136,8 +142,14 @@ export function TrashView(props: TrashViewProps) {
             </thead>
             <tbody>
               <For each={entries()}>
-                {(entry) => (
-                  <tr class="file-row" classList={{ "file-row-selected": selected().has(entry.id) }}>
+                {(entry, index) => (
+                  <tr
+                    class="file-row"
+                    classList={{ "file-row-selected": selected().has(entry.id) }}
+                    aria-selected={selected().has(entry.id)}
+                    // The header row is row 1, so the first entry is row 2.
+                    aria-rowindex={index() + 2}
+                  >
                     <td>
                       <input
                         type="checkbox"
