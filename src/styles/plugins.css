@@ -1,0 +1,589 @@
+
+
+.plugin-install-section,
+.plugin-installed-section {
+    margin-bottom: 0.75em;
+    padding: 1em;
+    border-radius: var(--radius-md);
+    background-color: var(--card-bg, rgba(var(--panel-rgb), 0.2));
+    border: 1px solid var(--border-color);
+}
+
+.plugin-installed-section {
+    margin-bottom: 0;
+}
+
+.plugin-install-section h4,
+.plugin-installed-header h4 {
+    margin: 0 0 0.5em;
+    font-size: var(--text-label);
+    font-weight: 600;
+}
+
+.plugin-install-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    align-items: center;
+}
+
+.plugin-install-row input {
+    min-width: 120px;
+    /* .plugin-install-section already carries its own border/background —
+       the global `input` rule stacking a second border+background inside it
+       drew a box within a box. Sit flush instead. */
+    border: none;
+    background: transparent;
+}
+
+.plugin-install-hint {
+    margin: 0.4em 0 0;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+}
+
+.plugin-installed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75em;
+}
+
+.plugin-installed-header h4 {
+    margin: 0;
+}
+
+.plugin-empty-state {
+    padding: 1.2em 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--text-secondary);
+}
+
+.plugin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+/* Generic per-plugin opacity/blur override (PluginAppearanceSettings) —
+   deliberately styled close to .plugin-card/.plugin-installed-section
+   rather than introducing a new visual language for what's still "a card
+   per plugin". */
+
+
+
+
+.link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 0;
+}
+
+.link-btn:hover {
+    text-decoration: underline;
+}
+
+.plugin-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75em;
+    padding: 0.75em;
+    border-radius: var(--radius-sm);
+    background-color: var(--card-bg, rgba(var(--panel-rgb), 0.25));
+    border: 1px solid var(--border-color);
+}
+
+.plugin-card.has-update {
+    border-color: var(--accent);
+}
+
+.plugin-card.disabled {
+    opacity: 0.5;
+}
+
+.plugin-card-body {
+    /* flex-basis lets the body claim the row on its own when
+       .plugin-actions wraps below it (narrow widths) instead of both
+       fighting over a shared row too tight for either — see the
+       .plugin-card flex-wrap comment above. min-width: 0 lets it actually
+       shrink below its content's intrinsic width so plugin-description's
+       ellipsis can kick in rather than overflowing. */
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.plugin-card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.plugin-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.plugin-status-dot.enabled {
+    background-color: var(--success);
+}
+
+.plugin-name {
+    font-size: var(--text-label);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.plugin-update-badge {
+    padding: 0.05em 0.5em;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-badge);
+    font-weight: 600;
+    background-color: var(--accent-soft);
+    color: var(--accent);
+}
+
+.plugin-meta {
+    margin-left: 1.15em;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-family: var(--text-mono);
+}
+
+.plugin-link-repo-btn {
+    margin: 0.3em 0 0 1.15em;
+    padding: 0.15em 0.6em;
+    font-size: var(--text-caption);
+}
+
+.plugin-link-repo-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    margin: 0.3em 0 0 1.15em;
+    min-width: 0;
+}
+
+.plugin-link-repo-input {
+    flex: 1 1 200px;
+    min-width: 80px;
+    padding: 0.2em 0.5em;
+    font-size: var(--text-caption);
+    font-family: var(--text-mono);
+    /* .plugin-card already has its own border/background; see
+       .plugin-install-row input above for why this drops its own. */
+    border: none;
+    background: transparent;
+}
+
+.plugin-description {
+    margin: 0.15em 0 0 1.15em;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plugin-actions {
+    display: flex;
+    gap: 0.4em;
+    flex-shrink: 0;
+}
+
+.plugin-actions button {
+    padding: 0.3em 0.7em;
+    font-size: var(--text-caption);
+}
+
+.updates-view {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.updates-actions {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.75em;
+}
+
+.updates-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.btn-accent {
+    background-color: var(--accent-soft) !important;
+    color: var(--accent) !important;
+    border-color: var(--accent-border) !important;
+}
+
+.settings-success {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    color: var(--success);
+    font-size: var(--text-secondary);
+}
+
+.updates-meta {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    margin: 0.3em 0 0;
+}
+
+.update-progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    margin-top: 0.8em;
+    padding: 0.8em;
+    border-radius: var(--radius-md);
+    background-color: var(--surface-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.update-progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+.update-progress-bar {
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--surface-tertiary);
+    overflow: hidden;
+}
+
+.update-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    background-color: var(--accent);
+    transition: width 0.15s ease-out;
+}
+
+.updates-release-notes {
+    margin-top: 0.75em;
+    padding-top: 0.6em;
+    border-top: 1px solid var(--border-color);
+    font-size: var(--text-caption);
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow: auto;
+    line-height: 1.6;
+}
+
+.progress-indicator {
+    position: relative;
+}
+
+.progress-badge {
+    position: absolute;
+    inset-block-start: -2px;
+    inset-inline-end: -2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 var(--space-3);
+    border-radius: 7px;
+    background-color: var(--accent);
+    color: #fff;
+    font-size: var(--text-badge);
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-panel {
+    position: fixed;
+    z-index: 9999;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+    width: min(260px, calc(100vw - 16px));
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 0.7em;
+    border-radius: var(--radius-lg);
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md);
+}
+
+.progress-task {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+}
+
+.progress-task-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6em;
+    font-size: var(--text-secondary);
+}
+
+.progress-task-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.progress-task-percent {
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.progress-bar {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background-color: var(--accent);
+    transition: width 0.2s ease;
+}
+
+.progress-bar-fill.error {
+    background-color: var(--danger);
+}
+
+.progress-bar-fill.indeterminate {
+    width: 40%;
+    animation: progress-bar-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-bar-indeterminate {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(250%);
+    }
+}
+
+.progress-task-error {
+    font-size: var(--text-caption);
+    color: var(--danger);
+}
+
+.progress-task-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.3em;
+}
+
+.progress-task-cancel {
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.progress-task-cancel:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--accent);
+}
+
+.progress-task-clear {
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.progress-task-clear:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.progress-panel-header {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.progress-clear-all {
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.progress-clear-all:hover {
+    color: var(--accent);
+}
+
+
+.checkbox-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-top: 0.5em;
+}
+
+.frequency-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-top: 0.5em;
+}
+
+.wallpaper-credit {
+    color: var(--text-color);
+}
+
+.shortcut-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    margin-top: 0.75em;
+}
+
+.cache-stats-control {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35em;
+    margin-top: 0.75em;
+}
+
+.search-index-status {
+    margin-top: 0.75em;
+    font-size: var(--text-label);
+    opacity: 0.8;
+}
+
+.search-index-roots {
+    list-style: none;
+    margin: 0.6em 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+}
+
+.search-index-roots li {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.3em 0.5em;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: color-mix(in srgb, var(--control-bg) 40%, transparent);
+}
+
+/* Paths can be long and must not stretch the settings pane; the ellipsis
+   goes on the left so the leaf folder — the part that identifies the root —
+   stays readable. */
+.search-index-root-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    font-size: var(--text-label);
+}
+
+.search-index-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin-top: 0.75em;
+}
+
+.shortcut-label {
+    font-size: var(--text-label);
+}
+
+.shortcut-recorder-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.shortcut-recorder {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-family: var(--text-mono);
+}
+
+.shortcut-recorder.recording {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.in-app-shortcuts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin-top: 0.75em;
+    padding: 0.6em;
+    border-radius: var(--radius-md);
+    background: var(--card-bg, rgba(var(--panel-rgb), 0.2));
+    border: 1px solid var(--border-color);
+}
+
+.in-app-shortcuts > .shortcut-label {
+    font-weight: 600;
+}
+
+.file-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    padding: 1em;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-left: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+/* The table used to own .file-list's own overflow: auto directly; now that
+   a preview panel can sit beside it, only the table side should scroll —
+   the preview panel manages its own internal scrolling instead so a long
+   text preview doesn't drag the file list along with it. */
+.file-list-split {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    gap: 1em;
+}

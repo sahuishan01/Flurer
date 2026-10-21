@@ -1,0 +1,125 @@
+
+
+/* ---- Grid (icon) view ---- */
+.view-mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-10);
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle, rgba(var(--panel-rgb), 0.4));
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.view-mode-toggle:hover {
+    color: var(--text-primary);
+    background: var(--accent-bg-soft);
+}
+
+.view-mode-toggle[aria-pressed="true"] {
+    color: var(--accent-default);
+}
+
+.file-grid-wrap {
+    overflow-y: auto;
+}
+
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: var(--space-4);
+    padding: var(--space-8);
+}
+
+.file-grid-section-header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-8);
+    padding: var(--space-10) var(--space-6) var(--space-4);
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle, rgba(var(--panel-rgb), 0.3));
+}
+
+.file-grid-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-6);
+    padding: var(--space-10) var(--space-6) var(--space-8);
+    border-radius: 8px;
+    cursor: default;
+    text-align: center;
+    user-select: none;
+    border: 1px solid transparent;
+}
+
+.file-grid-tile:hover {
+    background: var(--accent-bg-soft);
+}
+
+.file-grid-tile-selected {
+    background: var(--accent-bg-soft);
+    border-color: var(--accent-border, var(--accent-default));
+}
+
+.file-grid-tile-cut {
+    opacity: 0.55;
+}
+
+.file-grid-tile:focus {
+    outline: 1px solid var(--accent-default);
+    outline-offset: -1px;
+}
+
+.file-grid-thumb {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    color: var(--accent-default);
+}
+
+.file-grid-thumb-img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 4px;
+    object-fit: contain;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.file-grid-color-dot {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+}
+
+.file-grid-name {
+    width: 100%;
+    font-size: 0.85em;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+}
+
+.file-grid-name .rename-input {
+    width: 100%;
+}
+
+.file-grid-empty {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6em;
+    padding: 3em 1em;
+    opacity: 0.5;
+}

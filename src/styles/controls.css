@@ -1,0 +1,102 @@
+
+
+.icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5em;
+    background: var(--control-bg);
+    backdrop-filter: blur(var(--control-blur));
+    -webkit-backdrop-filter: blur(var(--control-blur));
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    color: var(--text-color);
+    box-shadow: var(--control-shadow);
+    border-radius: var(--radius-sm);
+    transition: background-color 0.15s ease,
+                border-color 0.15s ease,
+                border-bottom-color 0.15s ease,
+                box-shadow 0.15s ease,
+                transform 0.15s ease,
+                opacity 0.15s ease;
+    cursor: pointer;
+}
+
+.icon-btn:hover {
+    background: var(--control-hover-bg);
+    border: var(--control-hover-border);
+    border-bottom: var(--control-hover-border-bottom);
+    box-shadow: var(--control-hover-shadow);
+    transform: translateY(-0.5px);
+}
+
+.icon-btn:active {
+    background: var(--control-active-bg);
+    border: var(--control-active-border);
+    box-shadow: var(--control-active-shadow);
+    transform: translateY(0.5px);
+}
+
+.icon-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    box-shadow: none;
+    transform: none;
+}
+
+.icon-btn:disabled:hover {
+    background: transparent;
+    transform: none;
+    box-shadow: none;
+}
+
+.icon-btn.active {
+    color: var(--accent);
+    background: var(--accent-bg-soft);
+    border-color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+}
+
+.settings-error {
+    color: var(--danger);
+}
+
+.settings-hint {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+}
+
+.history-limit-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+}
+
+.history-limit-control input {
+    width: 5em;
+    padding: 0.35em 0.5em;
+    color: var(--text-color);
+    background: var(--control-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+/* Plugin Marketplace & shared settings-panel chrome — nested tinted+blurred
+   layers matching the rest of the app's material hierarchy (glass panel >
+   control inset > card), rather than the flat hardcoded backgrounds this
+   panel used to have. */
+
+
+
+.settings-error-alert {
+    margin-bottom: 1em;
+    padding: 0.6em 0.9em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--danger);
+    background-color: color-mix(in oklch, var(--danger) 15%, transparent);
+    color: var(--danger);
+    font-size: var(--text-secondary);
+}

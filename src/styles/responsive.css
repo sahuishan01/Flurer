@@ -1,0 +1,490 @@
+
+
+
+/* Touch devices: larger hit targets for precision-sensitive controls */
+@media (pointer: coarse) {
+    .sidebar-item,
+    .view-rail-item,
+    .icon-btn,
+    .breadcrumb-segment {
+        min-height: 44px;
+    }
+
+    .sidebar-item {
+        padding: 0.6em 0.8em;
+    }
+
+    .file-row td {
+        padding: 0.5em 0.6em;
+    }
+}
+
+/* Drive panel collapsed / icon-only rules (driven by drive panel's OWN width, not app window width) */
+@container sidebar (max-width: 80px) {
+    .sidebar {
+        padding: 1em 0.4em;
+        align-items: center;
+    }
+
+    .sidebar-item {
+        justify-content: center;
+        width: 100%;
+        padding: 0.5em 0.2em;
+        font-size: 0;
+    }
+
+    .sidebar-icon {
+        font-size: 1rem;
+    }
+
+    .sidebar-section-label {
+        display: block;
+        font-size: 0;
+        width: 100%;
+        height: 1px;
+        margin: 0.4em 0;
+        background-color: var(--border-color);
+        padding: 0;
+        text-indent: -9999px;
+    }
+
+    .sidebar-section-label::before {
+        display: none;
+    }
+
+    .sidebar-empty-label {
+        display: none;
+    }
+
+    .sidebar-entry:hover {
+        background-color: transparent;
+    }
+
+    .sidebar-entry .sidebar-entry-label {
+        display: none;
+    }
+
+    .sidebar-entry-remove {
+        display: none;
+    }
+
+    .sidebar-drive-usage {
+        display: none;
+    }
+
+    .sidebar-divider {
+        margin: 0.3em 0;
+    }
+}
+
+.sidebar.is-narrow {
+    padding: 1em 0.4em;
+    align-items: center;
+}
+
+.sidebar.is-narrow .sidebar-item {
+    justify-content: center;
+    width: 100%;
+    padding: 0.5em 0.2em;
+    font-size: 0;
+}
+
+.sidebar.is-narrow .sidebar-icon {
+    font-size: 1rem;
+}
+
+.sidebar.is-narrow .sidebar-section-label {
+    display: block;
+    font-size: 0;
+    width: 100%;
+    height: 1px;
+    margin: 0.4em 0;
+    background-color: var(--border-color);
+    padding: 0;
+    text-indent: -9999px;
+}
+
+.sidebar.is-narrow .sidebar-section-label::before {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-empty-label {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-entry:hover {
+    background-color: transparent;
+}
+
+.sidebar.is-narrow .sidebar-entry .sidebar-entry-label {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-entry-remove {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-drive-usage {
+    display: none;
+}
+
+.sidebar.is-narrow .sidebar-divider {
+    margin: 0.3em 0;
+}
+
+/* Responsive: narrow windows */
+@media (max-width: 900px) {
+
+    .sidebar-divider {
+        margin: 0.3em 0;
+    }
+
+    .command-bar {
+        gap: 0.4em;
+        padding: 0.4em 0;
+        /* Narrow widths: ONLY the metrics element wraps to a second row —
+           progress, search and window controls always stay on row one, and
+           window controls are never hidden. */
+        flex-wrap: wrap;
+    }
+
+    /* Full basis forces the metrics onto row two; ordering keeps it after
+       the window controls (row one's right edge). */
+    .command-bar-metrics {
+        order: 7;
+        flex: 1 1 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-top: 0.3em;
+        margin-top: 0.25em;
+        border-top: 1px solid var(--border-color);
+        justify-content: flex-start;
+    }
+
+    .window-controls {
+        order: 6;
+    }
+
+    .command-bar-center {
+        /* Scrollable instead of clipped when the path runs out of room. */
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .command-bar-left,
+    .command-bar-right {
+        padding: 0 0.4em;
+    }
+
+    .breadcrumb-segment {
+        font-size: var(--text-secondary);
+        padding: 0.2em 0.3em;
+    }
+
+    .explorer-path-bar {
+        gap: 0.2em;
+    }
+}
+
+/* Reduced motion — kills all animation and transition durations for users
+   who prefer reduced motion, following the WCAG Success Criterion 2.3.3
+   recommended pattern. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .view-rail {
+        width: 40px;
+        padding: 0.6em 0;
+    }
+
+    .view-rail-item {
+        width: 32px;
+        height: 32px;
+    }
+
+    .graph-toolbar {
+        gap: 0.4em;
+        padding: 0.4em 0.6em;
+    }
+
+    .graph-title {
+        font-size: var(--text-title);
+    }
+
+    .command-bar-nav {
+        gap: 0;
+    }
+
+    .settings-content {
+        padding: 0.5em 0.6em 1.2em;
+    }
+
+    .ui-section-body {
+        padding: 0 0.6em 0.6em;
+    }
+
+    /* Hide Size and Modified columns on very narrow viewports — keep only
+       the Name column so the file list stays readable without scrolling. */
+    .file-table th:nth-child(2),
+    .file-table th:nth-child(3),
+    .file-table td:nth-child(2),
+    .file-table td:nth-child(3) {
+        display: none;
+    }
+
+    .file-table th:nth-child(4),
+    .file-table td:nth-child(4) {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .view-rail {
+        width: 32px;
+        padding: 0.4em 0;
+    }
+
+    .view-rail-item {
+        width: 28px;
+        height: 28px;
+    }
+
+    .command-bar {
+        gap: 0.2em;
+        padding: 0.3em 0.4em;
+    }
+
+    .search-field {
+        padding: 0.3em 0.5em;
+    }
+
+    .graph-toolbar {
+        gap: 0.2em;
+        padding: 0.3em 0.4em;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+
+    .graph-title {
+        font-size: var(--text-body);
+        flex-shrink: 0;
+    }
+
+    .graph-hint {
+        display: none;
+    }
+
+    .progress-badge {
+        min-width: 12px;
+        height: 12px;
+        font-size: var(--text-badge);
+        line-height: 12px;
+    }
+
+    .settings-title {
+        font-size: var(--text-body);
+    }
+
+    .settings-content {
+        padding: 0.4em 0.5em 1em;
+    }
+
+    .ui-section-body {
+        padding: 0 0.5em 0.5em;
+    }
+
+    .modal-panel {
+        min-width: 280px;
+    }
+}
+
+@media (max-width: 375px) {
+    .sidebar {
+        display: none;
+    }
+
+    .view-rail {
+        width: 28px;
+        padding: 0.3em 0;
+    }
+
+    .view-rail-item {
+        width: 24px;
+        height: 24px;
+    }
+
+    .command-bar-nav .icon-btn {
+        padding: 0.3em;
+    }
+
+    .search-field {
+        flex: 1 1 auto;
+        min-width: 60px;
+        padding: 0.2em 0.4em;
+    }
+
+    .search-input {
+        font-size: var(--text-body);
+    }
+
+    .graph-toolbar .icon-btn {
+        padding: 0.3em;
+    }
+
+    .editor-path-bar {
+        gap: 0;
+    }
+
+    .breadcrumb-segment {
+        font-size: var(--text-caption);
+        padding: 0.15em 0.2em;
+    }
+}
+
+.size-calculating {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-6);
+    vertical-align: middle;
+}
+
+.folder-size-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-4);
+    color: var(--danger);
+    cursor: help;
+    vertical-align: middle;
+}
+
+.folder-size-admin-btn {
+    padding: 0.1em 0.5em;
+    border-radius: var(--radius-sm);
+    border: 1px solid currentColor;
+    background: transparent;
+    color: inherit;
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.folder-size-admin-btn:hover {
+    background: color-mix(in oklch, var(--danger) 12%, transparent);
+}
+
+.folder-color-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.folder-color-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.folder-color-swatch-clear {
+    background: transparent;
+    border: 1px solid var(--text-secondary);
+}
+
+.trash-view {
+    padding: 1em 1.2em;
+    /* Never had its own tinted backing — it was silently relying on
+       .view-pane's background, which only ever had one because of the
+       per-plugin-translucency fallback that briefly lived there (see
+       .plugin-view-pane's history in App.css) and was correctly removed
+       from the shared .view-pane rule since it doesn't belong to
+       Explorer/Settings either. Matches the same
+       rgba(var(--panel-rgb), var(--surface-opacity)) recipe used by
+       .settings-header/.view-rail rather than inventing a new one. */
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+}
+
+.trash-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    margin-bottom: 1em;
+}
+
+.trash-title {
+    margin: 0;
+}
+
+.trash-toolbar-actions {
+    display: flex;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+
+.trash-toolbar-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.trash-table {
+    width: 100%;
+}
+
+.duplicate-groups {
+    max-height: 360px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+    margin: 0.6em 0;
+}
+
+.duplicate-group {
+    border-radius: var(--radius-md);
+    background: var(--control-bg);
+    padding: 0.5em 0.7em;
+}
+
+.duplicate-group-header {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 0.3em;
+}
+
+.duplicate-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.2em 0;
+    cursor: pointer;
+}
+
+.duplicate-entry-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-caption);
+    font-family: var(--text-mono, monospace);
+}
+
+.size-loading-spinner {
+    display: inline-block;
+    animation: app-loading-spin 1.2s linear infinite;
+    flex-shrink: 0;
+    color: var(--accent);
+}

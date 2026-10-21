@@ -19,10 +19,20 @@ import { fileURLToPath } from "node:url";
 // fileURLToPath, not URL.pathname: on Windows the pathname of a
 // file:// URL is "/D:/a/b", which readFileSync cannot open.
 const root = fileURLToPath(new URL("..", import.meta.url));
-const read = (relative: string) => readFileSync(join(root, relative), "utf8");
+// Windows checkouts have CRLF line endings; the parsers below match on
+// "\n", so normalise before comparing.
+const read = (relative: string) => readFileSync(join(root, relative), "utf8").replace(/\r\n/g, "\n");
 const design = read("DESIGN.md");
-const appCss = read("src/App.css");
 const themeCss = read("src/theme.css");
+
+// The app's own stylesheet is split into per-component files under
+// src/styles, imported by App.css. They are concatenated in the order
+// App.css imports them, which is the order they cascade in.
+const appCssEntry = read("src/App.css");
+const appCss = [...appCssEntry.matchAll(/@import\s+"\.\/styles\/([^"]+\.css)"/g)]
+  .map((m) => read(`src/styles/${m[1]}`))
+  .join("\n");
+if (!appCss) throw new Error("App.css imports no stylesheets — the design check has nothing to read");
 
 /** The YAML frontmatter block at the top of DESIGN.md. */
 function frontmatter(md: string): string {
@@ -32,7 +42,6 @@ function frontmatter(md: string): string {
   if (end === -1) throw new Error("DESIGN.md frontmatter is not terminated");
   return md.slice(start + 4, end);
 }
-
 const spec = Bun.YAML.parse(frontmatter(design)) as Record<string, any>;
 
 /**
@@ -140,7 +149,7 @@ describe("DESIGN.md stays in sync with the stylesheet", () => {
     for (const [role, token] of Object.entries(typeToken)) {
       const want = spec.typography[role]?.fontSize;
       expect(want, `DESIGN.md typography.${role}.fontSize missing`).toBeDefined();
-      expect(appRoot.get(token), `${token} missing from App.css`).toBe(want);
+      expect(appRoot.get(token), `${token} is missing from the stylesheet's :root`).toBe(want);
     }
   });
 
@@ -149,7 +158,7 @@ describe("DESIGN.md stays in sync with the stylesheet", () => {
     for (const [name, token] of Object.entries(radiusToken)) {
       const want = spec.rounded[name];
       expect(want, `DESIGN.md rounded.${name} missing`).toBeDefined();
-      expect(appRoot.get(token), `${token} missing from App.css`).toBe(String(want));
+      expect(appRoot.get(token), `${token} is missing from the stylesheet's :root`).toBe(String(want));
     }
   });
 
@@ -163,7 +172,7 @@ describe("DESIGN.md stays in sync with the stylesheet", () => {
     for (const [step, want] of Object.entries(spacing)) {
       const token = `--space-${step}`;
       const got = appRoot.get(token);
-      expect(got, `${token} missing from App.css — DESIGN.md declares spacing.${step}`).toBeDefined();
+      expect(got, `${token} is missing from the stylesheet's :root — DESIGN.md declares spacing.${step}`).toBeDefined();
       // The spec records the pixel size; the token records the rem value
       // that renders as exactly that size at the 16px base.
       const px = Number(want.replace("px", ""));
@@ -178,7 +187,7 @@ describe("DESIGN.md stays in sync with the stylesheet", () => {
     for (const name of appRoot.keys()) {
       const m = name.match(/^--space-(\d+)$/);
       if (!m) continue;
-      expect(declared.has(m[1]), `${name} exists in App.css but not in DESIGN.md spacing`).toBe(true);
+      expect(declared.has(m[1]), `${name} exists in the stylesheet but not in DESIGN.md spacing`).toBe(true);
     }
   });
 
@@ -196,7 +205,7 @@ describe("DESIGN.md stays in sync with the stylesheet", () => {
       expect(want, `DESIGN.md shadows.${name} missing`).toBeDefined();
       const token = `--shadow-${name.replace(/^dark-/, "")}`;
       const got = scope.get(token);
-      expect(got, `${token} missing from App.css`).toBeDefined();
+      expect(got, `${token} is missing from the stylesheet's :root`).toBeDefined();
       // --shadow-md points at --glass-shadow, so compare the resolved
       // value rather than the literal declaration.
       expect(sameValue(resolve(got!, varScope), String(want)), `shadow ${name} does not match DESIGN.md`).toBe(true);

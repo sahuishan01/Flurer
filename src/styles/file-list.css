@@ -1,0 +1,549 @@
+
+
+.file-list-table-wrap {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+}
+
+.marquee-select {
+    position: fixed;
+    border: 1px dashed var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.preview-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 280px;
+    min-width: 0;
+    border-radius: var(--radius-md);
+    background-color: var(--control-bg);
+    overflow: hidden;
+}
+
+.preview-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    padding: 0.5em 0.5em 0.5em 0.8em;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.preview-panel-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-caption);
+    font-weight: 600;
+}
+
+.preview-copy-button {
+    flex-shrink: 0;
+    padding: 0.25em 0.55em;
+    color: var(--text-color);
+    background: var(--control-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--text-caption);
+}
+
+.preview-copy-button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.preview-panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.6em;
+}
+
+.preview-panel-image {
+    display: block;
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+}
+
+.preview-panel-text {
+    margin: 0;
+    font-family: var(--text-mono);
+    font-size: var(--text-caption);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.preview-panel-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6em;
+    height: 100%;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.preview-panel-hint {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+}
+
+/* Below this a fixed 280px preview panel would leave too little room for
+   the file table itself to stay usable — same reasoning as every other
+   narrow-width tradeoff in this file, just for a feature that's additive
+   rather than core, so it's the one that gives way. */
+@media (max-width: 700px) {
+    .preview-panel {
+        display: none;
+    }
+}
+
+/* Enhanced legibility text shadows over dynamic backgrounds */
+.sidebar-item,
+.sidebar-section-label,
+.breadcrumb-segment,
+.file-table th,
+.file-table td,
+.progress-task-label,
+.settings-title,
+.ui-section-title {
+    text-shadow: var(--text-shadow);
+}
+
+.file-list-error-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    margin: 0.25rem 0.5rem;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+}
+
+.file-list-error-banner .file-list-error {
+    margin: 0;
+    flex: 1;
+    word-break: break-all;
+}
+
+.file-list-error {
+    color: var(--danger);
+}
+
+.file-list-error-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    color: var(--text-color);
+    font-size: var(--text-caption);
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+}
+
+.file-list-error-copy-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--border-strong);
+}
+
+.file-list-error-copy-btn:active {
+    background: var(--active-bg);
+}
+
+/* Not an error — the folder listed fine, some items in it just couldn't be
+   read. Muted so it reads as a footnote rather than a failure. */
+.file-list-notice {
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    padding: 0.2em 0.6em;
+}
+
+.file-list-notice-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.file-list-notice-toggle:hover {
+    text-decoration: underline;
+}
+
+.file-list-notice-details {
+    margin: 0.4em 0 0;
+    padding: 0.4em 0.6em;
+    max-height: 160px;
+    overflow-y: auto;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    list-style: none;
+}
+
+.file-list-notice-details li {
+    padding: 0.15em 0;
+}
+
+.file-list-notice-action {
+    display: inline-block;
+    margin-top: 0.4em;
+    padding: 0.3em 0.7em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--control-bg);
+    color: var(--text-primary);
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.file-list-notice-action:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.file-list-toolbar-row {
+    padding: 0.2em 0.6em;
+    display: flex;
+    gap: 0.5em;
+}
+
+.pin-tagged-toggle,
+.group-folders-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.25em 0.6em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.pin-tagged-toggle:hover,
+.group-folders-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.pin-tagged-toggle.active,
+.group-folders-toggle.active {
+    border-color: var(--accent);
+    background: var(--accent-bg-soft);
+    color: var(--accent);
+}
+
+.group-by-select {
+    padding: 0.25em 0.5em;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    cursor: pointer;
+}
+
+.group-by-select:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.group-header-row td {
+    padding: 0.4em 0.6em;
+    font-weight: 600;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    background: var(--surface-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.group-header-count {
+    margin-left: 0.5em;
+    font-weight: 400;
+    opacity: 0.65;
+}
+
+.file-list-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding: 0.6em 0.6em;
+}
+
+.file-skeleton-row {
+    display: flex;
+    gap: 0.8em;
+    padding: 0.3em 0;
+    height: 1.4em;
+    align-items: center;
+}
+
+.file-skeleton-cell {
+    display: block;
+    height: 0.8em;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--border-color) 25%, var(--hover-bg) 50%, var(--border-color) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.file-table {
+    width: 100%;
+    min-width: 480px;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.file-table th,
+.file-table td {
+    padding: 0.4em 0.6em;
+}
+
+.file-table td.file-modified-cell,
+.file-table td.file-size-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.file-table td:not(.file-name-cell) {
+    font-variant-numeric: tabular-nums;
+}
+
+.file-table th {
+    font-weight: 600;
+    font-size: var(--text-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.file-row {
+    cursor: default;
+}
+
+.file-row-dir {
+    cursor: pointer;
+}
+
+.file-row:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Zebra striping is driven by an explicit class rather than :nth-child
+   because the list is virtualized: only a window of rows exists in the DOM
+   at a time, and the spacer rows that stand in for the rest would shift
+   :nth-child parity on every scroll, making the stripes crawl. The class is
+   set from each row's index in the full list, so a row keeps its stripe
+   regardless of where the render window happens to start. */
+.file-row {
+    transition: background-color 140ms ease, color 140ms ease, opacity 150ms ease, transform 120ms ease;
+    will-change: transform, background-color;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .file-row:active {
+        transform: scale(0.985);
+        transition: transform 70ms cubic-bezier(0.2, 0, 0, 1), background-color 60ms ease;
+    }
+    
+    .file-row-selected {
+        animation: row-select-pop 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+}
+
+@keyframes row-select-pop {
+    0% {
+        transform: scale(0.99);
+    }
+    50% {
+        transform: scale(1.008);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.file-table tbody tr.file-row-alt:not(.file-row-selected) {
+    background-color: color-mix(in srgb, var(--control-bg) 38%, transparent);
+}
+
+.file-table tbody tr.file-row-alt:not(.file-row-selected):hover {
+    background-color: var(--hover-bg);
+}
+
+/* Stand-ins for the rows outside the render window. They must not pick up
+   row padding or borders — their entire job is to be exactly as tall as the
+   rows they replace, so the scrollbar and scroll position stay honest. */
+.file-table tbody tr.file-row-spacer > td {
+    padding: 0;
+    border: 0;
+}
+
+.file-row-selected,
+.file-row-selected:hover {
+    background-color: var(--active-bg);
+    color: var(--accent);
+    box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.file-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.file-row-cut {
+    opacity: 0.45;
+    filter: grayscale(30%);
+}
+
+.file-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 120ms ease;
+}
+
+.file-table th.sortable:hover {
+    color: var(--accent);
+}
+
+.rename-input {
+    padding: 0.15em 0.5em;
+    font-size: 1em;
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    box-shadow: 0 0 10px color-mix(in oklch, var(--accent) 45%, transparent);
+    transition: box-shadow 150ms ease, outline 150ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .explorer-view {
+        animation: folder-view-enter 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+}
+
+@keyframes folder-view-enter {
+    from {
+        opacity: 0.4;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.file-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.file-name-cell svg {
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+/* File type icon colors */
+.file-name-cell svg.file-icon-image {
+    color: #38bdf8;
+}
+
+.file-name-cell svg.file-icon-audio {
+    color: #c084fc;
+}
+
+.file-name-cell svg.file-icon-video {
+    color: #f472b6;
+}
+
+.file-name-cell svg.file-icon-archive {
+    color: #fb923c;
+}
+
+.file-name-cell svg.file-icon-code {
+    color: #60a5fa;
+}
+
+.file-name-cell svg.file-icon-python {
+    color: #38bdf8;
+}
+
+.file-name-cell svg.file-icon-cpp {
+    color: #2563eb;
+}
+
+.file-name-cell svg.file-icon-rust {
+    color: #f97316;
+}
+
+.file-name-cell svg.file-icon-config {
+    color: #f59e0b;
+}
+
+.file-name-cell svg.file-icon-3d {
+    color: #34d399;
+}
+
+.file-name-cell svg.file-icon-shell {
+    color: #4ade80;
+}
+
+.file-name-cell svg.file-icon-database {
+    color: #a855f7;
+}
+
+.file-name-cell svg.file-icon-pdf {
+    color: #f87171;
+}
+
+.file-name-cell svg.file-icon-spreadsheet {
+    color: #34d399;
+}
+
+.file-name-cell svg.file-icon-text {
+    color: #94a3b8;
+}
+
+.file-name-cell svg.file-icon-exe {
+    color: #fb7185;
+}
+
+.file-name-cell svg.file-icon-font {
+    color: #a78bfa;
+}
+
+.file-name-cell svg.file-icon-generic {
+    color: var(--text-secondary);
+}
+
+.file-location {
+    opacity: 0.7;
+    font-size: var(--text-secondary);
+}

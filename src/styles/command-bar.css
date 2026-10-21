@@ -1,0 +1,322 @@
+
+
+.command-bar {
+    position: relative;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    padding: 0.35em 0;
+    background: linear-gradient(to bottom, rgba(var(--glass-tint-rgb), calc(var(--glass-opacity) + 0.05)), rgba(var(--glass-tint-rgb), var(--glass-opacity)));
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-bottom: var(--glass-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Three fixed zones so every group has one unambiguous place: navigation on
+   the far left, the view's own controls (path) filling the middle, and the
+   tools + window controls pinned on the far right. Explicit order values
+   keep the wide layout as metrics | progress | search | window controls
+   while still letting ONLY the metrics element wrap to a second row on
+   narrow widths. */
+.command-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-shrink: 0;
+    padding: 0 0.75em;
+    order: 1;
+}
+
+.command-bar-center {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding-right: 0.5em;
+    order: 2;
+}
+
+/* Metrics widgets: the one element allowed to wrap onto its own row when
+   the window is narrow. */
+.command-bar-metrics {
+    display: flex;
+    align-items: center;
+    order: 3;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.command-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-shrink: 0;
+    padding: 0 0.75em;
+    order: 4;
+}
+
+.window-controls {
+    order: 5;
+}
+
+/* Thin separator between right-zone clusters (metrics | progress | search |
+   window controls) — the visual cue that these are distinct groups. */
+.command-bar-divider {
+    width: 1px;
+    height: 1.15em;
+    flex-shrink: 0;
+    background: var(--border-color);
+    opacity: 0.6;
+}
+
+.command-bar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.35);
+    z-index: 1;
+}
+
+[data-mode="dark"] .command-bar::before {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.command-bar-nav {
+    display: flex;
+    gap: 0.4em;
+}
+
+/* Window controls (custom title bar — decorations are off). Win11-fluent:
+   flat squares, full-height hover fills, red for close. */
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    /* Keep the close button off the window's right border. */
+    padding-right: var(--space-4);
+}
+
+.window-control-btn {
+    width: 30px;
+    height: 26px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.window-control-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+}
+
+/* Glyphs: solid filled shapes so they stay visible at small sizes. */
+.wc-glyph {
+    display: block;
+    background: currentColor;
+}
+
+.wc-min {
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+}
+
+.wc-max {
+    width: 9px;
+    height: 9px;
+    border: 2px solid currentColor;
+    background: none;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+
+.wc-close {
+    width: 11px;
+    height: 11px;
+    background: none;
+    position: relative;
+}
+
+.wc-close::before,
+.wc-close::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+.wc-close::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.wc-close::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.window-control-btn:active {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.window-control-close:hover {
+    background: #c42b1c;
+    color: #ffffff;
+}
+
+.window-control-close:active {
+    background: #a72315;
+    color: #ffffff;
+}
+
+[data-mode="dark"] .window-control-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+[data-mode="dark"] .window-control-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.command-bar-nav .icon-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    border-radius: var(--radius-md);
+    padding: 0.55em;
+    transition: background-color 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                border-color 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                border-bottom-color 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.command-bar-nav .icon-btn:hover {
+    background: var(--control-bg);
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+}
+
+.command-bar-nav .icon-btn:active {
+    background: var(--control-active-bg);
+    border: var(--control-active-border);
+    transform: scale(0.96);
+}
+
+.command-bar-nav .icon-btn:disabled {
+    opacity: 0.25;
+    background: transparent;
+    border: 1px solid transparent;
+    transform: none;
+    box-shadow: none;
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn) {
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    border-radius: var(--radius-md);
+    padding: 0.55em;
+    transition: background-color 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                border-color 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                border-bottom-color 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                box-shadow 0.2s cubic-bezier(0.1, 0.9, 0.2, 1),
+                transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn):hover {
+    background: var(--control-bg);
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn):active {
+    background: var(--control-active-bg);
+    border: var(--control-active-border);
+    transform: scale(0.96);
+}
+
+.command-bar .icon-btn:not(.command-bar-nav .icon-btn).active {
+    color: var(--accent);
+    background: var(--accent-bg-soft);
+    border-color: var(--accent-border);
+    border-bottom: 1px solid var(--accent);
+    box-shadow: var(--control-shadow);
+}
+
+.search-trigger {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+}
+
+.search-field {
+    flex: 0 1 260px;
+    min-width: 140px;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.35em 0.8em;
+    border-radius: var(--radius-lg);
+    background: var(--control-bg);
+    backdrop-filter: blur(var(--control-blur));
+    -webkit-backdrop-filter: blur(var(--control-blur));
+    border: var(--control-border);
+    border-bottom: var(--control-border-bottom);
+    box-shadow: var(--control-shadow);
+    transition: background-color 0.25s cubic-bezier(0.1, 0.9, 0.2, 1),
+                border-color 0.25s cubic-bezier(0.1, 0.9, 0.2, 1),
+                border-bottom-color 0.25s cubic-bezier(0.1, 0.9, 0.2, 1),
+                box-shadow 0.25s cubic-bezier(0.1, 0.9, 0.2, 1),
+                flex-basis 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.search-field:hover {
+    background: var(--control-hover-bg);
+    border: var(--control-hover-border);
+    border-bottom: var(--control-hover-border-bottom);
+    box-shadow: var(--control-hover-shadow);
+}
+
+.search-field:focus-within {
+    flex: 0 1 320px;
+    background: rgba(var(--glass-tint-rgb), 0.95);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--accent-border), var(--control-shadow);
+}
+
+.search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: var(--text-label);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}

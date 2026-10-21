@@ -1,0 +1,807 @@
+
+
+/* Settings panel */
+
+.settings-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    color: var(--text-color);
+}
+
+/* Header — mica strip with the app mark, the page title and the
+   cross-category settings search. */
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.2em;
+    flex-shrink: 0;
+    padding: 0.65em 1.2em;
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    /* The backdrop-filter above makes the header its own stacking
+       context, which would trap the search results popover underneath
+       the content pane. Lift the header above it. */
+    position: relative;
+    z-index: 20;
+}
+
+.settings-header-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+    min-width: 0;
+}
+
+.settings-header-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.3em;
+    height: 2.3em;
+    border-radius: var(--radius-md);
+    background-color: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    color: var(--accent);
+}
+
+.settings-header-mark svg {
+    width: 1.15em;
+    height: 1.15em;
+}
+
+.settings-header-titles {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.settings-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-display);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+
+.settings-subtitle {
+    margin: 0.05em 0 0;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.settings-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    flex-shrink: 0;
+}
+
+.settings-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    text-align: left;
+}
+
+.settings-nav {
+    width: max(248px, 16em);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0.7em 0.6em;
+    overflow-y: auto;
+    background-color: rgba(var(--panel-tint-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+    border-right: 1px solid var(--border-color);
+}
+
+.settings-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+}
+
+/* Selection is a 3px accent rail plus an accent-tinted fill — the
+   Windows 11 idiom. A border + shadow reads as a pressed button and
+   makes the whole rail look like a stack of grey chips. */
+.settings-nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+    width: 100%;
+    padding: 0.55em 0.7em 0.55em 0.9em;
+    font-size: var(--text-body);
+    font-family: inherit;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-color);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.14s ease;
+}
+
+.settings-nav-item::before {
+    content: "";
+    position: absolute;
+    left: 0.1em;
+    top: 50%;
+    width: 3px;
+    height: 1.5em;
+    border-radius: 3px;
+    background-color: var(--accent);
+    transform: translateY(-50%) scaleY(0);
+    transform-origin: center;
+    transition: transform 0.16s ease;
+}
+
+.settings-nav-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.settings-nav-item.active {
+    background-color: var(--accent-soft);
+}
+
+.settings-nav-item.active::before {
+    transform: translateY(-50%) scaleY(1);
+}
+
+.settings-nav-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2em;
+    height: 2em;
+    border-radius: var(--radius-sm);
+    background-color: var(--control-bg);
+    color: var(--text-secondary);
+    transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.settings-nav-icon svg {
+    width: 1.1em;
+    height: 1.1em;
+}
+
+.settings-nav-item.active .settings-nav-icon {
+    background-color: color-mix(in oklch, var(--accent) 16%, transparent);
+    color: var(--accent);
+}
+
+.settings-nav-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.settings-nav-title {
+    font-size: var(--text-label);
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.settings-nav-item.active .settings-nav-title {
+    color: var(--accent);
+}
+
+.settings-nav-desc {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    line-height: 1.3;
+    margin-top: 0.1em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+    .settings-body {
+        flex-direction: column;
+    }
+
+    .settings-nav {
+        width: 100%;
+        padding: 0.5em;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .settings-nav-list {
+        flex-direction: row;
+        gap: 0.4em;
+    }
+
+    .settings-nav-item {
+        flex-shrink: 0;
+        width: auto;
+        padding: 0.4em 0.8em 0.4em 1em;
+    }
+
+    .settings-nav-desc {
+        display: none;
+    }
+}
+
+/* Two-column setting rows need more width than a phone has; below this
+   the control drops under its label. */
+@media (max-width: 900px) {
+    .ui-field-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ui-field-row-control {
+        justify-content: flex-start;
+    }
+
+    .setting-control-slider {
+        width: 100%;
+    }
+}
+
+/* Main pane: the sub-nav strip sits above the scrolling content, so it
+   stays put without needing position:sticky inside the scroller. */
+.settings-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.settings-subnav {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    flex-shrink: 0;
+    padding: 0.5em 1.4em;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-subnav::-webkit-scrollbar {
+    display: none;
+}
+
+.settings-subnav-pill {
+    flex-shrink: 0;
+    padding: 0.3em 0.72em;
+    font-size: var(--text-label);
+    font-weight: 500;
+    font-family: inherit;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.settings-subnav-pill:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.settings-subnav-pill.active {
+    background-color: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+.settings-content {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding: 1em 1.4em 2em;
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+}
+
+/* Section card — Fluent card treatment: no drop shadow (the design
+   system says blur and tint carry the depth), just a 1px border and an
+   inset top highlight. */
+.ui-section {
+    margin-bottom: 0.85em;
+    border-radius: var(--radius-md);
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+.ui-section-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+    width: 100%;
+    padding: 0.8em 1em;
+    border-radius: calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0 0;
+    font-family: inherit;
+    color: inherit;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.14s ease;
+}
+
+.ui-section-head:hover {
+    background-color: var(--hover-bg);
+}
+
+.ui-section-chevron {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.4em;
+    height: 1.4em;
+    margin-top: 0.1em;
+    color: var(--text-secondary);
+    transition: transform 0.18s ease;
+}
+
+.ui-section-chevron svg {
+    width: 1em;
+    height: 1em;
+}
+
+.ui-section.is-collapsed .ui-section-chevron {
+    transform: rotate(-90deg);
+}
+
+.ui-section-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+    min-width: 0;
+}
+
+.ui-section-title {
+    font-family: var(--font-display);
+    font-size: 1.02em;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+}
+
+.ui-section-desc {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.ui-section-body {
+    padding: 0 1em 0.85em;
+}
+
+.ui-section.is-collapsed .ui-section-body {
+    display: none;
+}
+
+/* Setting rows — two columns: label and explanation on the left,
+   control on the right. */
+.ui-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.05em;
+}
+
+.ui-field-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.25em 2em;
+    padding: 0.55em 0.6em;
+    border-radius: var(--radius-sm);
+    transition: background-color 0.14s ease;
+}
+
+.ui-field-row:hover {
+    background-color: var(--hover-bg);
+}
+
+.ui-field-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+    min-width: 0;
+}
+
+.ui-field-row-label {
+    font-size: var(--text-label);
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.ui-field-row-desc {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    line-height: 1.4;
+    max-width: 54ch;
+}
+
+.ui-field-row-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5em;
+    min-width: 0;
+}
+
+.ui-field-row-full .ui-field-row-control {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    width: 100%;
+    margin-top: 0.3em;
+}
+
+.setting-control-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    width: 16em;
+    max-width: 100%;
+}
+
+.setting-control-slider input[type="range"] {
+    flex: 1;
+    min-width: 5em;
+}
+
+.setting-control-select {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.setting-control-select select {
+    min-width: 7em;
+}
+
+.setting-control-select input[type="number"] {
+    width: 5.5em;
+}
+
+.setting-control-inline {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.6em;
+}
+
+.ui-field-row-full .setting-control-inline {
+    justify-content: flex-start;
+}
+
+.setting-value {
+    min-width: 3.4em;
+    text-align: right;
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.setting-label-standalone {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.setting-suffix {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.setting-note {
+    margin: 0.25em 0 0;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.setting-checkbox {
+    width: 1.05em;
+    height: 1.05em;
+    accent-color: var(--accent);
+}
+
+/* Highlight used when the search jumps to a setting. */
+@keyframes settings-flash {
+    0% {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+    100% {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+}
+
+.settings-flash {
+    border-radius: var(--radius-sm);
+    animation: settings-flash 1.6s ease-out;
+}
+
+/* Settings search — the header field and its ranked results. */
+.settings-search {
+    position: relative;
+}
+
+.settings-search-field {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    width: 15em;
+    padding: 0.28em 0.6em;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background-color: var(--control-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-search-field:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1.5px color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+.settings-search-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+}
+
+.settings-search-icon svg {
+    width: 0.95em;
+    height: 0.95em;
+}
+
+.settings-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    padding: 0;
+    font-size: var(--text-label);
+    font-weight: 400;
+    color: var(--input-color);
+    outline: none;
+}
+
+.settings-search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.75;
+}
+
+.settings-search-kbd {
+    flex-shrink: 0;
+    padding: 0.08em 0.32em;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.settings-search-results {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 120;
+    width: 23em;
+    max-width: 78vw;
+    max-height: 21em;
+    overflow-y: auto;
+    padding: 0.25em;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background-color: var(--option-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: var(--shadow-lg);
+    text-align: left;
+}
+
+.settings-search-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-search-group-label {
+    padding: 0.55em 0.55em 0.2em;
+    font-size: var(--text-section);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.settings-search-hit {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.8em;
+    width: 100%;
+    padding: 0.38em 0.55em;
+    font-size: var(--text-label);
+    font-family: inherit;
+    color: var(--text-color);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.settings-search-hit:hover,
+.settings-search-hit.selected {
+    background-color: color-mix(in oklch, var(--accent) 12%, transparent);
+}
+
+.settings-search-hit-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.settings-search-hit-path {
+    flex-shrink: 0;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.settings-search-empty {
+    padding: 1em;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* Font settings controls */
+.font-family-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    margin-bottom: 1em;
+}
+
+.font-dropdown-container {
+    position: relative;
+    width: 100%;
+}
+
+.font-search-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.font-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--option-bg, #1e1e1e);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-strong, #333);
+    border-radius: var(--radius-md, 6px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+}
+
+.font-search-header {
+    display: flex;
+    align-items: center;
+    padding: var(--space-6);
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.font-menu-filter-input {
+    flex: 1;
+    padding: var(--space-4) var(--space-8);
+    font-size: var(--text-caption);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-color);
+}
+
+.font-dropdown-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: var(--text-title);
+    padding: 0 var(--space-8);
+    cursor: pointer;
+}
+
+.font-dropdown-list {
+    overflow-y: auto;
+    max-height: 220px;
+    padding: var(--space-4);
+}
+
+.font-dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: var(--space-6) var(--space-10);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-color);
+    font-size: var(--text-label);
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.font-dropdown-item:hover {
+    background: var(--hover-bg, rgba(255, 255, 255, 0.1));
+}
+
+.font-dropdown-item.active {
+    background: var(--accent-soft, rgba(59, 130, 246, 0.2));
+    color: var(--accent, #3b82f6);
+}
+
+.font-dropdown-empty {
+    padding: var(--space-12);
+    text-align: center;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+}
+
+
+
+
+.font-size-number-input {
+    width: 64px;
+    height: 28px;
+    padding: var(--space-2) var(--space-6);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--control-bg);
+    color: var(--text-color);
+    font-size: 13px !important;
+    text-align: center;
+}

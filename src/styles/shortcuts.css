@@ -1,0 +1,367 @@
+
+
+/* Shortcuts Redesign */
+.shortcuts-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.shortcut-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.75em;
+    margin-top: 0.8em;
+}
+
+.shortcut-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.6em;
+    padding: 0.85em 1em;
+    border-radius: var(--radius-sm);
+    background-color: var(--card-bg-subtle, rgba(var(--panel-rgb), 0.15));
+    border: 1px solid var(--border-color);
+    transition: border-color 0.15s ease;
+}
+
+.shortcut-card:hover {
+    border-color: var(--accent-border);
+}
+
+.shortcut-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+}
+
+.shortcut-title {
+    font-size: var(--text-label);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.shortcut-description {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.shortcut-default-hint {
+    font-size: var(--text-caption);
+    font-family: var(--text-mono);
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.shortcut-reset-btn {
+    padding: 0.25em 0.6em !important;
+    font-size: var(--text-caption) !important;
+}
+
+.option-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+}
+
+.option-group + * {
+    margin-top: 0.75em;
+}
+
+.option-btn {
+    background: transparent;
+    color: var(--text-color);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.4em 0.8em;
+    font-size: var(--text-label);
+}
+
+.option-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+.option-btn.active {
+    background-color: var(--active-bg);
+    color: var(--accent);
+    border-color: transparent;
+}
+
+.swatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin-top: 0.5em;
+}
+
+.swatch {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: var(--radius-md);
+    border: 2px solid transparent;
+    box-shadow: var(--shadow-sm);
+}
+
+.swatch.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.unsplash-settings {
+    margin-top: 0.5em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.fixed-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.api-key-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.api-key-status {
+    font-size: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.api-key-status.configured {
+    color: var(--success);
+    opacity: 1;
+}
+
+.api-key-input-row {
+    display: flex;
+    gap: 0.5em;
+}
+
+.api-key-input {
+    flex: 1;
+    min-width: 10em;
+}
+
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 0.6em;
+}
+
+.image-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25em;
+    cursor: pointer;
+    font-size: var(--text-secondary);
+}
+
+.image-option img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.fixed-list-builder {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7em;
+}
+
+.wallpaper-search-form {
+    display: flex;
+    gap: 0.5em;
+}
+
+.wallpaper-search-form input {
+    flex: 1;
+    min-width: 0;
+}
+
+.wallpaper-search-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8em;
+    font-size: var(--text-secondary);
+    color: var(--text-secondary);
+}
+
+.fixed-list-saved {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding-top: 0.6em;
+    border-top: 1px solid var(--border-color);
+}
+
+.fixed-list-saved h4 {
+    margin: 0;
+    font-size: var(--text-secondary);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.image-option.saved-image {
+    position: relative;
+    cursor: default;
+}
+
+.image-remove-btn {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border-radius: 50%;
+    border: none;
+    background: var(--danger);
+    color: #fff;
+    font-size: var(--text-caption);
+    line-height: 1;
+    cursor: pointer;
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+input:not([type="range"]):not([type="color"]):not(.settings-search-input),
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
+select {
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    padding: 0.5em 1em;
+    font-size: 1em;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--input-color);
+    background-color: var(--input-bg);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+select option {
+    color: var(--option-color);
+    background-color: var(--option-bg);
+}
+
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all),
+select {
+    cursor: pointer;
+}
+
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):hover,
+select:hover {
+    border-color: var(--accent);
+    background-color: color-mix(in oklch, var(--accent) 6%, var(--input-bg));
+}
+
+button:not(.sidebar-item):not(.sidebar-drive):not(.view-rail-item):not(.icon-btn):not(.breadcrumb-segment):not(.context-menu-item):not(.option-btn):not(.settings-nav-item):not(.ui-section-head):not(.settings-subnav-pill):not(.settings-search-hit):not(.explorer-tab-close):not(.explorer-tab-new):not(.window-control-btn):not(.progress-task-cancel):not(.progress-task-clear):not(.progress-clear-all):active {
+    border-color: var(--accent);
+    background-color: color-mix(in oklch, var(--accent) 12%, var(--input-bg));
+}
+
+input:not([type="range"]):not([type="color"]):not(.settings-search-input):focus-visible,
+button:focus-visible,
+select:focus-visible,
+.sidebar-item:focus-visible,
+.sidebar-drive:focus-visible,
+.view-rail-item:focus-visible,
+.breadcrumb-segment:focus-visible,
+.context-menu-item:focus-visible,
+.explorer-tab-close:focus-visible,
+.explorer-tab-new:focus-visible,
+.settings-nav-item:focus-visible,
+.file-table th.sortable:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-color: var(--accent);
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    flex: 1;
+    height: 1.2em;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-color);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-top: calc(-1 * var(--space-5));
+    cursor: pointer;
+}
+
+.gradient-settings,
+.solid-settings {
+    margin-top: 0.5em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.gradient-builder {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    align-items: flex-end;
+}
+
+.color-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+    font-size: var(--text-secondary);
+}
+
+.solid-settings .color-field {
+    flex-direction: row;
+    align-items: center;
+}
+
+.color-text-input {
+    flex: 1;
+    min-width: 10em;
+}
+
+input[type="color"] {
+    padding: 0.2em;
+    width: 3em;
+    height: 2.4em;
+}

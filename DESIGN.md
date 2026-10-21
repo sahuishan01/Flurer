@@ -217,7 +217,7 @@ In dark mode, body text gets **line-height 1.55** and **letter-spacing 0.01em** 
 ## Layout & Spacing
 
 Spacing follows a loose 4px grid, available as the `--space-*` scale in
-`App.css`. Each step is the pixel size at the default 16px base, expressed
+`src/styles/base.css`. Each step is the pixel size at the default 16px base, expressed
 in `rem` so it tracks the user's font-size preference (`--font-size`) the
 way the rest of the layout already does:
 
@@ -227,7 +227,18 @@ way the rest of the layout already does:
 - **16–18px** (`--space-16`, `--space-18`): Section breaks, modal padding
 
 `tests/design.test.ts` asserts the scale above matches the `--space-*`
-tokens in `App.css`, so the two cannot drift apart.
+tokens in the stylesheet, so the two cannot drift apart.
+
+### Where the styles live
+
+`src/App.css` is the entry point: it holds nothing but `@import` lines,
+one per component stylesheet under `src/styles/`. The import order is
+the cascade order and must not be rearranged — several rules depend on
+it (the global `button:not(...)` rule, the per-theme accent blocks, the
+media queries).
+
+`src/theme.css` holds the Fluent-derived tokens (colours, type, radius)
+and is imported by `src/styles/base.css`.
 
 ### Rail and sidebar dimensions
 

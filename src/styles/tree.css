@@ -1,0 +1,107 @@
+
+
+/* ---- Sidebar folder tree ---- */
+.sidebar-tree {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-6) var(--space-3) var(--space-8);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.tree-row:hover {
+    background: var(--accent-bg-soft);
+}
+
+.tree-row.active {
+    background: var(--accent-bg-soft);
+    color: var(--accent-default);
+}
+
+.tree-row .sidebar-entry-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-chevron {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.tree-chevron:hover {
+    color: var(--text-primary);
+}
+
+.tree-loading {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+/* ---- Inline breadcrumb path bar ---- */
+.path-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    overflow-x: auto;
+    min-width: 0;
+    flex: 1;
+    scrollbar-width: none;
+}
+
+.path-breadcrumbs::-webkit-scrollbar {
+    display: none;
+}
+
+.crumb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.inline-crumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+}
+
+.crumb-chevron {
+    font-size: 9px;
+    padding: var(--space-1) var(--space-3);
+    border-radius: 4px;
+    opacity: 0.6;
+}
+
+.crumb-chevron:hover {
+    opacity: 1;
+    background: var(--accent-bg-soft);
+}
+
+.crumb-dropdown {
+    min-width: 180px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.path-suggestions-empty {
+    padding: var(--space-10) var(--space-12);
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}

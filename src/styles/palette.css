@@ -1,0 +1,109 @@
+
+
+/* ---- Command palette (Ctrl+K) ---- */
+.command-palette-backdrop {
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 12vh;
+}
+
+.command-palette-panel {
+    width: min(560px, calc(100vw - 48px));
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(var(--panel-rgb), calc(var(--surface-opacity) + 0.35));
+    backdrop-filter: blur(calc(var(--surface-blur) + 10px));
+    -webkit-backdrop-filter: blur(calc(var(--surface-blur) + 10px));
+    border: 1px solid var(--border-subtle, rgba(var(--panel-rgb), 0.6));
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+.command-palette-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 1.1em;
+    padding: var(--space-14) var(--space-16);
+    border-bottom: 1px solid var(--border-subtle, rgba(var(--panel-rgb), 0.4));
+}
+
+.command-palette-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.command-palette-list {
+    overflow-y: auto;
+    padding: var(--space-6);
+    flex: 1;
+}
+
+.command-palette-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    padding: var(--space-8) var(--space-10);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.command-palette-item.selected {
+    background: var(--accent-bg-soft);
+}
+
+.command-palette-item-label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.command-palette-item-shortcut {
+    font-family: var(--font-data);
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    background: var(--text-backplate);
+    border-radius: 4px;
+    padding: var(--space-2) var(--space-6);
+}
+
+.command-palette-item-category {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.command-palette-empty {
+    padding: var(--space-18) var(--space-14);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.command-palette-footer {
+    display: flex;
+    gap: var(--space-14);
+    padding: var(--space-8) var(--space-14);
+    border-top: 1px solid var(--border-subtle, rgba(var(--panel-rgb), 0.4));
+    color: var(--text-secondary);
+    font-size: 0.85em;
+}
+
+/* ---- Plugin install/update progress ---- */
+.plugin-progress {
+    margin-bottom: 1em;
+}
+
+.update-progress-fill.indeterminate {
+    animation: plugin-progress-indeterminate 1.2s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+@keyframes plugin-progress-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}

@@ -1,0 +1,221 @@
+
+
+.explorer-view {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.explorer-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Split view lays panes out on a grid, wrapping onto new rows once a row
+   fills up at --split-cols wide; each pane keeps the column layout the
+   single-pane case has always used. --split-cols is set inline per render
+   (ExplorerView.tsx) since it's a user-adjustable count (1-4), not a fixed
+   value CSS alone can express. */
+.explorer-content-split {
+    display: grid;
+    grid-template-columns: repeat(var(--split-cols, 1), 1fr);
+    grid-auto-rows: 1fr;
+    gap: 0.5em;
+}
+
+.explorer-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Without this the panes refuse to shrink below their content width and
+       the wider one pushes the other off screen. */
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.explorer-content-split .explorer-pane {
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+
+/* Which pane keyboard shortcuts and OS drops will act on. Only shown while
+   split — with one pane there is nothing to disambiguate, and a permanent
+   highlight would just be noise. */
+.explorer-content-split .explorer-pane-active {
+    border-color: var(--accent);
+}
+
+.explorer-pane-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.25em 0.4em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Each extra pane owns a full ExplorerPathBar (breadcrumb + editable
+   input + favourite toggle) rather than a read-only path label, so its
+   folder can actually be retyped/navigated the same way the primary
+   pane's address bar works — a plain <span> here was the original design
+   and is exactly what made the second pane's path feel stuck. */
+.explorer-pane-header .explorer-path-bar {
+    flex: 1;
+    min-width: 0;
+}
+
+.explorer-pane-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    flex-shrink: 0;
+}
+
+/* Floats over the list rather than taking a row of its own, so adding the
+   split affordance costs no vertical space in the common single-pane case. */
+.explorer-pane-actions {
+    position: absolute;
+    top: 0.3em;
+    right: 0.6em;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    opacity: 0.5;
+}
+
+.explorer-pane-actions:hover {
+    opacity: 1;
+}
+
+.split-cols-stepper {
+    display: flex;
+    align-items: center;
+    gap: 0.15em;
+}
+
+.split-cols-count {
+    min-width: 1.2em;
+    text-align: center;
+    font-size: var(--text-label);
+    font-variant-numeric: tabular-nums;
+}
+
+/* .view-stack/.view-pane are flex items on the row axis (view-rail |
+   sidebar | view-stack) as well as the column axis further in — each level
+   here previously only set min-height: 0, which stops row content from
+   collapsing vertically but does nothing for width. A flex item's default
+   min-width is auto (never smaller than its content), so a wide descendant
+   like .settings-content or .plugin-card just pushed every ancestor in this
+   chain wider than the window instead of shrinking — and because
+   .explorer-view/.explorer-content have overflow: hidden, that overflow was
+   silently clipped rather than scrolled. min-width: 0 here lets the chain
+   actually shrink to the space it's given, so the overflow:auto containers
+   further in (.settings-content, .file-list) can do their job. */
+.view-stack {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.view-pane {
+    /* display:flex was missing here — every other link in this chain
+       (.view-stack, .explorer-view, .explorer-content) already uses this
+       same display:flex + flex:1 + min-width:0 + min-height:0 recipe.
+       Without it, a child like .settings-page (flex:1, overflow:hidden)
+       never gets a bounded height from this parent, so it just grows to
+       fit all its content and that oversized box overflows into
+       .view-pane's own overflow:auto instead — meaning .view-pane becomes
+       the ONE scroll container for everything inside it, dragging
+       .settings-nav and .settings-content along together as a single
+       blob instead of each scrolling within its own bounded box. Same
+       latent issue exists for Explorer/Trash but is invisible there since
+       they only have one scrollable region, not two independent
+       side-by-side ones. */
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    overflow: auto;
+    /* Deliberately no background/blur here — this class is shared by
+       Explorer, Trash, Settings, AND plugin panels. Explorer/Trash/Settings
+       already own correctly-tinted child surfaces (.toolbar, .file-list,
+       .sidebar's --acrylic-bg, .settings-header, ...), each tracking
+       --surface-opacity/--surface-blur directly per the flurer-conventions
+       "every text-bearing surface owns its own tinted backing" rule.
+       Painting a background on .view-pane itself used to add a second,
+       independent translucent layer behind those for the CORE views too
+       (not just plugins), which visibly desynced the content area from the
+       sidebar/rail — see .plugin-view-pane below for where the actual
+       plugin-only fallback lives instead. */
+}
+
+/* Fallback surface for a plugin panel that paints no background of its
+   own, so it reads as part of the shell instead of a transparent hole —
+   applied ONLY to plugin .view-pane instances (App.tsx adds this class
+   alongside .view-pane in the registeredPlugins() loop), never to
+   Explorer/Trash/Settings's plain .view-pane divs, so core views can't
+   regress the way they did when this lived on .view-pane itself.
+   --plugin-surface-opacity/--plugin-surface-blur are set inline by App.tsx
+   per plugin instance, scoped to that one element, not shared globally, so
+   each plugin can have its own value without colliding with another
+   plugin's. A plugin that paints its own opaque-enough root simply
+   occludes this; it's a fallback, not a conflict. See
+   docs/superpowers/specs/2026-08-19-per-plugin-translucency-design.md. */
+.plugin-view-pane {
+    background-color: rgba(var(--panel-rgb), var(--plugin-surface-opacity, var(--surface-opacity)));
+    backdrop-filter: blur(var(--plugin-surface-blur, var(--surface-blur, 0)));
+    -webkit-backdrop-filter: blur(var(--plugin-surface-blur, var(--surface-blur, 0)));
+}
+
+/* Icon-only strip for switching top-level views (Explorer / Storage graph /
+   Settings) — kept separate from .sidebar so the sidebar itself only ever
+   has to represent "places", not "modes". */
+.view-rail {
+    width: 52px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3em;
+    padding: 0.8em 0;
+    background-color: rgba(var(--panel-rgb), var(--surface-opacity));
+    backdrop-filter: blur(var(--surface-blur, 0));
+    -webkit-backdrop-filter: blur(var(--surface-blur, 0));
+    border-right: 1px solid var(--border-color);
+}
+
+.view-rail-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    border-radius: var(--radius-sm);
+}
+
+.view-rail-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.view-rail-item.active {
+    color: var(--accent);
+    background-color: var(--active-bg);
+}
+
+.view-rail-spacer {
+    flex: 1;
+}
