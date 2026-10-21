@@ -18,7 +18,10 @@ rustup_home=${RUSTUP_HOME:-$HOME/.rustup}
 bun_home=${BUN_INSTALL:-$HOME/.bun}
 node_home=$(dirname "$(dirname "$(command -v node)")")
 build_home="$HOME/.cache/flurer-linux-home"
-mkdir -p "$build_home" "$cargo_home" "$rustup_home" "$bun_home"
+# RUNNER_TEMP is a CI-only variable. Fall back to a local temp directory
+# so the script can also be run by hand on a build host.
+runner_temp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+mkdir -p "$build_home" "$cargo_home" "$rustup_home" "$bun_home" "$runner_temp"
 
 # All image layers, caches, workspaces, and temporary files stay on the capped
 # runner volume. Disabled container cgroups retain the runner's parent limits.
@@ -31,7 +34,7 @@ podman "${podman_args[@]}" run --rm --cgroups=disabled \
   --volume "$bun_home:/cache/bun" \
   --volume "$node_home:/opt/node:ro" \
   --volume "$build_home:/build-home" \
-  --volume "$RUNNER_TEMP:/tmp" \
+  --volume "$runner_temp:/tmp" \
   --env HOME=/build-home --env CARGO_HOME=/cache/cargo \
   --env RUSTUP_HOME=/cache/rustup --env BUN_INSTALL=/cache/bun \
   --env PATH=/opt/node/bin:/cache/bun/bin:/cache/cargo/bin:/usr/local/bin:/usr/bin:/bin \
