@@ -183,7 +183,15 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
             if let Ok(Ok(raw_json)) = tokio::time::timeout(std::time::Duration::from_millis(400), rx).await {
                 // If it returned JSON with { url, title, nw }:
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw_json) {
-                    if let Some(obj) = parsed.as_object() {
+                    let obj_opt = if let Some(obj) = parsed.as_object() {
+                        Some(obj.clone())
+                    } else if let Some(inner_str) = parsed.as_str() {
+                        serde_json::from_str::<serde_json::Value>(inner_str).ok().and_then(|v| v.as_object().cloned())
+                    } else {
+                        None
+                    };
+
+                    if let Some(obj) = obj_opt {
                         if let Some(nw_list) = obj.get("nw").and_then(|v| v.as_array()) {
                             for nw_item in nw_list {
                                 if let Some(target_url) = nw_item.as_str() {
@@ -254,7 +262,15 @@ pub async fn get_docked_webview_info(app: AppHandle, label: String) -> Result<Op
         if eval_res.is_ok() {
             if let Ok(Ok(raw_json)) = tokio::time::timeout(std::time::Duration::from_millis(400), rx).await {
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw_json) {
-                    if let Some(obj) = parsed.as_object() {
+                    let obj_opt = if let Some(obj) = parsed.as_object() {
+                        Some(obj.clone())
+                    } else if let Some(inner_str) = parsed.as_str() {
+                        serde_json::from_str::<serde_json::Value>(inner_str).ok().and_then(|v| v.as_object().cloned())
+                    } else {
+                        None
+                    };
+
+                    if let Some(obj) = obj_opt {
                         let nw_list = obj.get("nw").and_then(|v| v.as_array());
                         if let Some(nw_list) = nw_list {
                             for nw_item in nw_list {
@@ -417,6 +433,8 @@ pub async fn attach_child_webview_shortcuts(
                                         0x72 => Some(("F3", "F3")),
                                         // 'B' = 0x42 (Ctrl+B: Sidebar)
                                         0x42 if is_ctrl => Some(("b", "KeyB")),
+                                        // 'H' = 0x48 (Ctrl+H: History)
+                                        0x48 if is_ctrl => Some(("h", "KeyH")),
                                         // Any Ctrl+Alt+<letter> combination (A..Z)
                                         c @ 0x41..=0x5A if is_ctrl && is_alt => {
                                             Some(LETTER_SHORTCUTS[(c - 0x41) as usize])
