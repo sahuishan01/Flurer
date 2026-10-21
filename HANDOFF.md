@@ -442,7 +442,7 @@ sysinfo targets; serde derives needed by cross-platform command payloads).
 Treat any "compiles on my reasoning" claim about windows-cfg code as
 unverified until CI is green.
 
-## UI quality pass (2026-10) — six items, all shipped as commits
+## UI quality pass (2026-10) — six items, shipped as v0.4.232
 
 User request: "how can we create a better ui?" → six suggestions, then
 "do it in the correct order". The order chosen was **dependency order,
@@ -536,18 +536,17 @@ Build CI.
      `App.css` after the split; it now reads the stylesheets in
      `App.css`'s import order.
 
+The Windows leg is the only place these three bugs could show up — it
+is the one that checks out CRLF and mangles drive-letter paths. **A
+green Linux run is not evidence that a test file is portable.**
+
 **Do not re-litigate the spacing scale, the `rem` vs `em` decision, the
 `calc(-1 * …)` form, or the CSS split's contiguity rule** — each was
 chosen deliberately, and each has a failure mode recorded above.
 
 ## Current git state
 
-`main` is at **v0.4.231**, with the six UI-quality items above committed
-on top of it (`f5f5740`, `5f7546a`, `47ef903`, `91fa36d`, `34d9235`).
-They are pushed but **not yet released**: the release ritual (bump → tag
-→ push tag only → watch Release CI) had not run for them when this
-file was last updated. Check `gh run list` before assuming a version.
-
+`main` is at **v0.4.232**, which shipped the six UI-quality items below.
 The Settings redesign shipped in v0.4.225
 (plus the CI image fix in v0.4.226); the explorer layout regression it
 introduced was fixed in v0.4.227 — see "The CSS merge that broke the
