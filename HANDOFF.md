@@ -546,7 +546,7 @@ chosen deliberately, and each has a failure mode recorded above.
 
 ## Current git state
 
-`main` is at **v0.4.232**, which shipped the six UI-quality items below.
+`main` is at **v0.4.233**, which shipped the six UI-quality items below.
 The Settings redesign shipped in v0.4.225
 (plus the CI image fix in v0.4.226); the explorer layout regression it
 introduced was fixed in v0.4.227 — see "The CSS merge that broke the
@@ -567,6 +567,35 @@ Linux leg runs on the self-hosted `heaven` runner, whose job-start hook
 was briefly misconfigured (`/usr/local/libexec/github-runner-job-started`
 must exist and end in `.sh`/`.ps1`/`.js` — a runner-machine config, not
 a repo one).
+
+There is only **one** self-hosted runner, so the Release's Linux leg
+queues behind any Build run on the same period, and a release can sit
+in `queued` for a long time before it starts. That is the queue
+working, not a failure — check `gh run view <id> --json jobs` for the
+per-job state rather than the run's overall status.
+
+### Building the Linux installers by hand
+
+`scripts/ci/linux-container.sh release` produces the deb, rpm and
+AppImage on a build host, using the same container image CI uses. It
+needed three fixes to run outside CI, all in the script:
+
+- `RUNNER_TEMP` is a CI-only variable, and the script runs under
+  `set -u`, so it died before reaching the container.
+- bun was assumed to be at `$BUN_INSTALL/bin/bun`, which only exists
+  when `setup-bun` installed it. On a host where bun comes from a
+  version manager the binary can be named `bun.exe` and is reached
+  only through a symlink whose target sits outside the mounted tree,
+  so the script resolves bun to a real file and mounts its directory.
+- A volume mounted from a directory the container cannot traverse is
+  unreadable on a SELinux-enforcing host unless it is relabelled with
+  `:z`. The label is applied only outside CI, so a CI runner's own
+  temp directory is never relabelled.
+
+Note that this host is **aarch64**, so a local build produces arm64
+artifacts (`flurer_0.4.233_arm64.deb`), while CI's runner is x64 and
+produces amd64 ones. A local build proves the code compiles and
+bundles; it is not a substitute for the published amd64 artifacts.
 
 The UX improvements project (all 8 chunks, command palette through tab
 polish) is complete: every chunk shipped through the full release ritual
