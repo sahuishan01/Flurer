@@ -259,32 +259,11 @@
     flex-shrink: 0;
 }
 
-.properties-grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    column-gap: 1em;
-    row-gap: 0.6em;
+/* The properties list is built from the shared UI kit's read-only
+   field rows (see src/components/ui/Field.tsx), so the rows themselves
+   carry no rules here. */
+.properties-list {
     min-width: 0;
-}
-
-.properties-label {
-    color: var(--text-secondary);
-    font-size: var(--text-caption);
-    white-space: nowrap;
-}
-
-.properties-value {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-caption);
-}
-
-.properties-size-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4em;
 }
 
 .bulk-rename-controls {

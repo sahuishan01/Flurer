@@ -2,6 +2,7 @@ import { createResource, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
 import { RefreshIcon } from "./icons";
+import { FieldGroup, FieldRow, FieldValue } from "./ui/Field";
 import { baseName, formatBytes, parentDir } from "../lib/fs";
 
 type PathMetadata = {
@@ -48,60 +49,62 @@ export function PropertiesDialog(props: PropertiesDialogProps) {
 
   return (
     <Modal title="Properties" onClose={props.onClose}>
-      <div class="properties-grid">
-        <span class="properties-label">Name</span>
-        <span class="properties-value selectable-text" title={baseName(props.path)}>
-          {baseName(props.path)}
-        </span>
+      <FieldGroup class="properties-list" readOnly>
+        <FieldRow label="Name" readOnly>
+          <FieldValue title={baseName(props.path)}>{baseName(props.path)}</FieldValue>
+        </FieldRow>
 
-        <span class="properties-label">Type</span>
-        <span class="properties-value selectable-text">{props.fileSize !== null ? "File" : "Folder"}</span>
+        <FieldRow label="Type" readOnly>
+          <FieldValue>{props.fileSize !== null ? "File" : "Folder"}</FieldValue>
+        </FieldRow>
 
-        <span class="properties-label">Location</span>
-        <span class="properties-value selectable-text" title={parentDir(props.path)}>
-          {parentDir(props.path)}
-        </span>
+        <FieldRow label="Location" readOnly>
+          <FieldValue title={parentDir(props.path)}>{parentDir(props.path)}</FieldValue>
+        </FieldRow>
 
-        <span class="properties-label">Size</span>
-        <span class="properties-value properties-size-row selectable-text">
-          {sizeLabel()}
+        <FieldRow label="Size" readOnly>
+          <FieldValue>{sizeLabel()}</FieldValue>
           <Show when={props.fileSize === null}>
             <button type="button" class="icon-btn" title="Recalculate" aria-label="Recalculate" onClick={props.onRecalculate}>
               <RefreshIcon size={13} />
             </button>
           </Show>
-        </span>
+        </FieldRow>
 
         <Show when={metadata()?.itemCount !== null && metadata()?.itemCount !== undefined}>
-          <span class="properties-label">Contains</span>
-          <span class="properties-value selectable-text">
-            {metadata()!.itemCount} item{metadata()!.itemCount === 1 ? "" : "s"}
-          </span>
+          <FieldRow label="Contains" readOnly>
+            <FieldValue>
+              {metadata()!.itemCount} item{metadata()!.itemCount === 1 ? "" : "s"}
+            </FieldValue>
+          </FieldRow>
         </Show>
 
-        <span class="properties-label">Modified</span>
-        <span class="properties-value selectable-text">
-          <Show when={!metadata.loading} fallback="Loading…">
-            {formatDate(metadata()?.modified ?? null)}
-          </Show>
-        </span>
+        <FieldRow label="Modified" readOnly>
+          <FieldValue>
+            <Show when={!metadata.loading} fallback="Loading…">
+              {formatDate(metadata()?.modified ?? null)}
+            </Show>
+          </FieldValue>
+        </FieldRow>
 
-        <span class="properties-label">Created</span>
-        <span class="properties-value selectable-text">
-          <Show when={!metadata.loading} fallback="Loading…">
-            {formatDate(metadata()?.created ?? null)}
-          </Show>
-        </span>
+        <FieldRow label="Created" readOnly>
+          <FieldValue>
+            <Show when={!metadata.loading} fallback="Loading…">
+              {formatDate(metadata()?.created ?? null)}
+            </Show>
+          </FieldValue>
+        </FieldRow>
 
-        <span class="properties-label">Attributes</span>
-        <span class="properties-value selectable-text">
-          <Show when={!metadata.loading} fallback="Loading…">
-            {metadata()?.readonly ? "Read-only" : "Read/Write"}
-          </Show>
-        </span>
+        <FieldRow label="Attributes" readOnly>
+          <FieldValue>
+            <Show when={!metadata.loading} fallback="Loading…">
+              {metadata()?.readonly ? "Read-only" : "Read/Write"}
+            </Show>
+          </FieldValue>
+        </FieldRow>
 
         {metadata.error && <p class="settings-error">{String(metadata.error)}</p>}
-      </div>
+      </FieldGroup>
     </Modal>
   );
 }

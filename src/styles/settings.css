@@ -244,22 +244,6 @@
     }
 }
 
-/* Two-column setting rows need more width than a phone has; below this
-   the control drops under its label. */
-@media (max-width: 900px) {
-    .ui-field-row {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ui-field-row-control {
-        justify-content: flex-start;
-    }
-
-    .setting-control-slider {
-        width: 100%;
-    }
-}
-
 /* Main pane: the sub-nav strip sits above the scrolling content, so it
    stays put without needing position:sticky inside the scroller. */
 .settings-main {
@@ -414,6 +398,18 @@
     gap: 0.05em;
 }
 
+/* A read-only group is a grid, and the rows inside it are
+   display:contents (see .ui-field-row-readonly) so their label and
+   value land in the group's tracks. One grid for the whole list is what
+   keeps the values aligned with each other. */
+.ui-field-group-readonly {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.35em 1em;
+    padding: 0.3em 0.6em;
+    align-items: baseline;
+}
+
 .ui-field-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -463,6 +459,42 @@
     margin-top: 0.3em;
 }
 
+/* A read-only row: a label and a value rather than a label and a
+   control. The value takes the flexible column so a long path truncates
+   with an ellipsis instead of stretching the row, and the pair reads as
+   a two-column list the way a properties panel does.
+
+   The rows are display:contents, so their label and value become grid
+   items of the GROUP. That is what keeps every value in the list
+   starting at the same x: with a grid per row, each row would size its
+   own label column to its own label and the values would be ragged.
+   The group owns the tracks instead — see .ui-field-group-readonly. */
+.ui-field-row.ui-field-row-readonly {
+    display: contents;
+}
+
+.ui-field-row.ui-field-row-readonly .ui-field-row-label {
+    font-size: var(--text-caption);
+    font-weight: 400;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.ui-field-row.ui-field-row-readonly .ui-field-row-control {
+    justify-content: flex-start;
+    min-width: 0;
+    align-items: baseline;
+}
+
+/* The value itself: one line, ellipsised when it does not fit. */
+.ui-field-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-caption);
+}
+
 .setting-control-slider {
     display: flex;
     align-items: center;
@@ -474,6 +506,28 @@
 .setting-control-slider input[type="range"] {
     flex: 1;
     min-width: 5em;
+}
+
+/* Two-column setting rows need more width than a phone has; below this
+   the control drops under its label.
+
+   This has to come AFTER the .ui-field-row and .setting-control-slider
+   rules. It used to sit earlier in the file, where those rules' later
+   position and equal specificity overrode it — so the stacking never
+   actually happened, and the slider never widened. The browser test that
+   caught it is in the commit that moved this. */
+@media (max-width: 900px) {
+    .ui-field-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ui-field-row-control {
+        justify-content: flex-start;
+    }
+
+    .setting-control-slider {
+        width: 100%;
+    }
 }
 
 .setting-control-select {
