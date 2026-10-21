@@ -1,5 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // DESIGN.md is the design spec; the CSS is what actually ships. This
 // test is the link between them: every token DESIGN.md declares as the
@@ -14,10 +16,13 @@ import { readFileSync } from "node:fs";
 // enumerate (per-theme accents, material layers, runtime surface
 // controls), and a stricter test would break on every one of them.
 
-const root = new URL("..", import.meta.url).pathname;
-const design = readFileSync(`${root}DESIGN.md`, "utf8");
-const appCss = readFileSync(`${root}src/App.css`, "utf8");
-const themeCss = readFileSync(`${root}src/theme.css`, "utf8");
+// fileURLToPath, not URL.pathname: on Windows the pathname of a
+// file:// URL is "/D:/a/b", which readFileSync cannot open.
+const root = fileURLToPath(new URL("..", import.meta.url));
+const read = (relative: string) => readFileSync(join(root, relative), "utf8");
+const design = read("DESIGN.md");
+const appCss = read("src/App.css");
+const themeCss = read("src/theme.css");
 
 /** The YAML frontmatter block at the top of DESIGN.md. */
 function frontmatter(md: string): string {
