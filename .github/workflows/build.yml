@@ -74,6 +74,13 @@ jobs:
         if: runner.environment != 'self-hosted'
         run: bun test tests/fs.test.ts
 
+      # Keeps DESIGN.md (the design spec) and the stylesheets in agreement:
+      # the spec declares the colour/type/radius/spacing/shadow tokens the
+      # app ships, and this fails if either side drifts.
+      - name: Test design spec matches the stylesheet
+        if: runner.environment != 'self-hosted'
+        run: bun test tests/design.test.ts
+
       - name: Build frontend
         if: runner.environment != 'self-hosted'
         run: bun run build

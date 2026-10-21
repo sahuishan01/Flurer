@@ -55,7 +55,7 @@ typography:
     textTransform: uppercase
   badge:
     fontFamily: "Segoe UI Variable Text, Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
-    fontSize: 10px
+    fontSize: 0.625em
     fontWeight: 700
     lineHeight: 1
   mono:
@@ -67,11 +67,18 @@ rounded:
   md: 8px
   lg: 10px
 spacing:
-  xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 48px
+  1: 1px
+  2: 2px
+  3: 3px
+  4: 4px
+  5: 5px
+  6: 6px
+  8: 8px
+  10: 10px
+  12: 12px
+  14: 14px
+  16: 16px
+  18: 18px
 breakpoints:
   mobile: 600px
 shadows:
@@ -201,7 +208,7 @@ The type system uses **Segoe UI Variable Text** (Windows 11's default) as the pr
 | `secondary` | 0.875em  | 400    | Metadata, timestamps, breadcrumb separators       |
 | `caption`   | 0.75em   | 400    | Hints, drive usage text, error messages           |
 | `section`   | 0.7em    | 700    | Sidebar section labels (uppercase, wide tracked)  |
-| `badge`     | 10px     | 700    | Progress badge count                              |
+| `badge`     | 0.625em  | 700    | Progress badge count                              |
 
 ### Dark mode compensation
 
@@ -209,13 +216,18 @@ In dark mode, body text gets **line-height 1.55** and **letter-spacing 0.01em** 
 
 ## Layout & Spacing
 
-Spacing follows a loose 4px grid expressed in `em` units to respect the user's font-size preference:
+Spacing follows a loose 4px grid, available as the `--space-*` scale in
+`App.css`. Each step is the pixel size at the default 16px base, expressed
+in `rem` so it tracks the user's font-size preference (`--font-size`) the
+way the rest of the layout already does:
 
-- **4px** (`xs`): Dense inline gaps (badge offset, sidebar remove icon margin)
-- **8px** (`sm`): Intra-component gaps (icon groups, button label spacing)
-- **16px** (`md`): Standard spacing between elements (file table cell padding, sidebar padding, settings section padding)
-- **24px** (`lg`): Section breaks, modal padding
-- **48px** (`xl`): Page margins (reserved, not currently in use)
+- **1–3px** (`--space-1`…`--space-3`): Dense inline gaps (badge offset, sidebar remove icon margin)
+- **4–6px** (`--space-4`…`--space-6`): Intra-component gaps (icon groups, button label spacing)
+- **8–14px** (`--space-8`…`--space-14`): Standard spacing between elements (file table cell padding, sidebar padding, settings section padding)
+- **16–18px** (`--space-16`, `--space-18`): Section breaks, modal padding
+
+`tests/design.test.ts` asserts the scale above matches the `--space-*`
+tokens in `App.css`, so the two cannot drift apart.
 
 ### Rail and sidebar dimensions
 
