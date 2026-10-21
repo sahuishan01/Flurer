@@ -169,7 +169,7 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
         let (tx, rx) = tokio::sync::oneshot::channel();
         let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
         let eval_res = webview.eval_with_callback(
-            r#"(function(){try{if(!window.__flurer_hooked){window.__flurer_hooked=true;window.__flurer_nw=[];document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a"):null;if(a&&a.href){var isB=a.target==="_blank"||a.getAttribute("target")==="_blank";var isM=e.button===1;var isC=(e.ctrlKey||e.metaKey)&&e.button===0;if(isB||isM||isC){e.preventDefault();e.stopPropagation();window.__flurer_nw.push(a.href);}}},true);var _origOpen=window.open;window.open=function(u){if(u){window.__flurer_nw.push(String(u));}return null;};}}catch(e){}var p=(window.__flurer_nw&&window.__flurer_nw.length)?window.__flurer_nw.splice(0):[];return JSON.stringify({url:window.location.href,nw:p});})()"#,
+            r#"(function(){try{if(!window.__flurer_hooked){window.__flurer_hooked=true;window.__flurer_nw=[];document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a"):null;if(a&&a.href){var isB=a.target==="_blank"||a.getAttribute("target")==="_blank";var isM=e.button===1;var isC=(e.ctrlKey||e.metaKey)&&e.button===0;if(isB||isM||isC){e.preventDefault();e.stopPropagation();window.__flurer_nw.push(a.href);}}},true);var _origOpen=window.open;window.open=function(u){if(u){window.__flurer_nw.push(String(u));}return null;};}}catch(e){}var p=(window.__flurer_nw&&window.__flurer_nw.length)?window.__flurer_nw.splice(0):[];var t="";try{t=document.title||"";}catch(e){}return JSON.stringify({url:window.location.href,title:t,nw:p});})()"#,
             move |res| {
                 if let Ok(mut guard) = tx.lock() {
                     if let Some(sender) = guard.take() {
@@ -181,7 +181,7 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
 
         if eval_res.is_ok() {
             if let Ok(Ok(raw_json)) = tokio::time::timeout(std::time::Duration::from_millis(400), rx).await {
-                // If it returned JSON with { url, nw }:
+                // If it returned JSON with { url, title, nw }:
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw_json) {
                     if let Some(obj) = parsed.as_object() {
                         if let Some(nw_list) = obj.get("nw").and_then(|v| v.as_array()) {
@@ -201,6 +201,15 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
                         }
                         if let Some(curr_url) = obj.get("url").and_then(|v| v.as_str()) {
                             if !curr_url.is_empty() && curr_url != "about:blank" {
+                                let curr_title = obj.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                                let nav_payload = serde_json::json!({
+                                    "url": curr_url,
+                                    "title": curr_title,
+                                    "sourceWebview": &label,
+                                    "pluginId": "web-loader",
+                                });
+                                let _ = app.emit("flurer:webview-navigated", &nav_payload);
+                                let _ = app.emit("web-loader:navigated", &nav_payload);
                                 return Ok(Some(curr_url.to_string()));
                             }
                         }
@@ -220,6 +229,76 @@ pub async fn get_docked_webview_url(app: AppHandle, label: String) -> Result<Opt
 
         if let Ok(url) = webview.url() {
             return Ok(Some(url.to_string()));
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn get_docked_webview_info(app: AppHandle, label: String) -> Result<Option<serde_json::Value>, String> {
+    use tauri::{Emitter, Manager};
+    if let Some(webview) = app.get_webview(&label) {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
+        let eval_res = webview.eval_with_callback(
+            r#"(function(){try{if(!window.__flurer_hooked){window.__flurer_hooked=true;window.__flurer_nw=[];document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a"):null;if(a&&a.href){var isB=a.target==="_blank"||a.getAttribute("target")==="_blank";var isM=e.button===1;var isC=(e.ctrlKey||e.metaKey)&&e.button===0;if(isB||isM||isC){e.preventDefault();e.stopPropagation();window.__flurer_nw.push(a.href);}}},true);var _origOpen=window.open;window.open=function(u){if(u){window.__flurer_nw.push(String(u));}return null;};}}catch(e){}var p=(window.__flurer_nw&&window.__flurer_nw.length)?window.__flurer_nw.splice(0):[];var t="";try{t=document.title||"";}catch(e){}return JSON.stringify({url:window.location.href,title:t,nw:p});})()"#,
+            move |res| {
+                if let Ok(mut guard) = tx.lock() {
+                    if let Some(sender) = guard.take() {
+                        let _ = sender.send(res);
+                    }
+                }
+            },
+        );
+
+        if eval_res.is_ok() {
+            if let Ok(Ok(raw_json)) = tokio::time::timeout(std::time::Duration::from_millis(400), rx).await {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw_json) {
+                    if let Some(obj) = parsed.as_object() {
+                        let nw_list = obj.get("nw").and_then(|v| v.as_array());
+                        if let Some(nw_list) = nw_list {
+                            for nw_item in nw_list {
+                                if let Some(target_url) = nw_item.as_str() {
+                                    if !target_url.is_empty() && target_url != "about:blank" {
+                                        let payload = serde_json::json!({
+                                            "url": target_url,
+                                            "sourceWebview": &label,
+                                            "pluginId": "web-loader",
+                                        });
+                                        let _ = app.emit("flurer:webview-new-window", &payload);
+                                        let _ = app.emit("web-loader:new-window", &payload);
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(curr_url) = obj.get("url").and_then(|v| v.as_str()) {
+                            if !curr_url.is_empty() && curr_url != "about:blank" {
+                                let curr_title = obj.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                                let nav_payload = serde_json::json!({
+                                    "url": curr_url,
+                                    "title": curr_title,
+                                    "sourceWebview": &label,
+                                    "pluginId": "web-loader",
+                                });
+                                let _ = app.emit("flurer:webview-navigated", &nav_payload);
+                                let _ = app.emit("web-loader:navigated", &nav_payload);
+                                return Ok(Some(serde_json::json!({
+                                    "url": curr_url,
+                                    "title": curr_title,
+                                    "nw": nw_list,
+                                })));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Ok(url) = webview.url() {
+            return Ok(Some(serde_json::json!({
+                "url": url.to_string(),
+                "title": "",
+            })));
         }
     }
     Ok(None)
@@ -328,6 +407,10 @@ pub async fn attach_child_webview_shortcuts(
                                         0x72 => Some(("F3", "F3")),
                                         // 'B' = 0x42 (Ctrl+B: Sidebar)
                                         0x42 if is_ctrl => Some(("b", "KeyB")),
+                                        // 'C' = 0x43 (Ctrl+Shift+C: Toggle Compact Tab View)
+                                        0x43 if is_ctrl && is_shift => Some(("C", "KeyC")),
+                                        // 'G' = 0x47 (Ctrl+Shift+G: New Group / Workspace)
+                                        0x47 if is_ctrl && is_shift => Some(("G", "KeyG")),
                                         // Tab = 0x09 (Ctrl+Tab)
                                         0x09 if is_ctrl => Some(("tab", "Tab")),
                                         // Digits '1'..='9' (0x31..=0x39)
