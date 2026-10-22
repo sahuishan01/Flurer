@@ -598,6 +598,15 @@ that plugin (`src/lib/pluginPermissions.ts`). Five permissions:
   scope not applied, a grant not remembered, grants shared between
   plugins — each produce a failing test. A test that passes with the
   gate removed would not be testing anything.
+- **The map must be checked against the Rust command list.**
+  `tests/permissionMap.test.ts` reads `src-tauri/src/lib.rs` and fails
+  if a command exists in Rust but is missing from the map, or if the
+  map names a command Rust does not register. Writing that map by hand
+  got eighteen commands wrong the first time — the trash commands, the
+  archive commands, the search-index commands, the duplicate finder,
+  the updater — and one of them (`get_filesystem_environment`) was
+  mapped under a name that does not exist in Rust, so it was never
+  gated at all. **Do not extend that map by hand.**
 - A denied call **rejects** with a `PermissionDeniedError`, so a
   plugin has to catch it. `plugin-spec.md` §6 documents this.
 
