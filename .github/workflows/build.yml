@@ -81,6 +81,13 @@ jobs:
         if: runner.environment != 'self-hosted'
         run: bun test tests/design.test.ts
 
+      # The plugin permission gateway: a plugin must not reach a
+      # capability the user has not granted it, and the grants must
+      # survive a restart.
+      - name: Test plugin permissions
+        if: runner.environment != 'self-hosted'
+        run: bun test tests/pluginPermissions.test.ts tests/pluginGateway.test.ts
+
       - name: Build frontend
         if: runner.environment != 'self-hosted'
         run: bun run build

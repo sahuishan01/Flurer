@@ -12,6 +12,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FieldGroup, FieldRow } from "./ui/Field";
 import { CollapsibleSection } from "./ui/CollapsibleSection";
+import {
+  ALL_PERMISSIONS,
+  PERMISSION_LABELS,
+  grantPermission,
+  grantsFor,
+  hasPermission,
+  revokePermission,
+} from "../lib/pluginPermissions";
 
 type PluginMarketplaceProps = {
   disabledPlugins: string[];
@@ -506,6 +514,41 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                       <Show when={plugin.description}>
                         <div class="plugin-description">{plugin.description}</div>
                       </Show>
+
+                      {/* What this plugin is allowed to do. Every
+                          permission the user has granted is listed and
+                          can be taken back; a plugin that has never
+                          asked for anything shows the list anyway, so
+                          it is clear what it *can* ask for. */}
+                      <div class="plugin-permissions">
+                        <div class="plugin-permissions-title">Permissions</div>
+                        <For each={ALL_PERMISSIONS}>
+                          {(permission) => {
+                            const granted = createMemo(() => hasPermission(plugin.id, permission));
+                            return (
+                              <label class="plugin-permission-row">
+                                <input
+                                  type="checkbox"
+                                  checked={granted()}
+                                  onChange={(e) => {
+                                    if (e.currentTarget.checked) grantPermission(plugin.id, permission);
+                                    else revokePermission(plugin.id, permission);
+                                  }}
+                                />
+                                <span class="plugin-permission-label">
+                                  {PERMISSION_LABELS[permission]}
+                                </span>
+                              </label>
+                            );
+                          }}
+                        </For>
+                        <Show when={grantsFor(plugin.id).length === 0}>
+                          <div class="plugin-permission-hint">
+                            This plugin has not asked for any special access. It can still read
+                            folders and show its own panels.
+                          </div>
+                        </Show>
+                      </div>
                     </div>
 
                     <div class="plugin-actions">

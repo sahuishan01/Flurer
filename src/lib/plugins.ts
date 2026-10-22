@@ -6,6 +6,8 @@ import * as TauriEvent from "@tauri-apps/api/event";
 import * as TauriShell from "@tauri-apps/plugin-shell";
 import { CollapsibleSection } from "../components/ui/CollapsibleSection";
 import { FieldGroup, FieldRow } from "../components/ui/Field";
+import { runPluginScoped } from "./pluginGateway";
+import { revokeAll } from "./pluginPermissions";
 import type { ExplorerViewType } from "./view";
 
 export interface PluginInfo {
@@ -158,8 +160,9 @@ export async function loadInstalledPlugins(disabledPlugins: string[] = []) {
       }
       try {
         const code = await TauriCore.invoke<string>("load_plugin_code", { id: plugin.id });
-        const runPlugin = new Function(code);
-        runPlugin();
+        // Scoped, so the plugin's calls are attributed to it and gated
+        // by the permissions the user has granted it.
+        runPluginScoped(code, plugin.id, plugin.name ?? plugin.id);
       } catch (err) {
         console.error(`Failed to load plugin ${plugin.id}:`, err);
       }
@@ -174,8 +177,7 @@ export async function installPluginFromGithub(repoUrl: string): Promise<void> {
 
   // Auto-load after install
   const code = await TauriCore.invoke<string>("load_plugin_code", { id: manifest.id });
-  const runPlugin = new Function(code);
-  runPlugin();
+  runPluginScoped(code, manifest.id, manifest.name ?? manifest.id);
 }
 
 export async function installPluginFromZip(filePath: string): Promise<void> {
@@ -183,13 +185,15 @@ export async function installPluginFromZip(filePath: string): Promise<void> {
 
   // Auto-load after install
   const code = await TauriCore.invoke<string>("load_plugin_code", { id: manifest.id });
-  const runPlugin = new Function(code);
-  runPlugin();
+  runPluginScoped(code, manifest.id, manifest.name ?? manifest.id);
 }
 
 export async function uninstallPlugin(id: string) {
   await TauriCore.invoke("uninstall_plugin", { id });
   pluginRegistry.unregister(id);
+  // A plugin that is gone must not leave its grants behind for the
+  // next plugin with the same id to inherit.
+  revokeAll(id);
 }
 
 export async function checkPluginUpdates(
@@ -204,8 +208,7 @@ export async function updatePlugin(repoUrl: string): Promise<void> {
   // Unregister old version, then load the new one
   pluginRegistry.unregister(manifest.id);
   const code = await TauriCore.invoke<string>("load_plugin_code", { id: manifest.id });
-  const runPlugin = new Function(code);
-  runPlugin();
+  runPluginScoped(code, manifest.id, manifest.name ?? manifest.id);
 }
 
 export async function linkPluginRepo(id: string, repoUrl: string): Promise<void> {

@@ -13,6 +13,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { TrashView } from "./components/TrashView";
 import { Modal } from "./components/Modal";
+import { PluginPermissionPrompt } from "./components/PluginPermissionPrompt";
 import { MetricsBar } from "./components/MetricsBar";
 import { ViewRail } from "./components/ViewRail";
 import {
@@ -1944,6 +1945,10 @@ function App() {
           </Modal>
         )}
       </Show>
+
+      {/* A plugin asking for a permission it has not been granted.
+          Rendered last so it sits above whatever the plugin was doing. */}
+      <PluginPermissionPrompt />
     </main>
   );
 }

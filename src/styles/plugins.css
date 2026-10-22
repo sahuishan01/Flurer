@@ -199,6 +199,50 @@
     flex-shrink: 0;
 }
 
+/* The permission list on an installed plugin's card: what the plugin
+   may currently do, and what it could ask for. */
+.plugin-permissions {
+    margin: 0.6em 0 0 1.15em;
+    padding: 0.5em 0.6em;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background-color: rgba(var(--panel-rgb), calc(var(--surface-opacity) * 0.4));
+}
+
+.plugin-permissions-title {
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.3em;
+}
+
+.plugin-permission-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    font-size: var(--text-caption);
+    padding: 0.12em 0;
+    cursor: pointer;
+}
+
+.plugin-permission-row input[type="checkbox"] {
+    margin: 0;
+}
+
+.plugin-permission-hint {
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    margin-top: 0.3em;
+    line-height: 1.4;
+}
+
+/* The prompt a plugin raises when it wants something it has not been
+   granted. */
+.plugin-permission-lead {
+    margin: 0 0 0.6em;
+    line-height: 1.45;
+}
+
 .plugin-actions button {
     padding: 0.3em 0.7em;
     font-size: var(--text-caption);

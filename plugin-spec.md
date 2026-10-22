@@ -95,7 +95,7 @@ interface PluginInfo {
   version: string;
   author: string;
 
-  // Skip Core's generic appearance slider (§6) because this plugin's own
+  // Skip Core's generic appearance slider (§7) because this plugin's own
   // settingsPanel already exposes surfaceOpacity/surfaceBlur controls.
   hasCustomAppearanceSettings?: boolean;
 
@@ -230,14 +230,14 @@ window.registerPlugin({
 
 `pluginSettings` is a free-form bag scoped entirely to your plugin's `id` —
 Core never reads or validates its contents except for the two reserved
-keys in §6. Use it for anything you want to persist (open tabs, last repo
+keys in §7. Use it for anything you want to persist (open tabs, last repo
 path, per-plugin UI prefs) via `onPluginSettingsChange`.
 
 ## 5. Getting your plugin's own translucency right
 
 Flurer mounts your `mainPanel`/`fullPanel` inside its own `.view-pane`
 wrapper `<div>`, one per registered plugin. That wrapper already carries a
-translucent fallback background/blur (see §6) scoped to *your* plugin
+translucent fallback background/blur (see §7) scoped to *your* plugin
 instance only — other plugins' opacity never leaks into yours and vice
 versa. Two ways to build on that, and don't mix them:
 
@@ -249,7 +249,7 @@ versa. Two ways to build on that, and don't mix them:
   than the 0.35 shell default). Read `pluginSettings.surfaceOpacity`/
   `.surfaceBlur` if set, otherwise fall back to `baseSurfaceOpacity`/
   `baseSurfaceBlur` — same reserved keys Core's own generic slider writes
-  (§6), so your panel responds correctly whether the user set the value
+  (§7), so your panel responds correctly whether the user set the value
   through your UI or Core's:
 
   ```ts
@@ -265,7 +265,7 @@ versa. Two ways to build on that, and don't mix them:
 If you paint your own root, set `hasCustomAppearanceSettings: true` only
 once your `settingsPanel` actually gives the user a way to adjust
 `surfaceOpacity`/`surfaceBlur` themselves — otherwise leave it unset so
-Core's generic slider (§6) still works for your users.
+Core's generic slider (§7) still works for your users.
 
 ### Your panel inside the Settings shell
 
@@ -297,7 +297,55 @@ Two things to know:
 
   The same theme tokens listed above apply.
 
-## 6. Reserved `pluginSettings` keys
+## 6. Permissions
+
+A plugin does not get the app's full access. Its calls go through a
+gateway that checks them against the permissions the user has granted
+that plugin, and asks the user the first time one is needed.
+
+There are five permissions:
+
+| Permission | What it allows |
+|---|---|
+| `fs:read` | List folders, read file details, search, previews |
+| `fs:write` | Create, rename, move and delete files |
+| `shell` | Run commands (git, sh) through the system shell |
+| `app:settings` | Read and change Flurer's settings |
+| `plugins:manage` | Install, update and remove other plugins |
+
+The `git_*` commands all drive git through the shell, so they need
+`shell`.
+
+**What this means for you.** The first time your plugin calls something
+gated, the user gets a dialog naming your plugin and asking for that
+one permission. Until they answer, your call waits. If they allow it,
+the grant is remembered and you are not asked again. If they deny it,
+the call rejects with an error saying which permission was refused.
+
+Call `TauriCore.invoke` normally and the gateway handles it. The one
+thing to know is that a denied call **rejects** rather than returning
+null, so wrap anything you cannot do without the permission:
+
+```js
+try {
+  await window.TauriCore.invoke("set_settings", { patch });
+} catch (err) {
+  if (err?.name === "PermissionDeniedError") {
+    // The user said no. Carry on without it.
+    return;
+  }
+  throw err;
+}
+```
+
+Users can review and revoke a plugin's permissions in Settings →
+Plugins, at any time — a revoked permission stops working immediately,
+without a restart.
+
+Commands that are neither gated nor listed above (logging, wallpaper
+lookups) need no permission and are never blocked.
+
+## 7. Reserved `pluginSettings` keys
 
 Two keys under `pluginSettings[your id]` are reserved by Core for the
 per-plugin appearance system (see
@@ -313,7 +361,7 @@ your instance, see §5), and — unless you set `hasCustomAppearanceSettings`
 — renders a slider pair for these two keys in Settings → Plugins so users
 get a working control even if you never build your own.
 
-## 7. Disabling / uninstalling
+## 8. Disabling / uninstalling
 
 `disabledPlugins` (a plain array of ids in Flurer's own settings) is
 checked before a plugin is loaded at startup (`loadInstalledPlugins`) — a
@@ -322,7 +370,7 @@ lifecycle hook firing around a disable toggle; there isn't one.
 `uninstallPlugin(id)` removes the on-disk install and unregisters it from
 the running app.
 
-## 8. Child Webviews & Accelerator Key Interception
+## 9. Child Webviews & Accelerator Key Interception
 
 If your plugin mounts a native child webview (via `plugin:webview|create_webview`), clicking inside that webview transfers native OS input focus to the child control (Microsoft Edge WebView2 on Windows, WebKitGTK on Linux). When focused, standard browser and accelerator keystrokes (`Ctrl+T`, `Ctrl+W`, `Ctrl+R`, `Ctrl+L`, `Ctrl+P`, etc.) are consumed by the child webview and never reach the parent DOM.
 
