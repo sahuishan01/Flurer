@@ -86,7 +86,7 @@ jobs:
       # survive a restart.
       - name: Test plugin permissions
         if: runner.environment != 'self-hosted'
-        run: bun test tests/pluginPermissions.test.ts tests/pluginGateway.test.ts
+        run: bun test tests/pluginPermissions.test.ts tests/pluginGateway.test.ts tests/permissionMap.test.ts
 
       - name: Build frontend
         if: runner.environment != 'self-hosted'

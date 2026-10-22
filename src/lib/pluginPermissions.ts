@@ -67,6 +67,7 @@ const COMMAND_PERMISSIONS: Record<string, PluginPermission> = {
   list_directory_streamed: "fs:read",
   search_directory: "fs:read",
   search_content: "fs:read",
+  search_index_query: "fs:read",
   get_path_metadata: "fs:read",
   get_file_preview: "fs:read",
   get_quick_access: "fs:read",
@@ -79,7 +80,9 @@ const COMMAND_PERMISSIONS: Record<string, PluginPermission> = {
   get_metric_devices: "fs:read",
   watch_directory: "fs:read",
   unwatch_directory: "fs:read",
-  fs_get_filesystem_environment: "fs:read",
+  get_filesystem_environment: "fs:read",
+  list_trash: "fs:read",
+  search_index_status: "fs:read",
 
   // Filesystem writes.
   copy_items: "fs:write",
@@ -89,12 +92,25 @@ const COMMAND_PERMISSIONS: Record<string, PluginPermission> = {
   rename_item: "fs:write",
   create_folder: "fs:write",
   create_file: "fs:write",
+  restore_trash_items: "fs:write",
+  delete_trash_items_forever: "fs:write",
+  empty_trash: "fs:write",
+  compress_to_zip: "fs:write",
+  extract_archive: "fs:write",
+  rebuild_search_index: "fs:write",
+  clear_search_index: "fs:write",
+  find_duplicates: "fs:read",
+  add_to_system_path: "app:settings",
 
   // Settings.
   get_settings: "app:settings",
   set_settings: "app:settings",
   has_unsplash_api_key: "app:settings",
   set_unsplash_api_key: "app:settings",
+  check_for_updates: "app:settings",
+  download_and_install_update: "app:settings",
+  relaunch_as_admin: "app:settings",
+  set_external_drop_allowed: "app:settings",
 
   // Plugin management.
   list_installed_plugins: "plugins:manage",
