@@ -8,9 +8,6 @@ import { store } from "./pluginTestSetup";
 // scoped window gives a plugin everything it needs, and that the
 // TauriCore it gets is the gated one.
 
-if (typeof (globalThis as any).window === "undefined") {
-  (globalThis as any).window = globalThis;
-}
 await import("../src/lib/plugins.ts");
 const mod = await import("../src/lib/pluginGateway.ts");
 const perms = await import("../src/lib/pluginPermissions.ts");
@@ -25,7 +22,7 @@ const transport = {
 };
 
 function runPlugin(code: string) {
-  const w = globalThis as any;
+  const w = (globalThis as any).window;
   w.__result = undefined;
   w.__error = undefined;
   mod.runPluginScoped(

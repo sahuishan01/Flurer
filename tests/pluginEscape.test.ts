@@ -16,9 +16,6 @@ import { store } from "./pluginTestSetup";
 // The app's real globals are used here, not a stand-in: the point is
 // what the app actually publishes.
 
-if (typeof (globalThis as any).window === "undefined") {
-  (globalThis as any).window = globalThis;
-}
 
 // Import for the side effect: this is what publishes the globals.
 await import("../src/lib/plugins.ts");
@@ -30,7 +27,7 @@ const transport = {
 };
 
 function runPlugin(code: string) {
-  const w = globalThis as any;
+  const w = (globalThis as any).window;
   w.__result = undefined;
   w.__error = undefined;
   mod.runPluginScoped(
@@ -45,7 +42,7 @@ function runPlugin(code: string) {
 
 describe("a plugin cannot reach the raw Tauri API", () => {
   test("the raw API is not published at all", () => {
-    const w = globalThis as any;
+    const w = (globalThis as any).window;
     expect(w.TauriCore).toBeUndefined();
     expect(w.TauriShell).toBeUndefined();
   });
@@ -54,7 +51,7 @@ describe("a plugin cannot reach the raw Tauri API", () => {
     // A browser has a document; Bun does not. Either way the point is
     // the same: the route must not yield a usable TauriCore. A missing
     // document throws, which is also "no API".
-    const w = globalThis as any;
+    const w = (globalThis as any).window;
     if (!w.document) {
       expect(runPlugin(`return window.document.defaultView.TauriCore;`)).toBeUndefined();
       return;
@@ -77,7 +74,7 @@ describe("a plugin cannot reach the raw Tauri API", () => {
   });
 
   test("through window.top", () => {
-    const w = globalThis as any;
+    const w = (globalThis as any).window;
     if (w.top === undefined) {
       // No top window outside a browser; the route cannot yield an API.
       expect(runPlugin(`return window.top.TauriCore;`)).toBeUndefined();

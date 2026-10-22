@@ -26,8 +26,14 @@ if (!(globalThis as any).localStorage) {
   };
 }
 
-if (!(globalThis as any).window) {
-  (globalThis as any).window = globalThis;
-}
+// `window` and `globalThis` must be the SAME object. The app publishes
+// its globals on `window`; a test that reads `globalThis` has to be
+// looking at the same place.
+//
+// The assignment is unconditional rather than guarded: Bun on Windows
+// already defines a `window` that is NOT `globalThis`, and a guarded
+// assignment would leave the two different — the app's globals would
+// land on one object and the test would look at the other.
+(globalThis as any).window = globalThis;
 
 export { store };
