@@ -3,7 +3,6 @@ import * as SolidStore from "solid-js/store";
 import * as SolidWeb from "solid-js/web";
 import * as TauriCore from "@tauri-apps/api/core";
 import * as TauriEvent from "@tauri-apps/api/event";
-import * as TauriShell from "@tauri-apps/plugin-shell";
 import { CollapsibleSection } from "../components/ui/CollapsibleSection";
 import { FieldGroup, FieldRow } from "../components/ui/Field";
 import { runPluginScoped } from "./pluginGateway";
@@ -118,13 +117,21 @@ export const pluginRegistry = {
   }
 };
 
-// Expose APIs globally for plugins to import
+// Expose APIs globally for plugins to import.
+//
+// TauriCore and TauriShell are deliberately NOT here. They used to be,
+// which meant a plugin could reach the raw `invoke` — and the raw
+// `shell` — no matter what the permission gateway said. The gateway
+// (see pluginGateway.ts) hands each plugin its own scoped copy instead,
+// and a plugin that digs for the real one through `document` or
+// `window.top` finds nothing to dig for.
+//
+// The app's own code imports these modules directly, so removing the
+// globals costs nothing here.
 (window as any).Solid = Solid;
 (window as any).SolidStore = SolidStore;
 (window as any).SolidWeb = SolidWeb;
-(window as any).TauriCore = TauriCore;
 (window as any).TauriEvent = TauriEvent;
-(window as any).TauriShell = TauriShell;
 (window as any).registerPlugin = (plugin: PluginInfo) => pluginRegistry.register(plugin);
 (window as any).attachChildWebviewShortcuts = (label: string, pluginId?: string) =>
   TauriCore.invoke("attach_child_webview_shortcuts", { label, pluginId });

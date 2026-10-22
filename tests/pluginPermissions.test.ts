@@ -1,19 +1,9 @@
 import { describe, test, expect, beforeEach } from "bun:test";
+import { store } from "./pluginTestSetup";
 
-// Bun's test runner has no localStorage. The permission module reads it
-// at import time, so a stand-in has to exist before the module is
-// loaded — hence the dynamic import below rather than a static one.
-const store = new Map<string, string>();
-(globalThis as any).localStorage = {
-  getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-  setItem: (k: string, v: string) => void store.set(k, String(v)),
-  removeItem: (k: string) => void store.delete(k),
-  clear: () => store.clear(),
-  key: (i: number) => [...store.keys()][i] ?? null,
-  get length() {
-    return store.size;
-  },
-};
+// The permission module reads localStorage at import time, so the
+// stand-in has to exist before the module is loaded — hence the dynamic
+// import below rather than a static one.
 
 const {
   ALL_PERMISSIONS,

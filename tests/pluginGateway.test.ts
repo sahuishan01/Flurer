@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test";
+import { store } from "./pluginTestSetup";
 
 // The gateway's whole job is to stop a plugin reaching something it
 // was not granted. That has to be proven, not asserted: the test runs
@@ -6,29 +7,20 @@ import { describe, test, expect, beforeEach } from "bun:test";
 // an ungated one goes through, and that a grant makes the gated call
 // work.
 
-const store = new Map<string, string>();
-(globalThis as any).localStorage = {
-  getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-  setItem: (k: string, v: string) => void store.set(k, String(v)),
-  removeItem: (k: string) => void store.delete(k),
-  clear: () => store.clear(),
-  key: (i: number) => [...store.keys()][i] ?? null,
-  get length() {
-    return store.size;
-  },
-};
-
 /**
- * A stand-in for the browser window. Bun's test runner has neither
- * `window` nor `localStorage`, and the gateway needs a real object to
- * proxy — so one is built here.
+ * A stand-in for the browser window. The gateway needs a real object
+ * to proxy, and this test checks the gate in isolation — the real
+ * window's globals are covered by pluginGlobals.test.ts.
+ *
+ * It is passed to the gateway explicitly rather than installed as the
+ * global `window`, because the other test files rely on the global
+ * being the same object as `globalThis`.
  */
 const fakeWindow: any = {
   __solidMarker: "solid",
   registerPlugin: () => {},
   FlurerUI: { FieldRow: () => null },
 };
-(globalThis as any).window = fakeWindow;
 
 // The plain module paths, deliberately: a query string would load a
 // SECOND copy of the module, and the gateway would then be checking
