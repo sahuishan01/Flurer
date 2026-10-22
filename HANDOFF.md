@@ -627,16 +627,23 @@ Three things about testing this, each of which cost a debugging cycle:
 - **Bun's test runner has no `window` and no `localStorage`.** The
   permission module reads storage at import time, so the test has to
   install a stand-in *before* importing it — a dynamic `await import`
-  after the stand-in, not a static import.
-- **A query string on an import path loads a second copy of the
-  module.** `import "...?test=1"` and `import "..."` are different
-  module instances with different signal state, so the test was looking
-  at one copy of the permissions while the gateway checked another.
-  Use the plain path in both.
-- **ES module exports are read-only.** `perms.requestPermission = ...`
-  throws "Attempted to assign to readonly property", so the test
-  cannot stub the prompt that way. It resolves the module's own
-  pending request instead — which is what the prompt dialog does.
+  after the stand-in, not a static import. And `window` must be the
+  same object as `globalThis`: Bun on Windows already defines a
+  `window` that is not `globalThis`, so a guarded
+  `if (!globalThis.window)` assignment would leave the app's globals
+  and the test's view of them on different objects.
+- **Bun's test transpiler cannot compile Solid's JSX.** It uses the
+  automatic JSX runtime and expects `jsxDEV`, which Solid's builds do
+  not export (Solid ships a Babel transform, and the app compiles it
+  with `vite-plugin-solid`). Any test that reaches a `.tsx` file fails
+  with "Export named 'jsxDEV' not found in solid-js". The global
+  publishing therefore lives in `src/lib/pluginGlobals.ts`, which
+  imports no component, and the tests publish through it.
+- **CI runs a different Bun than a dev host.** The runner has Bun
+  1.4.3; this host had 1.3.14, and the JSX problem only appears on
+  the newer one. `bun` on the runner is whatever `oven-sh/setup-bun`
+  installs. **Check the runner's version before concluding a local
+  pass means CI will pass.**
 
 **Do not re-litigate the five-permission granularity** — it is coarse
 on purpose, so a user asked "may this plugin run shell commands?" can
