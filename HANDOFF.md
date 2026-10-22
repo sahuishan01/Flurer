@@ -593,6 +593,18 @@ that plugin (`src/lib/pluginPermissions.ts`). Five permissions:
 - **Do not narrow the Tauri capabilities to "fix" this.** The
   capability file is app-wide, and the app's own git integration still
   needs `shell:allow-execute`. The gateway is the per-plugin gate.
+- **The raw TauriCore and TauriShell are NOT published on the
+  window.** They were, and that defeated the whole gateway: a plugin
+  could reach the real `invoke` through `document.defaultView` or
+  `window.top`, with no permission check, no prompt and no record. The
+  gateway's scoped copy is the only way a plugin should reach the
+  API. Core's own code imports those modules directly, so removing the
+  globals cost nothing. **Do not put them back.**
+  - This one is worth checking in a real browser, not in Bun's test
+    runner: Bun has no `window`, no `document` and different
+    Function-scope behaviour, so the routes that matter cannot be
+    exercised there. The `document`/`top` routes were found with
+    headless Chromium.
 - **The tests were mutation-checked.** Six mutations — no permission
   check, a denied call allowed through, the shell gate removed, the
   scope not applied, a grant not remembered, grants shared between

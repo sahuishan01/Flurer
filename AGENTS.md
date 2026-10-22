@@ -73,6 +73,13 @@ end.
      can be revoked from Settings → Plugins.
    - The scope works because plugins are IIFE bundles that resolve
      `window.TauriCore` at CALL time, not at load time.
+   - **The raw `TauriCore` and `TauriShell` are not published on the
+     window.** They were, and that defeated the gateway: a plugin could
+     reach the real `invoke` through `document.defaultView` or
+     `window.top`, with no permission check. The gateway's scoped copy
+     is the only way a plugin should reach the API. Core imports those
+     modules directly, so removing the globals cost nothing. Do not
+     put them back.
 
 **Do not narrow the Tauri capabilities to "fix" this.** The capability
 file is app-wide, and the app itself needs `shell:allow-execute` for
