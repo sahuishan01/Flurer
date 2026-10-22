@@ -18,7 +18,6 @@ import { store } from "./pluginTestSetup";
 
 
 // Import for the side effect: this is what publishes the globals.
-await import("../src/lib/plugins.ts");
 const mod = await import("../src/lib/pluginGateway.ts");
 
 const transport = {

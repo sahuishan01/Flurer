@@ -36,4 +36,16 @@ if (!(globalThis as any).localStorage) {
 // land on one object and the test would look at the other.
 (globalThis as any).window = globalThis;
 
+// Publish the plugin globals the way the app does, so the tests check
+// what the app actually publishes. The UI kit is stood in for: the real
+// one is a Solid component, and Bun's test transpiler cannot compile
+// Solid's JSX (it expects the automatic JSX runtime; Solid ships a
+// Babel transform).
+const { publishPluginGlobals } = await import("../src/lib/pluginGlobals.ts");
+publishPluginGlobals({
+  registerPlugin: () => {},
+  attachChildWebviewShortcuts: () => {},
+  uiKit: { FieldRow: () => null },
+});
+
 export { store };

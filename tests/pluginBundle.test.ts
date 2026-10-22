@@ -8,7 +8,6 @@ import { store } from "./pluginTestSetup";
 // scoped window gives a plugin everything it needs, and that the
 // TauriCore it gets is the gated one.
 
-await import("../src/lib/plugins.ts");
 const mod = await import("../src/lib/pluginGateway.ts");
 const perms = await import("../src/lib/pluginPermissions.ts");
 

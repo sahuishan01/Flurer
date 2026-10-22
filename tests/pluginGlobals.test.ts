@@ -28,16 +28,12 @@ function appWindow(): any {
 /** The globals the app deliberately does NOT publish. */
 describe("the raw Tauri API is not published globally", () => {
   test("TauriCore and TauriShell are not on the window", async () => {
-    // The module that publishes the globals is imported for its side
-    // effect, so importing it here sets up the same window the app has.
-    await import("../src/lib/plugins.ts");
     const w = appWindow();
     expect(w.TauriCore, "window.TauriCore must not be published — a plugin could call it directly").toBeUndefined();
     expect(w.TauriShell, "window.TauriShell must not be published — a plugin could run commands").toBeUndefined();
   });
 
   test("the globals that plugins do need are still published", async () => {
-    await import("../src/lib/plugins.ts");
     const w = appWindow();
     expect(w.Solid).toBeDefined();
     expect(w.SolidWeb).toBeDefined();
