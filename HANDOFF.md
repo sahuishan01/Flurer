@@ -563,6 +563,64 @@ CSS split — see "A media query that never applied" below.
 `calc(-1 * …)` form, or the CSS split's contiguity rule** — each was
 chosen deliberately, and each has a failure mode recorded above.
 
+## Plugin permission gateway (2026-10) — implemented, not yet released
+
+AGENTS.md §4. A plugin used to get the raw `window.TauriCore` and
+`window.TauriShell`, and `src-tauri/capabilities/default.json` grants
+`shell:allow-execute` (sh, git) to every window — so any installed
+plugin could run `sh -c "..."` with no prompt and no record of it.
+
+Now a plugin runs with a scoped window whose `TauriCore.invoke` and
+`TauriShell.Command` are routed through a gateway
+(`src/lib/pluginGateway.ts`). Each call is attributed to the plugin
+that made it and checked against the permissions the user has granted
+that plugin (`src/lib/pluginPermissions.ts`). Five permissions:
+`fs:read`, `fs:write`, `shell`, `app:settings`, `plugins:manage`. The
+`git_*` commands all drive git through the shell, so they need `shell`.
+
+- **Why the scope works.** Plugins are IIFE bundles that resolve
+  `window.TauriCore` at CALL time, not at load time — so shadowing
+  `window` and `globalThis` for the plugin's code intercepts every
+  call, including ones made long after the plugin loaded. A plugin
+  that stashes the API and calls it later is still gated; there is a
+  test for exactly that.
+- **Why the iframe sandbox was not done.** Plugins must share the
+  app's Solid runtime (the spec requires `solid-js` to be externalized
+  to `window.Solid` so reactivity works across the boundary). An
+  iframe cannot reach the parent's `window.Solid`, so every plugin
+  would have to be rewritten to a postMessage protocol. It is a
+  migration, not an increment.
+- **Do not narrow the Tauri capabilities to "fix" this.** The
+  capability file is app-wide, and the app's own git integration still
+  needs `shell:allow-execute`. The gateway is the per-plugin gate.
+- **The tests were mutation-checked.** Six mutations — no permission
+  check, a denied call allowed through, the shell gate removed, the
+  scope not applied, a grant not remembered, grants shared between
+  plugins — each produce a failing test. A test that passes with the
+  gate removed would not be testing anything.
+- A denied call **rejects** with a `PermissionDeniedError`, so a
+  plugin has to catch it. `plugin-spec.md` §6 documents this.
+
+Three things about testing this, each of which cost a debugging cycle:
+
+- **Bun's test runner has no `window` and no `localStorage`.** The
+  permission module reads storage at import time, so the test has to
+  install a stand-in *before* importing it — a dynamic `await import`
+  after the stand-in, not a static import.
+- **A query string on an import path loads a second copy of the
+  module.** `import "...?test=1"` and `import "..."` are different
+  module instances with different signal state, so the test was looking
+  at one copy of the permissions while the gateway checked another.
+  Use the plain path in both.
+- **ES module exports are read-only.** `perms.requestPermission = ...`
+  throws "Attempted to assign to readonly property", so the test
+  cannot stub the prompt that way. It resolves the module's own
+  pending request instead — which is what the prompt dialog does.
+
+**Do not re-litigate the five-permission granularity** — it is coarse
+on purpose, so a user asked "may this plugin run shell commands?" can
+answer without reading a list of fifty command names.
+
 ## Current git state
 
 `main` is at **v0.4.233**, which shipped the six UI-quality items below.

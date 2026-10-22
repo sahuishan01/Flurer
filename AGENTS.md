@@ -51,12 +51,48 @@ This file acts as a context preservation and coordination document for future AI
 
 **Intent**: Prevent malicious plugins from executing raw shell commands or accessing the filesystem without restriction.
 
+### Status: the API Gateway is implemented (not yet released)
+
+Option 2 below is done. Option 1 (the iframe sandbox) is **not**, and
+should not be started without thinking it through — see the note at the
+end.
+
 ### How to Implement:
 1. **Capabilities Restriction**:
    - Currently, Tauri v2 capabilities (`default.json`) apply globally to the webview.
    - If sandboxing is desired, load plugins inside an offscreen, sandboxed `<iframe sandbox="allow-scripts">` and communicate via `postMessage`.
-2. **API Gateway**:
-   - Implement a frontend gateway that intercepts calls and prompts the user before granting plugins access to sensitive filesystem operations (similar to browser extension permissions).
+2. **API Gateway** — **DONE**:
+   - `src/lib/pluginGateway.ts` runs a plugin with a scoped `window`
+     whose `TauriCore.invoke` and `TauriShell.Command` are routed
+     through a gate. Each call is attributed to the plugin that made
+     it and checked against the permissions the user has granted that
+     plugin (`src/lib/pluginPermissions.ts`).
+   - Five permissions: `fs:read`, `fs:write`, `shell`, `app:settings`,
+     `plugins:manage`. A permission the plugin has not got raises a
+     prompt (`PluginPermissionPrompt.tsx`); the answer is remembered and
+     can be revoked from Settings → Plugins.
+   - The scope works because plugins are IIFE bundles that resolve
+     `window.TauriCore` at CALL time, not at load time.
+
+**Do not narrow the Tauri capabilities to "fix" this.** The capability
+file is app-wide, and the app itself needs `shell:allow-execute` for
+its own git integration. The gateway is the per-plugin gate; the
+capability file is not a substitute for it.
+
+**Why the iframe sandbox was not done.** It would mean plugins stop
+sharing the app's Solid runtime — the plugin spec requires plugins to
+externalize `solid-js` to `window.Solid` precisely so that reactivity
+works across the boundary. An iframe cannot reach the parent's
+`window.Solid`, so every plugin would have to be rewritten to a
+postMessage protocol, and every existing plugin would break. It is a
+migration, not an increment, and it should be its own project.
+
+### The `shell:allow-execute` capability
+
+`src-tauri/capabilities/default.json` grants `shell:allow-execute` for
+`sh` and `git` to every window, and the description says so. That is
+now covered by the `shell` permission for plugins — but the app's own
+git integration still uses it directly, so the capability stays.
 
 ---
 
