@@ -629,9 +629,12 @@ Three things about testing this, each of which cost a debugging cycle:
   install a stand-in *before* importing it — a dynamic `await import`
   after the stand-in, not a static import. And `window` must be the
   same object as `globalThis`: Bun on Windows already defines a
-  `window` that is not `globalThis`, so a guarded
-  `if (!globalThis.window)` assignment would leave the app's globals
-  and the test's view of them on different objects.
+  `window` that is not `globalThis`, **and that property is
+  getter-only**, so a plain `globalThis.window = globalThis` throws
+  (modules are strict) and takes the whole setup module down with it.
+  Use `Object.defineProperty` to replace it.
+  - `tests/pluginWindowsEnv.test.ts` installs a getter-only window —
+    the shape the Windows runner has — so this cannot regress.
 - **Bun's test transpiler cannot compile Solid's JSX.** It uses the
   automatic JSX runtime and expects `jsxDEV`, which Solid's builds do
   not export (Solid ships a Babel transform, and the app compiles it
@@ -643,7 +646,9 @@ Three things about testing this, each of which cost a debugging cycle:
   1.4.3; this host had 1.3.14, and the JSX problem only appears on
   the newer one. `bun` on the runner is whatever `oven-sh/setup-bun`
   installs. **Check the runner's version before concluding a local
-  pass means CI will pass.**
+  pass means CI will pass** — and install that version locally
+  (`BUN_INSTALL=/tmp/bun143 bash <bun-install-script> bun-v1.4.3`)
+  to reproduce CI-only failures.
 
 **Do not re-litigate the five-permission granularity** — it is coarse
 on purpose, so a user asked "may this plugin run shell commands?" can
