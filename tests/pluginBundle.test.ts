@@ -81,4 +81,26 @@ describe("a plugin bundle finds everything it needs", () => {
     request!.resolve(false);
     await result.catch(() => {});
   });
+
+  test("allowing the request lets the plugin's call through", async () => {
+    // What the git plugin does: every git_* command needs the shell
+    // permission, and the first one prompts.
+    const result = runPlugin(`return window.TauriCore.invoke("git_commit", {});`);
+    expect(scopedCalls).not.toContain("git_commit");
+    const request = perms.currentPermissionRequest();
+    expect(request).not.toBeNull();
+    expect(request!.permission).toBe("shell");
+    request!.resolve(true);
+    await result;
+    expect(scopedCalls).toContain("git_commit");
+  });
+
+  test("the bundle can register itself", () => {
+    const result = runPlugin(`
+      const info = { id: "probe", name: "Probe", description: "", version: "1", author: "t" };
+      window.registerPlugin(info);
+      return typeof window.registerPlugin;
+    `);
+    expect(result).toBe("function");
+  });
 });
