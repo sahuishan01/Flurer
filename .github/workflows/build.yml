@@ -86,7 +86,7 @@ jobs:
       # Tauri API by any route, and the grants must survive a restart.
       - name: Test plugin permissions
         if: runner.environment != 'self-hosted'
-        run: bun test tests/pluginPermissions.test.ts tests/pluginGateway.test.ts tests/permissionMap.test.ts tests/pluginGlobals.test.ts tests/pluginEscape.test.ts tests/pluginBundle.test.ts
+        run: bun test tests/pluginPermissions.test.ts tests/pluginGateway.test.ts tests/permissionMap.test.ts tests/pluginGlobals.test.ts tests/pluginEscape.test.ts tests/pluginBundle.test.ts tests/pluginWindowsEnv.test.ts
 
       - name: Build frontend
         if: runner.environment != 'self-hosted'

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { store } from "./pluginTestSetup";
+import { store, appWindow } from "./pluginTestSetup";
 
 // A plugin must not be able to reach the raw Tauri API, whatever route
 // it takes.
@@ -26,7 +26,7 @@ const transport = {
 };
 
 function runPlugin(code: string) {
-  const w = (globalThis as any).window;
+  const w = appWindow;
   w.__result = undefined;
   w.__error = undefined;
   mod.runPluginScoped(
@@ -41,7 +41,7 @@ function runPlugin(code: string) {
 
 describe("a plugin cannot reach the raw Tauri API", () => {
   test("the raw API is not published at all", () => {
-    const w = (globalThis as any).window;
+    const w = appWindow;
     expect(w.TauriCore).toBeUndefined();
     expect(w.TauriShell).toBeUndefined();
   });
@@ -50,7 +50,7 @@ describe("a plugin cannot reach the raw Tauri API", () => {
     // A browser has a document; Bun does not. Either way the point is
     // the same: the route must not yield a usable TauriCore. A missing
     // document throws, which is also "no API".
-    const w = (globalThis as any).window;
+    const w = appWindow;
     if (!w.document) {
       expect(runPlugin(`return window.document.defaultView.TauriCore;`)).toBeUndefined();
       return;
@@ -73,7 +73,7 @@ describe("a plugin cannot reach the raw Tauri API", () => {
   });
 
   test("through window.top", () => {
-    const w = (globalThis as any).window;
+    const w = appWindow;
     if (w.top === undefined) {
       // No top window outside a browser; the route cannot yield an API.
       expect(runPlugin(`return window.top.TauriCore;`)).toBeUndefined();

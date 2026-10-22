@@ -30,11 +30,34 @@ if (!(globalThis as any).localStorage) {
 // its globals on `window`; a test that reads `globalThis` has to be
 // looking at the same place.
 //
-// The assignment is unconditional rather than guarded: Bun on Windows
-// already defines a `window` that is NOT `globalThis`, and a guarded
-// assignment would leave the two different — the app's globals would
-// land on one object and the test would look at the other.
-(globalThis as any).window = globalThis;
+// The replacement is done with defineProperty, not an assignment: Bun on
+// Windows already defines a `window` that is NOT `globalThis`, and
+// that property is getter-only — a plain assignment throws in a module
+// (modules are strict), which would leave the setup half-loaded.
+//
+// If the property turns out to be non-configurable, the assignment is
+// attempted anyway and any failure is swallowed: the tests then use
+// whatever `window` is, and the app's globals are published onto it
+// below regardless.
+try {
+  Object.defineProperty(globalThis, "window", {
+    value: globalThis,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+} catch {
+  try {
+    (globalThis as any).window = globalThis;
+  } catch {
+    // Leave the existing window alone; the globals below still land on
+    // it, and the tests read from it.
+  }
+}
+
+// The window the app publishes on: `window` if the host has one that
+// is not globalThis, otherwise globalThis.
+const appWindow: any = (globalThis as any).window ?? globalThis;
 
 // Publish the plugin globals the way the app does, so the tests check
 // what the app actually publishes. The UI kit is stood in for: the real
@@ -48,4 +71,4 @@ publishPluginGlobals({
   uiKit: { FieldRow: () => null },
 });
 
-export { store };
+export { store, appWindow };

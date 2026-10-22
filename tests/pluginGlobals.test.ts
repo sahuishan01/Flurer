@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { store } from "./pluginTestSetup";
+import { store, appWindow } from "./pluginTestSetup";
 
 // A plugin must not be able to reach the raw Tauri API, whatever route
 // it takes.
@@ -15,26 +15,20 @@ import { store } from "./pluginTestSetup";
 
 
 /**
- * The window the app publishes its globals on.
+ * The globals the app deliberately does NOT publish.
  *
- * Read through `window` rather than `globalThis`, because that is where
- * the app puts them — and on Windows Bun's `window` is not the same
- * object as `globalThis`.
+ * `appWindow` is the window the app publishes on — see
+ * pluginTestSetup.ts.
  */
-function appWindow(): any {
-  return (globalThis as any).window;
-}
-
-/** The globals the app deliberately does NOT publish. */
 describe("the raw Tauri API is not published globally", () => {
   test("TauriCore and TauriShell are not on the window", async () => {
-    const w = appWindow();
+    const w = appWindow;
     expect(w.TauriCore, "window.TauriCore must not be published — a plugin could call it directly").toBeUndefined();
     expect(w.TauriShell, "window.TauriShell must not be published — a plugin could run commands").toBeUndefined();
   });
 
   test("the globals that plugins do need are still published", async () => {
-    const w = appWindow();
+    const w = appWindow;
     expect(w.Solid).toBeDefined();
     expect(w.SolidWeb).toBeDefined();
     expect(w.SolidStore).toBeDefined();

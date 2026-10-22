@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { store } from "./pluginTestSetup";
+import { store, appWindow } from "./pluginTestSetup";
 
 // A real plugin bundle, running against the scoped window.
 //
@@ -21,7 +21,7 @@ const transport = {
 };
 
 function runPlugin(code: string) {
-  const w = (globalThis as any).window;
+  const w = appWindow;
   w.__result = undefined;
   w.__error = undefined;
   mod.runPluginScoped(
