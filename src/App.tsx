@@ -572,6 +572,11 @@ function App() {
     persistSettings();
   }
 
+  function updatePluginOrder(order: string[]) {
+    setSettings("pluginOrder", order);
+    persistSettings();
+  }
+
   function updateSearchIndexRoots(roots: string[]) {
     setSettings("searchIndexRoots", roots);
     persistSettings();
@@ -1656,7 +1661,12 @@ function App() {
         </Show>
 
         <div class="explorer-view" style={{ "--sidebar-width": `${settings.sidebarWidth || 220}px` }}>
-          <ViewRail activeView={mainView()} onSelectView={selectView} />
+          <ViewRail
+            activeView={mainView()}
+            onSelectView={selectView}
+            pluginOrder={settings.pluginOrder}
+            onReorderPlugins={updatePluginOrder}
+          />
           <Show when={showSidebar()}>
             <Sidebar
               data-bg-lightness={sidebarLightness()}
@@ -1849,6 +1859,8 @@ function App() {
                   canGoPrevCategoryWallpaper={categoryWallpaperIndex() > 0}
                   disabledPlugins={settings.disabledPlugins}
                   onDisabledPluginsChange={updateDisabledPlugins}
+                  pluginOrder={settings.pluginOrder}
+                  onPluginOrderChange={updatePluginOrder}
                   pluginSettings={settings.pluginSettings}
                   onPluginSettingsChange={updatePluginSettings}
                   searchIndexRoots={settings.searchIndexRoots}

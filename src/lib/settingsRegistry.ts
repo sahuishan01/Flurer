@@ -427,7 +427,7 @@ const PLUGIN_SECTIONS: SettingsSectionDef[] = [
             {
                 id: "plugins.installed.list",
                 label: "Installed plugins",
-                keywords: ["installed", "uninstall", "disable", "enable", "update", "plugins"],
+                keywords: ["installed", "uninstall", "disable", "enable", "update", "plugins", "order", "reorder", "position"],
             },
         ],
     },

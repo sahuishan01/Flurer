@@ -76,14 +76,31 @@ export interface PluginInfo {
 export const [registeredPlugins, setRegisteredPlugins] = Solid.createSignal<PluginInfo[]>([]);
 
 /**
+ * Sorts plugins according to a custom order array of plugin IDs.
+ * Plugins found in `customOrder` are positioned first according to their index,
+ * followed by any remaining plugins maintaining their original order.
+ */
+export function getOrderedPlugins<T extends { id: string }>(plugins: T[], customOrder?: string[]): T[] {
+  if (!customOrder || customOrder.length === 0) return plugins;
+  const orderMap = new Map(customOrder.map((id, index) => [id, index]));
+  return [...plugins].sort((a, b) => {
+    const aIndex = orderMap.has(a.id) ? orderMap.get(a.id)! : Infinity;
+    const bIndex = orderMap.has(b.id) ? orderMap.get(b.id)! : Infinity;
+    if (aIndex === bIndex) return 0;
+    return aIndex - bIndex;
+  });
+}
+
+/**
  * Plugins whose panel translucency can be overridden from Settings.
  *
  * Plugins that bring their own appearance controls are excluded —
  * having two UIs write the same surfaceOpacity/surfaceBlur fields would
  * just be confusing, not additive.
  */
-export function pluginsWithAppearanceOverride(): PluginInfo[] {
-  return registeredPlugins().filter((p) => (p.mainPanel || p.fullPanel) && !p.hasCustomAppearanceSettings);
+export function pluginsWithAppearanceOverride(order?: string[]): PluginInfo[] {
+  const filtered = registeredPlugins().filter((p) => (p.mainPanel || p.fullPanel) && !p.hasCustomAppearanceSettings);
+  return getOrderedPlugins(filtered, order);
 }
 
 // Track loaded plugin IDs

@@ -219,3 +219,43 @@
 .view-rail-spacer {
     flex: 1;
 }
+
+.view-rail-plugin-slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    cursor: grab;
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), opacity 0.15s ease;
+}
+
+.view-rail-plugin-slot:active {
+    cursor: grabbing;
+}
+
+.view-rail-plugin-slot.dragging {
+    opacity: 0.45;
+    transform: scale(0.92);
+    cursor: grabbing;
+    z-index: 2;
+}
+
+.view-rail-plugin-slot.drag-over {
+    transform: scale(1.08);
+}
+
+.view-rail-plugin-slot.drag-over::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+}
+
+.view-rail-plugin-slot .view-rail-item {
+    cursor: inherit;
+}

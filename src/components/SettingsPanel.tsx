@@ -8,7 +8,7 @@ import { CloseIcon, DownloadIcon, GearIcon } from "./icons";
 import type { BackgroundSettings, Theme } from "../lib/settings";
 import type { InAppShortcutAction } from "../lib/shortcuts";
 import type { Wallpaper } from "../lib/unsplash";
-import { registeredPlugins, pluginsWithAppearanceOverride } from "../lib/plugins";
+import { registeredPlugins, pluginsWithAppearanceOverride, getOrderedPlugins } from "../lib/plugins";
 import type { MetricKind, TopBarMetrics } from "../lib/settings";
 import { PluginMarketplace } from "./PluginMarketplace";
 import { PluginAppearanceSettings } from "./PluginAppearanceSettings";
@@ -134,6 +134,8 @@ type SettingsPanelProps = {
     canGoPrevCategoryWallpaper: boolean;
     disabledPlugins: string[];
     onDisabledPluginsChange: (disabled: string[]) => void;
+    pluginOrder?: string[];
+    onPluginOrderChange?: (order: string[]) => void;
     pluginSettings: Record<string, any>;
     onPluginSettingsChange: (pluginId: string, patch: any) => void;
     searchIndexRoots: string[];
@@ -170,7 +172,7 @@ export function SettingsPanel(props: SettingsPanelProps) {
 
     const categories = createMemo<NavEntry[]>(() => {
         const list: NavEntry[] = SETTINGS_CATEGORIES.map((c) => ({ ...c, iconKey: c.icon }));
-        for (const p of registeredPlugins()) {
+        for (const p of getOrderedPlugins(registeredPlugins(), props.pluginOrder)) {
             if (!p.settingsPanel) continue;
             list.push({
                 id: `plugin-${p.id}`,
@@ -473,6 +475,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
                                 <PluginMarketplace
                                     disabledPlugins={props.disabledPlugins}
                                     onDisabledPluginsChange={props.onDisabledPluginsChange}
+                                    pluginOrder={props.pluginOrder}
+                                    onPluginOrderChange={props.onPluginOrderChange}
                                 />
                                 <PluginAppearanceSettings
                                     pluginSettings={props.pluginSettings}

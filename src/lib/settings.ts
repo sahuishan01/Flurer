@@ -100,6 +100,8 @@ export type Settings = {
   liveFolderSizeUpdates: boolean;
   pluginSettings: Record<string, any>;
   disabledPlugins: string[];
+  // Custom display order for plugins on the view rail and in settings.
+  pluginOrder: string[];
   // OS-wide hotkey that brings Flurer to front/focus from anywhere, even
   // when it isn't focused or is minimized. Empty string means disabled.
   globalShortcut: string;
@@ -216,6 +218,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveFolderSizeUpdates: true,
   pluginSettings: {},
   disabledPlugins: [],
+  pluginOrder: [],
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   launchAtStartup: false,
   closeToTray: false,

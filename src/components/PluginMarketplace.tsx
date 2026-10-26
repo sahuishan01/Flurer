@@ -7,7 +7,9 @@ import {
   checkPluginUpdates,
   updatePlugin,
   linkPluginRepo,
+  getOrderedPlugins,
 } from "../lib/plugins";
+import { ChevronUpIcon, ChevronDownIcon, GripVerticalIcon } from "./icons";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FieldGroup, FieldRow } from "./ui/Field";
@@ -24,6 +26,8 @@ import {
 type PluginMarketplaceProps = {
   disabledPlugins: string[];
   onDisabledPluginsChange: (disabled: string[]) => void;
+  pluginOrder?: string[];
+  onPluginOrderChange?: (order: string[]) => void;
 };
 
 type InstalledEntry = {
@@ -139,6 +143,79 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
       enabled: !props.disabledPlugins.includes(p.id),
     })),
   );
+
+  const orderedPluginsWithState = createMemo(() =>
+    getOrderedPlugins(pluginsWithState(), props.pluginOrder)
+  );
+
+  const handleMoveUp = (id: string) => {
+    const list = orderedPluginsWithState().map((p) => p.id);
+    const idx = list.indexOf(id);
+    if (idx <= 0) return;
+    const next = [...list];
+    const [item] = next.splice(idx, 1);
+    next.splice(idx - 1, 0, item);
+    props.onPluginOrderChange?.(next);
+  };
+
+  const handleMoveDown = (id: string) => {
+    const list = orderedPluginsWithState().map((p) => p.id);
+    const idx = list.indexOf(id);
+    if (idx < 0 || idx >= list.length - 1) return;
+    const next = [...list];
+    const [item] = next.splice(idx, 1);
+    next.splice(idx + 1, 0, item);
+    props.onPluginOrderChange?.(next);
+  };
+
+  const handleResetOrder = () => {
+    props.onPluginOrderChange?.([]);
+  };
+
+  let cardDragSession: { id: string; startY: number; moved: boolean } | null = null;
+  const [draggingCardId, setDraggingCardId] = createSignal<string | null>(null);
+  const [dragOverCardId, setDragOverCardId] = createSignal<string | null>(null);
+
+  const handleCardDragStart = (id: string, e: PointerEvent) => {
+    if (e.button !== 0) return;
+    cardDragSession = { id, startY: e.clientY, moved: false };
+
+    const onPointerMove = (ev: PointerEvent) => {
+      if (!cardDragSession) return;
+      if (!cardDragSession.moved) {
+        if (Math.abs(ev.clientY - cardDragSession.startY) < 5) return;
+        cardDragSession.moved = true;
+        setDraggingCardId(id);
+      }
+
+      const hit = document
+        .elementFromPoint(ev.clientX, ev.clientY)
+        ?.closest("[data-plugin-card-id]") as HTMLElement | null;
+      const targetId = hit?.dataset.pluginCardId;
+      if (targetId && targetId !== id) {
+        setDragOverCardId(targetId);
+        const currentList = orderedPluginsWithState().map((p) => p.id);
+        const from = currentList.indexOf(id);
+        const to = currentList.indexOf(targetId);
+        if (from >= 0 && to >= 0 && from !== to) {
+          const next = [...currentList];
+          next.splice(to, 0, next.splice(from, 1)[0]);
+          props.onPluginOrderChange?.(next);
+        }
+      }
+    };
+
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      cardDragSession = null;
+      setDraggingCardId(null);
+      setDragOverCardId(null);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  };
 
   // ── Registry browse ─────────────────────────────────────────────────────
 
@@ -452,30 +529,61 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
           >
             <div class="plugin-installed-section">
               <div class="plugin-installed-header">
-          <h4>Installed Plugins</h4>
-          <button type="button" disabled={checkingUpdates()} onClick={checkForUpdates}>
-            {checkingUpdates() ? "Checking…" : "Check for updates"}
-          </button>
-        </div>
+                <h4>Installed Plugins</h4>
+                <div class="plugin-installed-header-actions">
+                  <Show when={(props.pluginOrder?.length ?? 0) > 0}>
+                    <button
+                      type="button"
+                      class="plugin-reset-order-btn"
+                      title="Reset plugin display order to default"
+                      onClick={handleResetOrder}
+                    >
+                      Reset order
+                    </button>
+                  </Show>
+                  <button type="button" disabled={checkingUpdates()} onClick={checkForUpdates}>
+                    {checkingUpdates() ? "Checking…" : "Check for updates"}
+                  </button>
+                </div>
+              </div>
 
-        <Show
-          when={installed().length > 0}
-          fallback={<div class="plugin-empty-state">No plugins installed. Use the methods above to install one.</div>}
-        >
-          <div class="plugin-list">
-            <For each={pluginsWithState()}>
-              {(plugin) => {
-                const update = createMemo(() => updateMap()[plugin.id]);
-                return (
-                  <div class="plugin-card" classList={{ "has-update": !!update(), disabled: !plugin.enabled }}>
-                    <div class="plugin-card-body">
-                      <div class="plugin-card-title-row">
-                        <span class="plugin-status-dot" classList={{ enabled: plugin.enabled }} />
-                        <span class="plugin-name">{plugin.name}</span>
-                        <Show when={update()}>
-                          <span class="plugin-update-badge">v{update()!.latestVersion} available</span>
-                        </Show>
-                      </div>
+              <Show
+                when={installed().length > 0}
+                fallback={<div class="plugin-empty-state">No plugins installed. Use the methods above to install one.</div>}
+              >
+                <div class="plugin-list">
+                  <For each={orderedPluginsWithState()}>
+                    {(plugin, index) => {
+                      const update = createMemo(() => updateMap()[plugin.id]);
+                      return (
+                        <div
+                          class="plugin-card"
+                          data-plugin-card-id={plugin.id}
+                          classList={{
+                            "has-update": !!update(),
+                            disabled: !plugin.enabled,
+                            dragging: draggingCardId() === plugin.id,
+                            "drag-over": dragOverCardId() === plugin.id,
+                          }}
+                        >
+                          <div
+                            class="plugin-card-drag-handle"
+                            title="Drag to reorder plugin"
+                            onPointerDown={(e) => handleCardDragStart(plugin.id, e)}
+                          >
+                            <GripVerticalIcon size={14} />
+                          </div>
+                          <div class="plugin-card-body">
+                            <div class="plugin-card-title-row">
+                              <span class="plugin-status-dot" classList={{ enabled: plugin.enabled }} />
+                              <span class="plugin-name">{plugin.name}</span>
+                              <span class="plugin-order-badge" title="Position on view rail">
+                                #{index() + 1}
+                              </span>
+                              <Show when={update()}>
+                                <span class="plugin-update-badge">v{update()!.latestVersion} available</span>
+                              </Show>
+                            </div>
                       <div class="plugin-meta">
                         v{plugin.version} • {plugin.author}
                         {plugin.repo ? ` • ${plugin.repo}` : ""}
@@ -552,6 +660,28 @@ export function PluginMarketplace(props: PluginMarketplaceProps) {
                     </div>
 
                     <div class="plugin-actions">
+                      <div class="plugin-order-controls">
+                        <button
+                          type="button"
+                          class="icon-btn plugin-order-btn"
+                          title="Move up"
+                          aria-label={`Move ${plugin.name} up`}
+                          disabled={index() === 0}
+                          onClick={() => handleMoveUp(plugin.id)}
+                        >
+                          <ChevronUpIcon size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          class="icon-btn plugin-order-btn"
+                          title="Move down"
+                          aria-label={`Move ${plugin.name} down`}
+                          disabled={index() === orderedPluginsWithState().length - 1}
+                          onClick={() => handleMoveDown(plugin.id)}
+                        >
+                          <ChevronDownIcon size={14} />
+                        </button>
+                      </div>
                       <Show when={update()}>
                         <button type="button" disabled={isBusy("__update__")} onClick={() => handleUpdate(update()!.repo)}>
                           {isBusy("__update__") ? "Updating…" : "Update"}
