@@ -39,17 +39,23 @@ export function publishPluginGlobals<TPlugin>(hooks: {
   /** The shared UI kit, for a plugin's own settings panel. */
   uiKit: Record<string, unknown>;
 }) {
-  const w = globalThis as any;
-  w.Solid = Solid;
-  w.SolidStore = SolidStore;
-  w.SolidWeb = SolidWeb;
-  w.TauriEvent = TauriEvent;
-  w.registerPlugin = hooks.registerPlugin;
-  w.attachChildWebviewShortcuts = hooks.attachChildWebviewShortcuts;
-  // The shared UI kit, so a plugin's settings panel can use the same
-  // collapsible card and label/control row as the core settings. Plugins
-  // are loaded as IIFE bundles with no module loader, so a plugin cannot
-  // import from src/ — it reaches these through the global instead, the
-  // same way it reaches Solid.
-  w.FlurerUI = hooks.uiKit;
+  const targets: any[] = [globalThis];
+  if (typeof window !== "undefined" && (window as any) !== globalThis) {
+    targets.push(window);
+  }
+
+  for (const w of targets) {
+    w.Solid = Solid;
+    w.SolidStore = SolidStore;
+    w.SolidWeb = SolidWeb;
+    w.TauriEvent = TauriEvent;
+    w.registerPlugin = hooks.registerPlugin;
+    w.attachChildWebviewShortcuts = hooks.attachChildWebviewShortcuts;
+    // The shared UI kit, so a plugin's settings panel can use the same
+    // collapsible card and label/control row as the core settings. Plugins
+    // are loaded as IIFE bundles with no module loader, so a plugin cannot
+    // import from src/ — it reaches these through the global instead, the
+    // same way it reaches Solid.
+    w.FlurerUI = hooks.uiKit;
+  }
 }

@@ -108,10 +108,38 @@ function scopedWindow(
   // forwarded to the real window. A Proxy rather than a copy, because
   // a window's own properties are accessors on the prototype and would
   // not survive being spread.
+  //
+  // Native getters (like innerWidth/innerHeight/document) on Window.prototype
+  // require `this` to be the real Window instance (passing `receiver` causes
+  // "TypeError: Illegal invocation" in browsers). Likewise, native methods
+  // must be bound to the target window so their invocations succeed.
   return new Proxy(real, {
     get(target, prop, receiver) {
       if (prop in overrides) return overrides[prop as string];
-      return Reflect.get(target, prop, receiver);
+      if (prop === "window" || prop === "globalThis" || prop === "self") return receiver;
+      const value = Reflect.get(target, prop);
+      if (typeof value === "function") {
+        try {
+          const bound = value.bind(target);
+          try {
+            Object.defineProperties(bound, Object.getOwnPropertyDescriptors(value));
+          } catch {}
+          return bound;
+        } catch {
+          return value;
+        }
+      }
+      return value;
+    },
+    set(target, prop, value) {
+      if (prop in overrides) {
+        overrides[prop as string] = value;
+        return true;
+      }
+      return Reflect.set(target, prop, value);
+    },
+    has(target, prop) {
+      return prop in overrides || Reflect.has(target, prop);
     },
   }) as unknown as PluginGlobals;
 }

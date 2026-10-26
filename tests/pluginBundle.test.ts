@@ -99,4 +99,42 @@ describe("a plugin bundle finds everything it needs", () => {
     `);
     expect(result).toBe("function");
   });
+
+  test("native getters and methods execute with the real window as this", () => {
+    // WebIDL accessors (innerWidth, innerHeight, document) throw "TypeError: Illegal invocation"
+    // in real browsers when called with a Proxy as `this`. The proxy must invoke getters
+    // on `target` and bind methods to `target`.
+    const w = appWindow;
+    let getterCalledWithCorrectThis = false;
+    let methodCalledWithCorrectThis = false;
+
+    Object.defineProperty(w, "mockNativeGetter", {
+      get() {
+        if (this === w) getterCalledWithCorrectThis = true;
+        return 42;
+      },
+      configurable: true,
+    });
+
+    w.mockNativeMethod = function () {
+      if (this === w) methodCalledWithCorrectThis = true;
+      return "ok";
+    };
+
+    const result = runPlugin(`
+      return {
+        val: window.mockNativeGetter,
+        fnRes: window.mockNativeMethod(),
+        selfRef: window.window === window,
+        globalRef: window.globalThis === window,
+      };
+    `);
+
+    expect(result.val).toBe(42);
+    expect(result.fnRes).toBe("ok");
+    expect(result.selfRef).toBe(true);
+    expect(result.globalRef).toBe(true);
+    expect(getterCalledWithCorrectThis).toBe(true);
+    expect(methodCalledWithCorrectThis).toBe(true);
+  });
 });
