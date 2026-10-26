@@ -185,6 +185,11 @@ pub struct Settings {
     // without asking.
     #[serde(default)]
     pub launch_at_startup: bool,
+    // When true, clicking the window close button (X) minimizes to the
+    // system notification area/tray instead of quitting the application.
+    // Defaults to false so Close actually exits Flurer unless opted in.
+    #[serde(default)]
+    pub close_to_tray: bool,
     // When true, Flurer self-elevates on startup (UAC prompt) and the
     // toggle in Settings relaunches elevated immediately.
     #[serde(default)]
@@ -350,6 +355,7 @@ impl Default for Settings {
             folder_sizes: HashMap::new(),
             global_shortcut: default_global_shortcut(),
             launch_at_startup: false,
+            close_to_tray: false,
             launch_as_admin: false,
             sidebar_section_order: default_sidebar_section_order(),
             quick_access_order: Vec::new(),

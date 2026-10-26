@@ -16,10 +16,22 @@ pub fn launched_minimized() -> bool {
     std::env::args().any(|a| a == MINIMIZED_ARG)
 }
 
-fn save_current_window_metrics(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        let state = app.state::<crate::state::AppState>();
-        if let Ok(mut settings) = state.settings.try_lock() {
+fn save_current_window_metrics_and_get_close_to_tray(app: &AppHandle) -> bool {
+    let mut close_to_tray = false;
+    let state = app.state::<crate::state::AppState>();
+    let mut guard = state.settings.try_lock();
+    if guard.is_err() {
+        for _ in 0..5 {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            guard = state.settings.try_lock();
+            if guard.is_ok() {
+                break;
+            }
+        }
+    }
+    if let Ok(mut settings) = guard {
+        close_to_tray = settings.close_to_tray;
+        if let Some(w) = app.get_webview_window("main") {
             let is_max = w.is_maximized().unwrap_or(false);
             settings.window_maximized = is_max;
             if !is_max {
@@ -30,16 +42,20 @@ fn save_current_window_metrics(app: &AppHandle) {
                     }
                 }
             }
-            let _ = crate::helpers::settings::save_settings(app, &settings);
-        };
+        }
+        let _ = crate::helpers::settings::save_settings(app, &settings);
     }
+    close_to_tray
+}
+
+fn save_current_window_metrics(app: &AppHandle) {
+    let _ = save_current_window_metrics_and_get_close_to_tray(app);
 }
 
 // Builds the tray icon + its right-click menu (Show / Quit), and wires the
-// window's close button to hide instead of exit — the whole point of the
-// tray is to keep the process (and therefore the global shortcut, which
-// only works while something is running to catch it) alive after the user
-// closes the window, without them having to remember to minimize instead.
+// window's close button. When close_to_tray is true, close hides to the tray
+// instead of exiting so background shortcuts stay live; when false (default),
+// close exits the application directly.
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let show_item = MenuItemBuilder::with_id("show", "Show Flurer").build(app)?;
     let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
@@ -64,9 +80,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         let app_handle = app.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                save_current_window_metrics(&app_handle);
-                api.prevent_close();
-                shortcuts::hide_main_window(&app_handle);
+                let close_to_tray = save_current_window_metrics_and_get_close_to_tray(&app_handle);
+                if close_to_tray {
+                    api.prevent_close();
+                    shortcuts::hide_main_window(&app_handle);
+                } else {
+                    app_handle.exit(0);
+                }
             }
         });
     }

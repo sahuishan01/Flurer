@@ -106,6 +106,9 @@ export type Settings = {
   // Launches Flurer minimized to the tray on login, so the shortcut above
   // is live from boot instead of only after the app's been opened once.
   launchAtStartup: boolean;
+  // When true, closing the window minimizes to the system notification area/tray
+  // instead of quitting the application. Defaults to false.
+  closeToTray: boolean;
   launchAsAdmin: boolean;
   // Order of the sidebar's sections (drives/recents/favourites/quick) and
   // of the Quick access entries themselves (by label, e.g. "Desktop").
@@ -215,6 +218,7 @@ export const DEFAULT_SETTINGS: Settings = {
   disabledPlugins: [],
   globalShortcut: DEFAULT_GLOBAL_SHORTCUT,
   launchAtStartup: false,
+  closeToTray: false,
   launchAsAdmin: false,
   sidebarSectionOrder: DEFAULT_SIDEBAR_SECTION_ORDER,
   quickAccessOrder: [],

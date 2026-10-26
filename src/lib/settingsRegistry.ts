@@ -309,6 +309,11 @@ const CUSTOMIZATION_SECTIONS: SettingsSectionDef[] = [
                 keywords: ["launch at startup", "autostart", "login", "tray", "minimize", "startup"],
             },
             {
+                id: "customization.startup.closeToTray",
+                label: "Close to tray",
+                keywords: ["close to tray", "close", "tray", "minimize", "exit", "quit", "notification", "window"],
+            },
+            {
                 id: "customization.startup.launchAsAdmin",
                 label: "Always run as administrator",
                 keywords: ["administrator", "admin", "elevated", "uac", "privileges", "startup"],

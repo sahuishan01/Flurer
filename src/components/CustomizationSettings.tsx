@@ -214,6 +214,8 @@ type CustomizationSettingsProps = {
   onShowHiddenFilesChange?: (enabled: boolean) => void;
   launchAtStartup: boolean;
   onLaunchAtStartupChange: (enabled: boolean) => void;
+  closeToTray: boolean;
+  onCloseToTrayChange: (enabled: boolean) => void;
   launchAsAdmin: boolean;
   onLaunchAsAdminChange: (enabled: boolean) => void;
   hasUnsplashApiKey: boolean;
@@ -1210,7 +1212,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           <FieldRow
             id="customization.startup.launchAtStartup"
             label="Launch at startup"
-            description="Closing the window now minimizes to the tray instead of quitting, so the global hotkey keeps working. Enable this too if you want it live from the moment you log in, not just after opening Flurer once."
+            description="Launches Flurer minimized to the system tray on login, so global hotkeys work immediately without manually opening the app."
           >
             <input
               type="checkbox"
@@ -1218,6 +1220,20 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
               aria-label="Launch at startup"
               checked={props.launchAtStartup}
               onChange={(e) => props.onLaunchAtStartupChange(e.currentTarget.checked)}
+            />
+          </FieldRow>
+
+          <FieldRow
+            id="customization.startup.closeToTray"
+            label="Close to tray"
+            description="When closing the window, minimize to the system notification area/tray instead of quitting Flurer."
+          >
+            <input
+              type="checkbox"
+              class="setting-checkbox"
+              aria-label="Close to tray"
+              checked={props.closeToTray}
+              onChange={(e) => props.onCloseToTrayChange(e.currentTarget.checked)}
             />
           </FieldRow>
 

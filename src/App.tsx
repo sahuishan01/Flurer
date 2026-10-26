@@ -529,6 +529,11 @@ function App() {
     persistSettings();
   }
 
+  function updateCloseToTray(enabled: boolean) {
+    setSettings("closeToTray", enabled);
+    persistSettings();
+  }
+
   // Turning "Always run as admin" on persists the flag (so future launches
   // self-elevate in setup) and immediately hands off to an elevated copy;
   // turning it off only affects future launches — an elevated instance
@@ -1829,6 +1834,8 @@ function App() {
                   onResetInAppShortcut={resetInAppShortcut}
                   launchAtStartup={settings.launchAtStartup}
                   onLaunchAtStartupChange={updateLaunchAtStartup}
+                  closeToTray={settings.closeToTray}
+                  onCloseToTrayChange={updateCloseToTray}
                   launchAsAdmin={settings.launchAsAdmin}
                   onLaunchAsAdminChange={updateLaunchAsAdmin}
                   hasUnsplashApiKey={hasUnsplashApiKey()}
