@@ -669,43 +669,11 @@ separately.
 
 The release ritual is unchanged: Build CI green → bump → tag-only push
 → Release CI green → bump commit pushed → ntfy agent-tasks +
-agent-releases. Two CI notes worth keeping: the Release workflow's
+agent-releases. Both Windows and Linux legs run on standard GitHub-hosted
+runners (`windows-latest` and `ubuntu-22.04`), removing reliance on
+external self-hosted VPS machines. Note that the Release workflow's
 `publish` job `needs: build`, and `build` is a matrix, so **one failed
-leg publishes no release at all** (this is how a single missing
-`xdg-utils` in the Linux build image blocked every release); and the
-Linux leg runs on the self-hosted `heaven` runner, whose job-start hook
-was briefly misconfigured (`/usr/local/libexec/github-runner-job-started`
-must exist and end in `.sh`/`.ps1`/`.js` — a runner-machine config, not
-a repo one).
-
-There is only **one** self-hosted runner, so the Release's Linux leg
-queues behind any Build run on the same period, and a release can sit
-in `queued` for a long time before it starts. That is the queue
-working, not a failure — check `gh run view <id> --json jobs` for the
-per-job state rather than the run's overall status.
-
-### Building the Linux installers by hand
-
-`scripts/ci/linux-container.sh release` produces the deb, rpm and
-AppImage on a build host, using the same container image CI uses. It
-needed three fixes to run outside CI, all in the script:
-
-- `RUNNER_TEMP` is a CI-only variable, and the script runs under
-  `set -u`, so it died before reaching the container.
-- bun was assumed to be at `$BUN_INSTALL/bin/bun`, which only exists
-  when `setup-bun` installed it. On a host where bun comes from a
-  version manager the binary can be named `bun.exe` and is reached
-  only through a symlink whose target sits outside the mounted tree,
-  so the script resolves bun to a real file and mounts its directory.
-- A volume mounted from a directory the container cannot traverse is
-  unreadable on a SELinux-enforcing host unless it is relabelled with
-  `:z`. The label is applied only outside CI, so a CI runner's own
-  temp directory is never relabelled.
-
-Note that this host is **aarch64**, so a local build produces arm64
-artifacts (`flurer_0.4.233_arm64.deb`), while CI's runner is x64 and
-produces amd64 ones. A local build proves the code compiles and
-bundles; it is not a substitute for the published amd64 artifacts.
+leg publishes no release at all**.
 
 ### A media query that never applied
 

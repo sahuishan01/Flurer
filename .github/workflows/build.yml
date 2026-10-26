@@ -1,42 +1,30 @@
 name: Build
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main, linux]
+    branches:
+      - main
+    tags-ignore:
+      - "v*"
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
-# A release pushes main and then the tag seconds later, so without this the
-# same commit gets built twice: once here as CI, once by release.yml for the
-# actual installers. The job-level `if` below covers the usual case; this
-# covers the rest. Both are needed — see the comment on each.
+permissions:
+  contents: read
+
 concurrency:
-  # Deliberately the same group name as release.yml, keyed on the commit, so
-  # the two workflows contend for one slot instead of running side by side.
   group: flurer-build-${{ github.sha }}
-  # Never cancel a run that is already going. If release.yml somehow started
-  # first, cancelling it would throw away the installers that release depends
-  # on; queueing behind it is the safe direction to fail.
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
-    # Skip the version-bump commit of a release. The tag push that follows it
-    # triggers release.yml, which builds the identical tree, so running this
-    # as well is pure duplication.
-    #
-    # "bump version" as a magic commit subject is already load-bearing here —
-    # release.yml's changelog step filters those commits out by the same
-    # prefix — so this relies on an existing convention rather than inventing
-    # one. head_commit is null on pull_request events, which coerces to an
-    # empty string and leaves PR runs unaffected.
     if: ${{ !startsWith(github.event.head_commit.message, 'bump version') }}
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-22.04]
-    runs-on: ${{ matrix.os == 'ubuntu-22.04' && github.event_name != 'pull_request' && fromJSON('["self-hosted","linux","x64","heaven"]') || matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,77 +40,52 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install frontend dependencies
-        if: runner.environment != 'self-hosted'
         run: bun install
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux system dependencies
-        if: runner.os == 'Linux' && runner.environment != 'self-hosted'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf rpm
 
       - name: Rust cache
-        if: runner.environment != 'self-hosted'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
       - name: Test native path helpers
-        if: runner.environment != 'self-hosted'
         run: bun test tests/fs.test.ts
 
       - name: Test settings and registry
-        if: runner.environment != 'self-hosted'
         run: bun test tests/settings.test.ts
 
-      # Keeps DESIGN.md (the design spec) and the stylesheets in agreement:
-      # the spec declares the colour/type/radius/spacing/shadow tokens the
-      # app ships, and this fails if either side drifts.
       - name: Test design spec matches the stylesheet
-        if: runner.environment != 'self-hosted'
         run: bun test tests/design.test.ts
 
-      # The plugin permission gateway: a plugin must not reach a
-      # capability the user has not granted it, must not reach the raw
-      # Tauri API by any route, and the grants must survive a restart.
       - name: Test plugin permissions
-        if: runner.environment != 'self-hosted'
         run: bun test tests/pluginPermissions.test.ts tests/pluginGateway.test.ts tests/permissionMap.test.ts tests/pluginGlobals.test.ts tests/pluginEscape.test.ts tests/pluginBundle.test.ts tests/pluginWindowsEnv.test.ts
 
       - name: Build frontend
-        if: runner.environment != 'self-hosted'
         run: bun run build
 
-      # flurer-watchd (the elevated USN-Journal service) is a separate
-      # workspace member, not part of the flurer_lib/flurer.exe crate
-      # graph — build it explicitly so tauri.windows.conf.json's resource bundling
-      # step (which copies target/release/flurer-watchd.exe into the
-      # installer) has something to find. See
-      # docs/superpowers/specs/2026-08-16-usn-journal-watcher-design.md.
       - name: Build flurer-watchd service
         if: runner.os == 'Windows'
         run: cargo build --release -p flurer-watchd
         working-directory: src-tauri
 
       - name: Test filesystem and disk discovery
-        if: runner.environment != 'self-hosted'
         working-directory: src-tauri
         run: |
           cargo test -p flurer --lib fs::
           cargo test -p flurer --lib disks::
 
       - name: Build Tauri app
-        if: runner.environment != 'self-hosted'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and test Linux app on VPS
-        if: runner.os == 'Linux' && runner.environment == 'self-hosted'
-        run: bash scripts/ci/linux-container.sh ci
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
