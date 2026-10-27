@@ -73,13 +73,21 @@ export type RowDragResult = { result: DragResult; cursorPos: CursorPosition };
 // the drag and back on once it settles, drop or cancel either way.
 export async function startRowDrag(paths: string[], mode: "copy" | "move"): Promise<RowDragResult> {
   const icon = await getDragIconPath();
-  await invoke("set_external_drop_allowed", { allowed: false });
+  try {
+    await invoke("set_external_drop_allowed", { allowed: false });
+  } catch (err) {
+    console.warn("Failed to set external drop allowed before drag:", err);
+  }
   try {
     return await new Promise((resolve) => {
       startDrag({ item: paths, icon, mode }, (payload) => resolve(payload));
     });
   } finally {
-    await invoke("set_external_drop_allowed", { allowed: true });
+    try {
+      await invoke("set_external_drop_allowed", { allowed: true });
+    } catch (err) {
+      console.warn("Failed to restore external drop allowed after drag:", err);
+    }
   }
 }
 

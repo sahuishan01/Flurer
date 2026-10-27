@@ -11,27 +11,38 @@
 // workaround for that WebView2/Tauri interaction. No-op on non-Windows
 // targets, where this conflict doesn't exist.
 #[tauri::command]
-pub fn set_external_drop_allowed(window: tauri::WebviewWindow, allowed: bool) -> Result<(), String> {
+pub fn set_external_drop_allowed(webview: tauri::Webview, allowed: bool) -> Result<(), String> {
     #[cfg(windows)]
     {
         use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller4;
         use windows::core::Interface;
 
-        window
-            .with_webview(move |webview| {
-                let controller = webview.controller();
+        let window = webview.window();
+        let webviews = window.webviews();
+        if webviews.is_empty() {
+            let _ = webview.with_webview(move |w| {
+                let controller = w.controller();
                 if let Ok(controller4) = controller.cast::<ICoreWebView2Controller4>() {
                     // Safe: WebView2 COM calls confined to the main thread via
                     // with_webview, matching how the rest of the controller
                     // API (e.g. SetZoomFactor) is used elsewhere.
                     let _ = unsafe { controller4.SetAllowExternalDrop(allowed) };
                 }
-            })
-            .map_err(|e| e.to_string())?;
+            });
+        } else {
+            for wv in webviews {
+                let _ = wv.with_webview(move |w| {
+                    let controller = w.controller();
+                    if let Ok(controller4) = controller.cast::<ICoreWebView2Controller4>() {
+                        let _ = unsafe { controller4.SetAllowExternalDrop(allowed) };
+                    }
+                });
+            }
+        }
     }
     #[cfg(not(windows))]
     {
-        let _ = (window, allowed);
+        let _ = (webview, allowed);
     }
     Ok(())
 }
