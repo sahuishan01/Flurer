@@ -145,11 +145,17 @@ pub fn run() {
                 // opened at the default folder instead of <path>.
                 let handoff_args: Vec<String> = {
                     let args: Vec<String> = std::env::args().collect();
-                    std::env::current_dir()
+                    let mut forwarded = Vec::new();
+                    if args.iter().any(|a| a == tray::MINIMIZED_ARG) {
+                        forwarded.push(tray::MINIMIZED_ARG.to_string());
+                    }
+                    if let Some(launch_path) = std::env::current_dir()
                         .ok()
                         .and_then(|cwd| cli::resolve_launch_path(&args, &cwd))
-                        .into_iter()
-                        .collect()
+                    {
+                        forwarded.push(launch_path);
+                    }
+                    forwarded
                 };
                 match std::env::current_exe() {
                     Ok(exe) => match updater::elevate_and_wait(&exe, &handoff_args) {
@@ -177,7 +183,7 @@ pub fn run() {
             // cleared it to turn the shortcut off, which register() treats
             // as a no-op rather than silently falling back to the default.
             shortcuts::register(&app.handle(), &settings.global_shortcut);
-            tray::sync_autostart(&app.handle(), settings.launch_at_startup);
+            tray::sync_autostart(&app.handle(), settings.launch_at_startup, settings.launch_as_admin);
             tray::setup(&app.handle())?;
             let config = Config::load();
             let window_width = settings.window_width.clamp(400, 3840);

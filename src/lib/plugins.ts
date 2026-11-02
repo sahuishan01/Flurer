@@ -80,16 +80,7 @@ export const [registeredPlugins, setRegisteredPlugins] = Solid.createSignal<Plug
  * Plugins found in `customOrder` are positioned first according to their index,
  * followed by any remaining plugins maintaining their original order.
  */
-export function getOrderedPlugins<T extends { id: string }>(plugins: T[], customOrder?: string[]): T[] {
-  if (!customOrder || customOrder.length === 0) return plugins;
-  const orderMap = new Map(customOrder.map((id, index) => [id, index]));
-  return [...plugins].sort((a, b) => {
-    const aIndex = orderMap.has(a.id) ? orderMap.get(a.id)! : Infinity;
-    const bIndex = orderMap.has(b.id) ? orderMap.get(b.id)! : Infinity;
-    if (aIndex === bIndex) return 0;
-    return aIndex - bIndex;
-  });
-}
+export { getOrderedPlugins } from "./pluginOrdering";
 
 /**
  * Plugins whose panel translucency can be overridden from Settings.

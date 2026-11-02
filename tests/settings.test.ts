@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { DEFAULT_SETTINGS } from "../src/lib/settings";
 import { SETTINGS_SECTIONS } from "../src/lib/settingsRegistry";
-import { getOrderedPlugins } from "../src/lib/plugins";
+import { getOrderedPlugins } from "../src/lib/pluginOrdering";
 
 describe("settings and registry", () => {
   test("closeToTray defaults to false", () => {

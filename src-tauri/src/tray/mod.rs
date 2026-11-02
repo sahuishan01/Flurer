@@ -94,12 +94,88 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+const SCHEDULED_TASK_NAME: &str = "FlurerAutostart";
+
+#[cfg(target_os = "windows")]
+fn sync_windows_scheduled_task(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    if enabled {
+        let current_exe = std::env::current_exe().map_err(|e| format!("Could not get current exe: {e}"))?;
+        let exe_str = current_exe.to_string_lossy();
+        let tr_value = format!("\"{}\" {}", exe_str, MINIMIZED_ARG);
+
+        let mut cmd = std::process::Command::new("schtasks");
+        cmd.args([
+            "/create",
+            "/tn",
+            SCHEDULED_TASK_NAME,
+            "/tr",
+            &tr_value,
+            "/sc",
+            "onlogon",
+            "/rl",
+            "highest",
+            "/f",
+        ]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        match cmd.status() {
+            Ok(status) if status.success() => {
+                log::info!("Created/updated scheduled task '{SCHEDULED_TASK_NAME}' with highest privileges");
+                Ok(())
+            }
+            Ok(status) => Err(format!("schtasks /create exited with code {:?}", status.code())),
+            Err(e) => Err(format!("Failed to execute schtasks /create: {e}")),
+        }
+    } else {
+        let mut cmd = std::process::Command::new("schtasks");
+        cmd.args(["/delete", "/tn", SCHEDULED_TASK_NAME, "/f"]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        match cmd.status() {
+            Ok(status) if status.success() => {
+                log::info!("Deleted scheduled task '{SCHEDULED_TASK_NAME}'");
+                Ok(())
+            }
+            Ok(status) => {
+                // If it doesn't exist, code may be non-zero, which is fine
+                log::debug!("schtasks /delete exited with code {:?}", status.code());
+                Ok(())
+            }
+            Err(e) => Err(format!("Failed to execute schtasks /delete: {e}")),
+        }
+    }
+}
+
 // Keeps the OS-level autostart registration in sync with the setting on
 // every launch — best-effort, logged rather than propagated, same
 // reasoning as the shortcut registration: the user manually removing the
 // startup entry (or the OS blocking it) shouldn't be a startup-blocking
 // error, just a state Flurer will try to correct again next launch.
-pub fn sync_autostart(app: &AppHandle, enabled: bool) {
+// When launch_as_admin is true on Windows, standard HKCU Run registry entries
+// will either trigger a UAC prompt on logon or be blocked by Windows.
+// Instead, a Windows Scheduled Task configured with Run with highest privileges
+// (/rl highest) is used so logon starts elevated and quiet in tray with zero prompts.
+pub fn sync_autostart(app: &AppHandle, enabled: bool, run_as_admin: bool) {
+    #[cfg(target_os = "windows")]
+    {
+        if enabled && run_as_admin {
+            // Unregister standard autostart registry entry to avoid duplicate startup
+            let _ = app.autolaunch().disable();
+            if let Err(e) = sync_windows_scheduled_task(app, true) {
+                log::error!("failed to sync elevated autostart scheduled task: {e}");
+            }
+            return;
+        } else {
+            // Remove the scheduled task if disabled or run_as_admin turned off
+            let _ = sync_windows_scheduled_task(app, false);
+        }
+    }
+
+    // Standard cross-platform autostart (Linux .config/autostart, macOS LaunchAgents, Windows Run key)
     let autolaunch = app.autolaunch();
     let result = if enabled { autolaunch.enable() } else { autolaunch.disable() };
     if let Err(e) = result {
@@ -107,12 +183,17 @@ pub fn sync_autostart(app: &AppHandle, enabled: bool) {
     }
 }
 
-// Called from set_settings when launch_at_startup actually changes, mirroring
-// shortcuts::reregister's "only touch the OS state when the value changed"
-// shape.
-pub fn resync_autostart_if_changed(app: &AppHandle, previous: bool, next: bool) {
-    if previous == next {
+// Called from set_settings when launch_at_startup or launch_as_admin changes,
+// mirroring shortcuts::reregister's "only touch the OS state when needed" shape.
+pub fn resync_autostart_if_changed(
+    app: &AppHandle,
+    prev_enabled: bool,
+    next_enabled: bool,
+    prev_as_admin: bool,
+    next_as_admin: bool,
+) {
+    if prev_enabled == next_enabled && prev_as_admin == next_as_admin {
         return;
     }
-    sync_autostart(app, next);
+    sync_autostart(app, next_enabled, next_as_admin);
 }

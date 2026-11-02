@@ -206,7 +206,13 @@ pub async fn set_settings(
     // no-op when the value didn't actually change, so this doesn't
     // unregister/register on every unrelated setting tweak.
     crate::shortcuts::reregister(&app, &guard.global_shortcut, &settings.global_shortcut);
-    crate::tray::resync_autostart_if_changed(&app, guard.launch_at_startup, settings.launch_at_startup);
+    crate::tray::resync_autostart_if_changed(
+        &app,
+        guard.launch_at_startup,
+        settings.launch_at_startup,
+        guard.launch_as_admin,
+        settings.launch_as_admin,
+    );
     if guard.live_folder_size_updates != settings.live_folder_size_updates {
         crate::sizecache::invalidate_incremental_tracking(&state);
     }
