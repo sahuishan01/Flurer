@@ -339,6 +339,11 @@ export function FileList(props: FileListProps) {
 
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [lastClickedIndex, setLastClickedIndex] = createSignal<number | null>(null);
+  // Separate focus cursor for Ctrl+Arrow keyboard navigation.  Moves
+  // independently of `selected` so users can browse without changing their
+  // selection, then toggle items with Ctrl+Space.  Falls back to
+  // `lastClickedIndex` when null (i.e. before any Ctrl+Arrow movement).
+  const [focusedIndex, setFocusedIndex] = createSignal<number | null>(null);
   const [marqueeRect, setMarqueeRect] = createSignal<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const [windowWidth, setWindowWidth] = createSignal(window.innerWidth);
@@ -828,6 +833,7 @@ export function FileList(props: FileListProps) {
     untrack(commitRename);
     setSelected(new Set<string>());
     setLastClickedIndex(null);
+    setFocusedIndex(null);
   });
 
   onMount(() => {
@@ -1434,6 +1440,8 @@ export function FileList(props: FileListProps) {
       setSelected(new Set([entry.path]));
       setLastClickedIndex(index);
     }
+    // Keep the focus cursor in sync with mouse clicks.
+    setFocusedIndex(index);
   }
 
   function handleRowContextMenu(e: MouseEvent, entry: DirEntry) {
@@ -1925,19 +1933,26 @@ export function FileList(props: FileListProps) {
     const list = sortedEntries();
     if (list.length === 0) return;
 
-    function selectAndFocusIndex(nextIdx: number, extendRange = false) {
+    function selectAndFocusIndex(nextIdx: number, extendRange = false, ctrlHeld = false) {
       const boundedIdx = Math.max(0, Math.min(list.length - 1, nextIdx));
       const targetEntry = list[boundedIdx];
       if (!targetEntry) return;
 
-      if (extendRange && lastClickedIndex() !== null) {
+      if (ctrlHeld) {
+        // Ctrl+Arrow: move the focus cursor without altering the selection.
+        // The anchor (lastClickedIndex) stays put so a subsequent Shift+Arrow
+        // still extends from the original anchor, matching Windows Explorer.
+        setFocusedIndex(boundedIdx);
+      } else if (extendRange && lastClickedIndex() !== null) {
         const start = Math.min(lastClickedIndex()!, boundedIdx);
         const end = Math.max(lastClickedIndex()!, boundedIdx);
         const range = list.slice(start, end + 1).map((en) => en.path);
         setSelected(new Set(range));
+        setFocusedIndex(boundedIdx);
       } else {
         setSelected(new Set([targetEntry.path]));
         setLastClickedIndex(boundedIdx);
+        setFocusedIndex(boundedIdx);
       }
 
       scrollRowIntoView(targetEntry.path);
@@ -1948,62 +1963,80 @@ export function FileList(props: FileListProps) {
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      const cur = lastClickedIndex();
+      const cur = focusedIndex() ?? lastClickedIndex();
       const next = cur === null ? 0 : cur + 1;
-      selectAndFocusIndex(next, e.shiftKey);
+      selectAndFocusIndex(next, e.shiftKey, mod);
       return;
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      const cur = lastClickedIndex();
+      const cur = focusedIndex() ?? lastClickedIndex();
       const next = cur === null ? 0 : cur - 1;
-      selectAndFocusIndex(next, e.shiftKey);
+      selectAndFocusIndex(next, e.shiftKey, mod);
       return;
     } else if (e.key === "Home") {
       e.preventDefault();
-      selectAndFocusIndex(0, e.shiftKey);
+      selectAndFocusIndex(0, e.shiftKey, mod);
       return;
     } else if (e.key === "End") {
       e.preventDefault();
-      selectAndFocusIndex(list.length - 1, e.shiftKey);
+      selectAndFocusIndex(list.length - 1, e.shiftKey, mod);
       return;
     } else if (e.key === "PageDown") {
       e.preventDefault();
-      const cur = lastClickedIndex() ?? 0;
-      selectAndFocusIndex(cur + 15, e.shiftKey);
+      const cur = focusedIndex() ?? lastClickedIndex() ?? 0;
+      selectAndFocusIndex(cur + 15, e.shiftKey, mod);
       return;
     } else if (e.key === "PageUp") {
       e.preventDefault();
-      const cur = lastClickedIndex() ?? 0;
-      selectAndFocusIndex(cur - 15, e.shiftKey);
+      const cur = focusedIndex() ?? lastClickedIndex() ?? 0;
+      selectAndFocusIndex(cur - 15, e.shiftKey, mod);
       return;
     } else if (e.key === " ") {
       e.preventDefault();
+      // The effective cursor is the focus cursor if it's been moved by
+      // Ctrl+Arrow, otherwise the selection anchor.
+      const cur = focusedIndex() ?? lastClickedIndex();
+
+      if (mod && cur !== null && cur >= 0 && cur < list.length) {
+        // Ctrl+Space: toggle the focused item in/out of the selection,
+        // then update the selection anchor so a subsequent Shift+Arrow
+        // extends from this item.
+        const targetEntry = list[cur];
+        setSelected((prev) => {
+          const next = new Set(prev);
+          if (next.has(targetEntry.path)) next.delete(targetEntry.path);
+          else next.add(targetEntry.path);
+          return next;
+        });
+        setLastClickedIndex(cur);
+        return;
+      }
+
       // With exactly one item already selected, Space toggles Quick Look
       // (macOS-style). Otherwise Space keeps its classic behavior: select
       // the row under the cursor (or the first row when nothing's picked).
-      if (!mod && selected().size === 1) {
+      if (selected().size === 1) {
         const [only] = selected();
         setQuickLookPath((prev) => (prev === only ? null : only));
         return;
       }
-      const cur = lastClickedIndex();
       if (cur !== null && cur >= 0 && cur < list.length) {
-        const targetEntry = list[cur];
-        if (mod) {
-          setSelected((prev) => {
-            const next = new Set(prev);
-            if (next.has(targetEntry.path)) next.delete(targetEntry.path);
-            else next.add(targetEntry.path);
-            return next;
-          });
-        } else {
-          setSelected(new Set([targetEntry.path]));
-        }
+        setSelected(new Set([list[cur].path]));
+        setLastClickedIndex(cur);
+        setFocusedIndex(cur);
       } else {
         selectAndFocusIndex(0);
       }
       return;
     } else if (e.key === "Enter" && !mod && !e.altKey) {
+      // When the focus cursor has been moved independently (Ctrl+Arrow),
+      // Enter opens the focused item regardless of the selection state.
+      const fi = focusedIndex();
+      if (fi !== null && fi !== lastClickedIndex() && fi >= 0 && fi < list.length) {
+        e.preventDefault();
+        openEntry(list[fi]);
+        return;
+      }
       const sel = selected();
       if (sel.size === 1) {
         const [path] = sel;
@@ -2053,6 +2086,7 @@ export function FileList(props: FileListProps) {
 
     setSelected(new Set([match.path]));
     setLastClickedIndex(list.indexOf(match));
+    setFocusedIndex(list.indexOf(match));
     scrollRowIntoView(match.path);
     // Move actual DOM focus to the matched row so a subsequent Enter (bound
     // per-row) opens it instead of firing on whatever was focused before.
@@ -2171,6 +2205,7 @@ export function FileList(props: FileListProps) {
         classList={{
           "file-grid-tile-dir": entry.isDir,
           "file-grid-tile-selected": selected().has(entry.path),
+          "file-grid-tile-focus-cursor": focusedIndex() === index() && focusedIndex() !== lastClickedIndex(),
           "file-grid-tile-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
         }}
         role="option"
@@ -2253,6 +2288,7 @@ export function FileList(props: FileListProps) {
           // from its DOM position — see the .file-row-alt rule in App.css.
           "file-row-alt": index() % 2 === 1,
           "file-row-selected": selected().has(entry.path),
+          "file-row-focus-cursor": focusedIndex() === index() && focusedIndex() !== lastClickedIndex(),
           "file-row-cut": props.clipboard?.mode === "cut" && props.clipboard.paths.includes(entry.path),
         }}
         tabIndex={0}

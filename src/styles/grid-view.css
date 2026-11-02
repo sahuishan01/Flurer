@@ -76,6 +76,12 @@
     outline-offset: -1px;
 }
 
+/* Keyboard focus cursor for Ctrl+Arrow navigation (independent of selection) */
+.file-grid-tile-focus-cursor {
+    outline: 2px dashed var(--accent-default);
+    outline-offset: -1px;
+}
+
 .file-grid-thumb {
     width: 56px;
     height: 56px;
