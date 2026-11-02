@@ -80,7 +80,8 @@ export const [registeredPlugins, setRegisteredPlugins] = Solid.createSignal<Plug
  * Plugins found in `customOrder` are positioned first according to their index,
  * followed by any remaining plugins maintaining their original order.
  */
-export { getOrderedPlugins } from "./pluginOrdering";
+import { getOrderedPlugins } from "./pluginOrdering";
+export { getOrderedPlugins };
 
 /**
  * Plugins whose panel translucency can be overridden from Settings.
