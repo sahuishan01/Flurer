@@ -30,14 +30,26 @@
     flex-shrink: 0;
     user-select: none;
     touch-action: none;
-    background-color: var(--border-color);
-    transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 
-.sidebar-resizer:hover,
-.sidebar-resizer.dragging {
+/* Thin centered line — visible at rest, brightens on interaction.
+   Drawn as a pseudo-element so the full 6px hit area stays easy to grab. */
+.sidebar-resizer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background-color: var(--border-strong);
+    transition: width 0.15s ease, background-color 0.15s ease;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer.dragging::after {
+    width: 3px;
     background-color: var(--accent);
-    opacity: 0.7;
 }
 
 .sidebar-empty-label {
