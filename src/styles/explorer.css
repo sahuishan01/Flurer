@@ -205,6 +205,7 @@
     border: none;
     color: var(--text-color);
     border-radius: var(--radius-sm);
+    cursor: pointer;
 }
 
 .view-rail-item:hover {
@@ -228,12 +229,8 @@
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
-    cursor: grab;
+    cursor: pointer;
     transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), opacity 0.15s ease;
-}
-
-.view-rail-plugin-slot:active {
-    cursor: grabbing;
 }
 
 .view-rail-plugin-slot.dragging {
@@ -241,6 +238,10 @@
     transform: scale(0.92);
     cursor: grabbing;
     z-index: 2;
+}
+
+.view-rail-plugin-slot.dragging .view-rail-item {
+    cursor: grabbing;
 }
 
 .view-rail-plugin-slot.drag-over {

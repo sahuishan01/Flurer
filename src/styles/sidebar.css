@@ -111,14 +111,14 @@
     opacity: 0.55;
 }
 
-/* Sections are drag-reorderable — the header is the handle. Grab cursor
-   and a drag indicator keep the affordance quiet but discoverable. */
+/* Sections are drag-reorderable — the header is the handle. Reordering
+   cursor only appears when actually dragging. */
 .sidebar-section-label.is-grab {
-    cursor: grab;
+    cursor: pointer;
     user-select: none;
 }
 
-.sidebar-section-label.is-grab:active {
+.sidebar-section.dragging .sidebar-section-label.is-grab {
     cursor: grabbing;
 }
 
