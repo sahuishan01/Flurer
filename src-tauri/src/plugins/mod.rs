@@ -472,6 +472,8 @@ pub async fn attach_child_webview_shortcuts(
                                         0x30 | 0x60 if is_ctrl => Some(("0", "Digit0")),
                                         // Terminal toggle: '\' (0xDC)
                                         0xDC if is_ctrl => Some(("\\", "Backslash")),
+                                        // Settings: ',' (VK_OEM_COMMA = 0xBC)
+                                        0xBC if is_ctrl => Some((",", "Comma")),
                                         // Navigation: Alt+Left / Alt+Right / Alt+Up
                                         0x25 if is_alt => Some(("ArrowLeft", "ArrowLeft")),
                                         0x27 if is_alt => Some(("ArrowRight", "ArrowRight")),

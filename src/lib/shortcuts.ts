@@ -56,6 +56,7 @@ export type InAppShortcutAction =
   | "closePane"
   | "toggleHiddenFiles"
   | "commandPalette"
+  | "settings"
   | "undo";
 
 export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
@@ -80,6 +81,7 @@ export const IN_APP_SHORTCUT_LABELS: Record<InAppShortcutAction, string> = {
   closePane: "Close active pane",
   toggleHiddenFiles: "Toggle hidden files",
   commandPalette: "Open command palette",
+  settings: "Open settings",
   undo: "Undo last file operation",
 };
 
@@ -90,7 +92,7 @@ export const IN_APP_SHORTCUT_CATEGORIES: { category: string; actions: InAppShort
   },
   {
     category: "Navigation",
-    actions: ["navParent", "navBack", "navForward", "focusAddressBar", "focusSearch", "toggleHiddenFiles", "commandPalette"],
+    actions: ["navParent", "navBack", "navForward", "focusAddressBar", "focusSearch", "toggleHiddenFiles", "commandPalette", "settings"],
   },
   {
     category: "Tabs & Panes",
@@ -121,5 +123,6 @@ export const DEFAULT_IN_APP_SHORTCUTS: Record<InAppShortcutAction, string> = {
   closePane: "Ctrl+Shift+W",
   toggleHiddenFiles: "Ctrl+H",
   commandPalette: "Ctrl+K",
+  settings: "Ctrl+,",
   undo: "Ctrl+Z",
 };

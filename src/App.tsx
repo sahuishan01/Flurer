@@ -892,7 +892,11 @@ function App() {
       }
 
       // --- Navigation & Window shortcuts ---
-      if (bound("commandPalette")) {
+      if (bound("settings")) {
+        e.preventDefault();
+        selectView(mainView() === "settings" ? "explorer" : "settings");
+        return;
+      } else if (bound("commandPalette")) {
         e.preventDefault();
         setCommandPaletteOpen(true);
         return;
@@ -1041,19 +1045,25 @@ function App() {
       const isMod = p.ctrlKey || p.metaKey;
       const k = (p.key || "").toLowerCase();
 
-      // 1. Host Global: Command Palette (Ctrl+Shift+P or Ctrl+P if mainView is explorer)
-      if (isMod && p.shiftKey && (k === "p" || p.code === "KeyP")) {
+      // 1. Host Global: Toggle Settings (Ctrl+,)
+      if (isMod && (k === "," || p.code === "Comma")) {
+        selectView(mainView() === "settings" ? "explorer" : "settings");
+        return;
+      }
+
+      // 2. Host Global: Command Palette (Ctrl+Shift+P or Ctrl+K or Ctrl+P if mainView is explorer)
+      if (isMod && ((p.shiftKey && (k === "p" || p.code === "KeyP")) || (!p.shiftKey && (k === "k" || p.code === "KeyK")))) {
         setCommandPaletteOpen(true);
         return;
       }
 
-      // 2. Host Global: Open Terminal (Ctrl+\)
+      // 3. Host Global: Open Terminal (Ctrl+\)
       if (isMod && (k === "\\" || p.code === "Backslash")) {
         openTerminalHere();
         return;
       }
 
-      // 3. If mainView is explorer, handle explorer tab/window shortcuts
+      // 4. If mainView is explorer, handle explorer tab/window shortcuts
       if (mainView() === "explorer") {
         if (isMod && !p.shiftKey && (k === "t" || p.code === "KeyT")) {
           openNewTab();
