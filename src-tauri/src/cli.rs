@@ -320,11 +320,12 @@ pub fn register_default_browser() -> Result<bool, String> {
 
         // 2. Protocols: HKCU\Software\Classes\http and https
         for proto in ["http", "https"] {
+            let proto_upper = proto.to_uppercase();
             let proto_path = format!(r"Software\Classes\{}", proto);
             let (proto_key, _) = hkcu
                 .create_subkey_with_flags(&proto_path, KEY_READ | KEY_WRITE)
                 .map_err(|e| format!("Failed to create {proto_path}: {e}"))?;
-            proto_key.set_value("", &format!("URL:{proto.to_uppercase()} Protocol")).unwrap_or(());
+            proto_key.set_value("", &format!("URL:{proto_upper} Protocol")).unwrap_or(());
             proto_key.set_value("URL Protocol", &"").unwrap_or(());
             proto_key.set_value("AppUserModelId", &"com.algosculptor.flurer").unwrap_or(());
 
