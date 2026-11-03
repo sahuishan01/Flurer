@@ -323,6 +323,11 @@ const CUSTOMIZATION_SECTIONS: SettingsSectionDef[] = [
                 label: "Environment PATH",
                 keywords: ["path", "environment", "terminal", "command line", "add flurer to path"],
             },
+            {
+                id: "customization.startup.defaultBrowser",
+                label: "Default web browser",
+                keywords: ["browser", "default browser", "web loader", "http", "https", "links"],
+            },
         ],
     },
     {

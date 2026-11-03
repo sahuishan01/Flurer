@@ -101,7 +101,6 @@ const COMMAND_PERMISSIONS: Record<string, PluginPermission> = {
   clear_search_index: "fs:write",
   find_duplicates: "fs:read",
   add_to_system_path: "app:settings",
-  check_is_default_browser: "app:settings",
   register_default_browser: "app:settings",
   unregister_default_browser: "app:settings",
 
