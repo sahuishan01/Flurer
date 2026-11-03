@@ -258,6 +258,32 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   const [inPath, setInPath] = createSignal<boolean | null>(null);
   const [addingToPath, setAddingToPath] = createSignal(false);
   const [pathMessage, setPathMessage] = createSignal("");
+  const [isDefaultBrowser, setIsDefaultBrowser] = createSignal<boolean | null>(null);
+  const [settingDefaultBrowser, setSettingDefaultBrowser] = createSignal(false);
+  const [browserMessage, setBrowserMessage] = createSignal("");
+
+  async function checkDefaultBrowserStatus() {
+    try {
+      const res = await invoke<boolean>("check_is_default_browser");
+      setIsDefaultBrowser(res);
+    } catch (e) {
+      console.warn("Failed to check default browser status:", e);
+    }
+  }
+
+  async function handleRegisterDefaultBrowser() {
+    setSettingDefaultBrowser(true);
+    setBrowserMessage("");
+    try {
+      await invoke("register_default_browser");
+      setIsDefaultBrowser(true);
+      setBrowserMessage("Flurer registered! Windows Settings opened to confirm default browser.");
+    } catch (err) {
+      setBrowserMessage(`Failed: ${String(err)}`);
+    } finally {
+      setSettingDefaultBrowser(false);
+    }
+  }
 
   async function checkPathStatus() {
     try {
@@ -294,6 +320,7 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
   onMount(() => {
     refreshCacheStats();
     checkPathStatus();
+    checkDefaultBrowserStatus();
   });
 
   async function handleClearCache() {
@@ -1277,6 +1304,41 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
 
           <Show when={pathMessage()}>
             <p class="setting-note">{pathMessage()}</p>
+          </Show>
+
+          <FieldRow
+            id="customization.startup.defaultBrowser"
+            label="Default web browser"
+            description="Registers Flurer and its Web Loader plugin as an HTTP and HTTPS handler in Windows, allowing external links to open directly in Flurer tabs."
+          >
+            <div class="setting-control-inline">
+              <Show
+                when={isDefaultBrowser() === true}
+                fallback={
+                  <button
+                    type="button"
+                    class="option-btn"
+                    disabled={settingDefaultBrowser() || isDefaultBrowser() === null}
+                    onClick={handleRegisterDefaultBrowser}
+                  >
+                    {settingDefaultBrowser() ? "Registering..." : "Set as Default Browser"}
+                  </button>
+                }
+              >
+                <button
+                  type="button"
+                  class="option-btn"
+                  disabled={settingDefaultBrowser()}
+                  onClick={handleRegisterDefaultBrowser}
+                >
+                  Configure Default Apps
+                </button>
+              </Show>
+            </div>
+          </FieldRow>
+
+          <Show when={browserMessage()}>
+            <p class="setting-note">{browserMessage()}</p>
           </Show>
         </FieldGroup>
       </CollapsibleSection>

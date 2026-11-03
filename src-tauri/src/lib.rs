@@ -21,7 +21,10 @@ mod trash_bin;
 mod updater;
 
 use archive::{compress_to_zip, extract_archive};
-use cli::{add_to_system_path, is_in_path, take_launch_path};
+use cli::{
+    add_to_system_path, check_is_default_browser, is_in_path, register_default_browser,
+    take_launch_path, take_launch_url, unregister_default_browser,
+};
 use dirwatch::{unwatch_directory, watch_directory};
 use disks::get_disk_topology;
 use drag_out::set_external_drop_allowed;
@@ -89,13 +92,21 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             log::info!("single_instance triggered: argv={:?}, cwd={:?}", argv, cwd);
-            if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
+            if let Some(target_url) = cli::resolve_launch_url(&argv) {
+                log::info!("single_instance opening target_url: {}", target_url);
+                if let Err(e) = app.emit("open-url", &target_url) {
+                    log::error!("single_instance emit open-url failed: {e}");
+                }
+                if let Err(e) = app.emit("web-loader:open-tab", serde_json::json!({ "url": target_url })) {
+                    log::error!("single_instance emit web-loader:open-tab failed: {e}");
+                }
+            } else if let Some(target_dir) = cli::resolve_launch_path(&argv, std::path::Path::new(&cwd)) {
                 log::info!("single_instance opening target_dir: {}", target_dir);
                 if let Err(e) = app.emit("open-new-tab", target_dir) {
                     log::error!("single_instance emit open-new-tab failed: {e}");
                 }
             } else {
-                log::warn!("single_instance no target_dir resolved");
+                log::warn!("single_instance no target_dir or target_url resolved");
             }
             shortcuts::show_and_focus_main_window(app);
         }))
@@ -195,18 +206,24 @@ pub fn run() {
             // tauri_plugin_single_instance below, which emits "open-new-tab".
             let args: Vec<String> = std::env::args().collect();
             log::info!("CLI args: {:?}", args);
-            let launch_path = std::env::current_dir()
-                .ok()
-                .and_then(|cwd| {
-                    log::info!("CLI current_dir: {:?}", cwd);
-                    cli::resolve_launch_path(&args, &cwd)
-                });
-            log::info!("Resolved launch_path: {:?}", launch_path);
+            let launch_url = cli::resolve_launch_url(&args);
+            let launch_path = if launch_url.is_none() {
+                std::env::current_dir()
+                    .ok()
+                    .and_then(|cwd| {
+                        log::info!("CLI current_dir: {:?}", cwd);
+                        cli::resolve_launch_path(&args, &cwd)
+                    })
+            } else {
+                None
+            };
+            log::info!("Resolved launch_path: {:?}, launch_url: {:?}", launch_path, launch_url);
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 config,
                 size_cache: Default::default(),
                 launch_path: std::sync::Mutex::new(launch_path),
+                launch_url: std::sync::Mutex::new(launch_url),
             });
             if let Some(window) = app.get_webview_window("main") {
                 // Restore the saved size first so un-maximizing later lands
@@ -375,8 +392,12 @@ pub fn run() {
             find_duplicates,
             // CLI "open this folder" support
             take_launch_path,
+            take_launch_url,
             is_in_path,
             add_to_system_path,
+            check_is_default_browser,
+            register_default_browser,
+            unregister_default_browser,
             // Native row drag-out (see dnd.ts)
             set_external_drop_allowed,
             // Search index

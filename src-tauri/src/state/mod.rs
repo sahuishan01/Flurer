@@ -388,4 +388,7 @@ pub struct AppState {
     // mount, so a later window spawned in the same process doesn't also
     // pick up the same startup path.
     pub launch_path: std::sync::Mutex<Option<String>>,
+    // The web URL `flurer <url>` was launched with, if any —
+    // set once from argv in lib.rs's setup() and consumed by take_launch_url.
+    pub launch_url: std::sync::Mutex<Option<String>>,
 }

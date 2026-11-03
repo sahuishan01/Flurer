@@ -19,11 +19,42 @@ fn find_path_arg(args: &[String]) -> Option<&str> {
         .find(|a| !a.is_empty() && !a.starts_with('-'))
 }
 
+/// Checks whether a raw CLI argument represents an HTTP, HTTPS, or web URL.
+pub fn is_web_url(raw: &str) -> bool {
+    let lower = raw.trim().to_ascii_lowercase();
+    lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || lower.starts_with("www.")
+        || (lower.contains("://") && !lower.starts_with("file://"))
+}
+
+/// Normalizes a web URL to ensure standard protocol prefix.
+pub fn normalize_web_url(raw: &str) -> String {
+    let trimmed = raw.trim().trim_matches('"').trim_matches('\'');
+    if trimmed.to_ascii_lowercase().starts_with("www.") {
+        format!("https://{}", trimmed)
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Resolves a raw CLI argument to a web URL if the argument starts with http/https/www or has a web scheme.
+pub fn resolve_launch_url(args: &[String]) -> Option<String> {
+    let raw = find_path_arg(args)?;
+    if is_web_url(raw) {
+        Some(normalize_web_url(raw))
+    } else {
+        None
+    }
+}
+
 /// Resolves a raw CLI argument to an absolute, existing directory path, or
 /// None if there's no usable path argument (normal launch with no args,
 /// or an argument that doesn't resolve to anything on disk — silently
 /// falling back to the default rather than erroring, since a typo here
 /// shouldn't block the app from opening at all).
+///
+/// If the argument is a web URL, returns None so it can be handled by `resolve_launch_url`.
 ///
 /// "." (or any relative path) resolves against `cwd` — the shell's working
 /// directory at the moment Flurer was invoked, passed in explicitly rather
@@ -32,6 +63,9 @@ fn find_path_arg(args: &[String]) -> Option<&str> {
 /// process's cwd if single-instance forwarding is ever added later.
 pub fn resolve_launch_path(args: &[String], cwd: &Path) -> Option<String> {
     let raw = find_path_arg(args)?;
+    if is_web_url(raw) {
+        return None;
+    }
     let path = PathBuf::from(raw);
     let resolved = if path.is_absolute() { path } else { cwd.join(&path) };
 
@@ -56,6 +90,12 @@ pub fn resolve_launch_path(args: &[String], cwd: &Path) -> Option<String> {
 #[tauri::command]
 pub fn take_launch_path(state: tauri::State<'_, crate::state::AppState>) -> Option<String> {
     state.launch_path.lock().unwrap().take()
+}
+
+/// Consumes (not just reads) the startup web URL if Flurer was launched with a URL.
+#[tauri::command]
+pub fn take_launch_url(state: tauri::State<'_, crate::state::AppState>) -> Option<String> {
+    state.launch_url.lock().unwrap().take()
 }
 
 /// Checks if Flurer's executable directory is present in the user PATH.
@@ -202,6 +242,191 @@ pub fn add_to_system_path() -> Result<bool, String> {
     }
 }
 
+/// Checks whether Flurer is registered as a browser handler on Windows (in HKCU RegisteredApplications / ProgID).
+#[tauri::command]
+pub fn check_is_default_browser() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        // Check if FlurerHTML ProgId exists under HKCU\Software\Classes\FlurerHTML
+        let classes = hkcu.open_subkey(r"Software\Classes\FlurerHTML");
+        if classes.is_err() {
+            return Ok(false);
+        }
+
+        // Check if RegisteredApplications has Flurer
+        if let Ok(reg_apps) = hkcu.open_subkey(r"Software\RegisteredApplications") {
+            let app_cap: Result<String, _> = reg_apps.get_value("Flurer");
+            if app_cap.is_ok() {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // On Linux/macOS, check default browser using xdg-settings or return false
+        if let Ok(output) = std::process::Command::new("xdg-settings")
+            .args(["get", "default-web-browser"])
+            .output()
+        {
+            let s = String::from_utf8_lossy(&output.stdout).to_lowercase();
+            if s.contains("flurer") {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
+/// Registers Flurer as an available/default browser in Windows Registry (HKCU) and opens Default Apps settings.
+#[tauri::command]
+pub fn register_default_browser() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_path = exe.to_string_lossy().to_string();
+        let quoted_exe = format!("\"{}\"", exe_path);
+        let command_str = format!("\"{}\" \"%1\"", exe_path);
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+        // 1. Create ProgID HKCU\Software\Classes\FlurerHTML
+        let (html_progid, _) = hkcu
+            .create_subkey_with_flags(r"Software\Classes\FlurerHTML", KEY_READ | KEY_WRITE)
+            .map_err(|e| format!("Failed to create FlurerHTML: {e}"))?;
+        html_progid.set_value("", &"Flurer HTML Document").map_err(|e| e.to_string())?;
+        html_progid.set_value("AppUserModelId", &"com.algosculptor.flurer").unwrap_or(());
+
+        // DefaultIcon
+        let (icon_key, _) = html_progid
+            .create_subkey_with_flags("DefaultIcon", KEY_READ | KEY_WRITE)
+            .map_err(|e| e.to_string())?;
+        icon_key.set_value("", &format!("{},0", quoted_exe)).unwrap_or(());
+
+        // shell\open\command
+        let (open_cmd_key, _) = html_progid
+            .create_subkey_with_flags(r"shell\open\command", KEY_READ | KEY_WRITE)
+            .map_err(|e| e.to_string())?;
+        open_cmd_key.set_value("", &command_str).map_err(|e| e.to_string())?;
+
+        // 2. Protocols: HKCU\Software\Classes\http and https
+        for proto in ["http", "https"] {
+            let proto_path = format!(r"Software\Classes\{}", proto);
+            let (proto_key, _) = hkcu
+                .create_subkey_with_flags(&proto_path, KEY_READ | KEY_WRITE)
+                .map_err(|e| format!("Failed to create {proto_path}: {e}"))?;
+            proto_key.set_value("", &format!("URL:{proto.to_uppercase()} Protocol")).unwrap_or(());
+            proto_key.set_value("URL Protocol", &"").unwrap_or(());
+            proto_key.set_value("AppUserModelId", &"com.algosculptor.flurer").unwrap_or(());
+
+            let (p_cmd_key, _) = proto_key
+                .create_subkey_with_flags(r"shell\open\command", KEY_READ | KEY_WRITE)
+                .map_err(|e| e.to_string())?;
+            p_cmd_key.set_value("", &command_str).unwrap_or(());
+        }
+
+        // 3. HKCU\Software\Flurer\Capabilities
+        let (cap_key, _) = hkcu
+            .create_subkey_with_flags(r"Software\Flurer\Capabilities", KEY_READ | KEY_WRITE)
+            .map_err(|e| format!("Failed to create Capabilities: {e}"))?;
+        cap_key.set_value("ApplicationName", &"Flurer").unwrap_or(());
+        cap_key.set_value("ApplicationDescription", &"Flurer Web Loader Browser").unwrap_or(());
+
+        let (assoc_url_key, _) = cap_key
+            .create_subkey_with_flags("UrlAssociations", KEY_READ | KEY_WRITE)
+            .map_err(|e| e.to_string())?;
+        assoc_url_key.set_value("http", &"FlurerHTML").unwrap_or(());
+        assoc_url_key.set_value("https", &"FlurerHTML").unwrap_or(());
+
+        let (assoc_file_key, _) = cap_key
+            .create_subkey_with_flags("FileAssociations", KEY_READ | KEY_WRITE)
+            .map_err(|e| e.to_string())?;
+        assoc_file_key.set_value(".htm", &"FlurerHTML").unwrap_or(());
+        assoc_file_key.set_value(".html", &"FlurerHTML").unwrap_or(());
+
+        // 4. HKCU\Software\RegisteredApplications
+        let (reg_apps_key, _) = hkcu
+            .create_subkey_with_flags(r"Software\RegisteredApplications", KEY_READ | KEY_WRITE)
+            .map_err(|e| format!("Failed to open RegisteredApplications: {e}"))?;
+        reg_apps_key.set_value("Flurer", &r"Software\Flurer\Capabilities").unwrap_or(());
+
+        // Notify Windows Shell of association change
+        unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                SendMessageTimeoutA, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
+            };
+            let mut result: usize = 0;
+            let env_str = b"\0";
+            SendMessageTimeoutA(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                0,
+                env_str.as_ptr() as isize,
+                SMTO_ABORTIFHUNG,
+                3000,
+                &mut result,
+            );
+        }
+
+        // Launch Windows Default Apps Settings page so the user can confirm/select Flurer
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "ms-settings:defaultapps"])
+            .spawn();
+
+        Ok(true)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Try xdg-settings on Linux desktop
+        let status = std::process::Command::new("xdg-settings")
+            .args(["set", "default-web-browser", "flurer.desktop"])
+            .status();
+        match status {
+            Ok(s) if s.success() => Ok(true),
+            _ => {
+                // If setting directly fails or is unsupported, inform user
+                Ok(false)
+            }
+        }
+    }
+}
+
+/// Unregisters Flurer browser associations from HKCU\Software\Classes and RegisteredApplications.
+#[tauri::command]
+pub fn unregister_default_browser() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+        let _ = hkcu.delete_subkey_all(r"Software\Classes\FlurerHTML");
+        let _ = hkcu.delete_subkey_all(r"Software\Flurer\Capabilities");
+
+        if let Ok(reg_apps) = hkcu.open_subkey_with_flags(r"Software\RegisteredApplications", KEY_WRITE) {
+            let _ = reg_apps.delete_value("Flurer");
+        }
+
+        Ok(true)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +507,21 @@ mod tests {
         let args = vec!["flurer.exe".to_string(), "\"sub folder\"".to_string()];
         let resolved = resolve_launch_path(&args, cwd.path()).unwrap();
         assert_eq!(PathBuf::from(resolved), sub);
+    }
+
+    #[test]
+    fn web_url_resolves_via_launch_url() {
+        let cwd = tempdir().unwrap();
+        let args_https = vec!["flurer.exe".to_string(), "https://example.com/test".to_string()];
+        assert_eq!(resolve_launch_url(&args_https), Some("https://example.com/test".to_string()));
+        assert_eq!(resolve_launch_path(&args_https, cwd.path()), None);
+
+        let args_http = vec!["flurer.exe".to_string(), "http://localhost:8080".to_string()];
+        assert_eq!(resolve_launch_url(&args_http), Some("http://localhost:8080".to_string()));
+        assert_eq!(resolve_launch_path(&args_http, cwd.path()), None);
+
+        let args_www = vec!["flurer.exe".to_string(), "www.google.com".to_string()];
+        assert_eq!(resolve_launch_url(&args_www), Some("https://www.google.com".to_string()));
+        assert_eq!(resolve_launch_path(&args_www, cwd.path()), None);
     }
 }

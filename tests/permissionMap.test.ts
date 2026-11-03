@@ -64,6 +64,7 @@ describe("the plugin permission map", () => {
       "get_settings", "set_settings", "has_unsplash_api_key", "set_unsplash_api_key",
       "check_for_updates", "download_and_install_update", "relaunch_as_admin",
       "set_external_drop_allowed", "add_to_system_path",
+      "check_is_default_browser", "register_default_browser", "unregister_default_browser",
       // Plugin management.
       "list_installed_plugins", "load_plugin_code", "install_plugin_from_github",
       "install_plugin_from_zip", "uninstall_plugin", "check_plugin_updates",

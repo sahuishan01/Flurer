@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { CommandBar } from "./components/CommandBar";
@@ -232,14 +232,22 @@ function App() {
         console.error("Plugin startup error:", err)
       );
 
-      // Check if a CLI launch path was passed (e.g. `flurer .` or `flurer <path>`)
+      // Check if a CLI launch path or web URL was passed (e.g. `flurer .`, `flurer <path>`, or `flurer <url>`)
       let launchPath: string | null = null;
+      let launchUrl: string | null = null;
       try {
         launchPath = await invoke<string | null>("take_launch_path");
         invoke("log_frontend", { level: "info", message: `take_launch_path -> ${JSON.stringify(launchPath)}` }).catch(() => {});
       } catch (err) {
         console.error("Failed to read launch path", err);
         invoke("log_frontend", { level: "error", message: `take_launch_path failed: ${err}` }).catch(() => {});
+      }
+
+      try {
+        launchUrl = await invoke<string | null>("take_launch_url");
+        invoke("log_frontend", { level: "info", message: `take_launch_url -> ${JSON.stringify(launchUrl)}` }).catch(() => {});
+      } catch (err) {
+        console.error("Failed to read launch url", err);
       }
 
       // Restore the saved tab session first, so a launch path or the
@@ -260,7 +268,20 @@ function App() {
         restoredTabs = true;
       }
 
-      if (launchPath) {
+      if (launchUrl) {
+        // Direct launch with a web URL — activate web-loader plugin and open the tab
+        (async () => {
+          await pluginsLoaded;
+          if (pluginRegistry.getPlugin("web-loader")) {
+            setMainView("web-loader");
+            setHistory([{ type: "view", view: "web-loader" }]);
+            setTimeout(() => {
+              emit("web-loader:open-tab", { url: launchUrl });
+            }, 100);
+          }
+        })();
+        invoke("log_frontend", { level: "info", message: `navigated to launch url: ${launchUrl}` }).catch(() => {});
+      } else if (launchPath) {
         navigateTo(launchPath);
         invoke("log_frontend", { level: "info", message: `navigated to launch path: ${launchPath}` }).catch(() => {});
       } else if (!restoredTabs && loaded.restoreLastStateOnReopen && loaded.lastPath) {
@@ -290,7 +311,7 @@ function App() {
     }
 
     try {
-      const unlisten = await listen<string>("open-new-tab", (event) => {
+      const unlistenNewTab = await listen<string>("open-new-tab", (event) => {
         invoke("log_frontend", { level: "info", message: `open-new-tab event received: ${JSON.stringify(event.payload)}` }).catch(() => {});
         if (event.payload) {
           openTabWithPath(event.payload);
@@ -298,11 +319,24 @@ function App() {
           invoke("log_frontend", { level: "warn", message: "open-new-tab event with empty payload" }).catch(() => {});
         }
       });
+
+      const unlistenOpenUrl = await listen<string>("open-url", (event) => {
+        invoke("log_frontend", { level: "info", message: `open-url event received: ${JSON.stringify(event.payload)}` }).catch(() => {});
+        if (event.payload) {
+          if (pluginRegistry.getPlugin("web-loader")) {
+            setMainView("web-loader");
+            setHistory([{ type: "view", view: "web-loader" }]);
+            emit("web-loader:open-tab", { url: event.payload }).catch(() => {});
+          }
+        }
+      });
+
       onCleanup(() => {
-        unlisten();
+        unlistenNewTab();
+        unlistenOpenUrl();
       });
     } catch (err) {
-      console.error("Failed to listen for open-new-tab event", err);
+      console.error("Failed to listen for open-new-tab/open-url events", err);
       invoke("log_frontend", { level: "error", message: `open-new-tab listen registration failed: ${err}` }).catch(() => {});
     }
   });
