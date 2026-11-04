@@ -244,6 +244,17 @@ export function SettingsPanel(props: SettingsPanelProps) {
         requestAnimationFrame(updateActiveSection);
     });
 
+    function handleKeyDown(e: KeyboardEvent) {
+        if (e.key === "Escape") {
+            const searchInput = document.querySelector(".settings-search-input") as HTMLInputElement | null;
+            if (document.activeElement === searchInput && searchInput?.value) {
+                return; // Let search input handle clearing its query
+            }
+            e.preventDefault();
+            props.onClose?.();
+        }
+    }
+
     onMount(() => {
         try {
             const last = localStorage.getItem(LAST_CATEGORY_STORAGE_KEY);
@@ -253,11 +264,13 @@ export function SettingsPanel(props: SettingsPanelProps) {
         }
         contentEl?.addEventListener("scroll", handleScroll, { passive: true });
         window.addEventListener("resize", handleScroll);
+        window.addEventListener("keydown", handleKeyDown);
     });
 
     onCleanup(() => {
         contentEl?.removeEventListener("scroll", handleScroll);
         window.removeEventListener("resize", handleScroll);
+        window.removeEventListener("keydown", handleKeyDown);
     });
 
     function selectCategory(id: string) {
@@ -364,7 +377,16 @@ export function SettingsPanel(props: SettingsPanelProps) {
                         >
                             <DownloadIcon />
                         </button>
-                        <button type="button" class="icon-btn" aria-label="Close settings" onClick={props.onClose}>
+                        <button
+                            type="button"
+                            class="icon-btn settings-close-btn"
+                            aria-label="Close settings"
+                            title="Close settings (Escape)"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                props.onClose?.();
+                            }}
+                        >
                             <CloseIcon />
                         </button>
                     </div>

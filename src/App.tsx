@@ -1378,8 +1378,18 @@ function App() {
   }
 
   function closeSettings() {
-    if (historyIndex() > 0) {
-      goBack();
+    // Look backwards in history for the most recent non-settings entry to restore
+    const h = history();
+    let prevIndex = -1;
+    for (let i = historyIndex() - 1; i >= 0; i--) {
+      const entry = h[i];
+      if (entry && (entry.type === "explorer" || (entry.type === "view" && entry.view !== "settings"))) {
+        prevIndex = i;
+        break;
+      }
+    }
+    if (prevIndex >= 0) {
+      applyHistoryEntry(h[prevIndex], prevIndex);
     } else {
       selectView("explorer");
     }
