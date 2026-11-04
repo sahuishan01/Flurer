@@ -11,7 +11,7 @@ resolver = "2"
 
 [package]
 name = "flurer"
-version = "0.4.247"
+version = "0.4.248"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
