@@ -229,4 +229,37 @@ describe("the plugin API gateway", () => {
     // Only the first call got through.
     expect(invoked.filter((c) => c === "delete_items").length).toBe(1);
   });
+
+  test("plugin event listeners catch internal errors and are cleanly removed on cleanup", async () => {
+    let callCount = 0;
+    // Set up addEventListener/removeEventListener on fakeWindow
+    const listeners: Record<string, EventListener[]> = {};
+    fakeWindow.addEventListener = (type: string, fn: EventListener) => {
+      listeners[type] = listeners[type] || [];
+      listeners[type].push(fn);
+    };
+    fakeWindow.removeEventListener = (type: string, fn: EventListener) => {
+      if (listeners[type]) {
+        listeners[type] = listeners[type].filter((f) => f !== fn);
+      }
+    };
+
+    await runPlugin(`
+      window.addEventListener("custom:ping", () => {
+        window.__called = true;
+        throw new Error("plugin internal failure");
+      });
+    `, "faultyPlugin", "Faulty");
+
+    expect(listeners["custom:ping"]?.length).toBe(1);
+    // Triggering the event should run safely without throwing to caller
+    expect(() => {
+      listeners["custom:ping"][0](new Event("custom:ping"));
+    }).not.toThrow();
+    expect((fakeWindow as any).__called).toBe(true);
+
+    // Clean up plugin resources
+    mod.cleanupPluginResources("faultyPlugin");
+    expect(listeners["custom:ping"]?.length).toBe(0);
+  });
 });

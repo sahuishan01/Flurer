@@ -1,6 +1,6 @@
 import { FolderIcon, GearIcon } from "./icons";
 import { registeredPlugins, getOrderedPlugins } from "../lib/plugins";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, ErrorBoundary } from "solid-js";
 
 type ViewRailProps = {
   activeView: string;
@@ -79,7 +79,7 @@ export function ViewRail(props: ViewRailProps) {
       {/* Dynamically render plugin buttons with custom order & drag support */}
       <For each={orderedPlugins()}>
         {(plugin) => (
-          <Show when={plugin.viewRailButton}>
+          <Show when={typeof plugin.viewRailButton === "function"}>
             <div
               class="view-rail-plugin-slot"
               data-plugin-rail-id={plugin.id}
@@ -104,16 +104,38 @@ export function ViewRail(props: ViewRailProps) {
                 );
               }}
             >
-              {plugin.viewRailButton!({
-                active: props.activeView === plugin.id,
-                onClick: () => {
-                  if (suppressNextClick) {
-                    suppressNextClick = false;
-                    return;
-                  }
-                  props.onSelectView(plugin.id);
-                },
-              })}
+              <ErrorBoundary
+                fallback={
+                  <button
+                    type="button"
+                    class="view-rail-item view-rail-btn"
+                    classList={{ active: props.activeView === plugin.id }}
+                    title={`${plugin.name} (Error rendering button)`}
+                    onClick={() => {
+                      if (suppressNextClick) {
+                        suppressNextClick = false;
+                        return;
+                      }
+                      props.onSelectView(plugin.id);
+                    }}
+                  >
+                    <span style={{ "font-size": "10px", "font-weight": "bold", "letter-spacing": "-0.05em" }}>
+                      {(plugin.name || plugin.id).slice(0, 2).toUpperCase()}
+                    </span>
+                  </button>
+                }
+              >
+                {plugin.viewRailButton!({
+                  active: props.activeView === plugin.id,
+                  onClick: () => {
+                    if (suppressNextClick) {
+                      suppressNextClick = false;
+                      return;
+                    }
+                    props.onSelectView(plugin.id);
+                  },
+                })}
+              </ErrorBoundary>
             </div>
           </Show>
         )}

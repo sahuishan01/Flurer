@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, ErrorBoundary, For, onCleanup, onMount, Show } from "solid-js";
 import { createStore, unwrap } from "solid-js/store";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -586,9 +586,14 @@ function App() {
   }
 
   function updatePluginSettings(pluginId: string, patch: any) {
-    const current = settings.pluginSettings?.[pluginId] ?? {};
-    setSettings("pluginSettings", pluginId, { ...current, ...patch });
-    persistSettings();
+    if (!pluginId || !patch || typeof patch !== "object") return;
+    try {
+      const current = settings.pluginSettings?.[pluginId] ?? {};
+      setSettings("pluginSettings", pluginId, { ...current, ...patch });
+      persistSettings();
+    } catch (err) {
+      console.error(`Failed to update settings for plugin ${pluginId}:`, err);
+    }
   }
 
   function updateSidebarSectionOrder(order: SidebarSectionId[]) {
@@ -1117,6 +1122,7 @@ function App() {
   });
 
   function navigateTo(path: string) {
+    if (typeof path !== "string") return;
     const cleanPath = resolvePath(currentPath(), path);
     setCurrentPath(cleanPath);
     setMainView("explorer");
@@ -1728,10 +1734,24 @@ function App() {
               quickAccessOrder={settings.quickAccessOrder}
               onQuickAccessOrderChange={updateQuickAccessOrder}
               width={settings.sidebarWidth}
-              customContent={activePlugin()?.sidebar?.({
-                currentPath: currentPath(),
-                onSelectPath: selectSidebarPath
-              })}
+              customContent={(() => {
+                const p = activePlugin();
+                if (!p || typeof p.sidebar !== "function") return undefined;
+                return (
+                  <ErrorBoundary
+                    fallback={
+                      <div style={{ padding: "8px", "font-size": "11px", color: "var(--danger)" }}>
+                        Failed to render {p.name} sidebar
+                      </div>
+                    }
+                  >
+                    {p.sidebar({
+                      currentPath: currentPath(),
+                      onSelectPath: selectSidebarPath,
+                    })}
+                  </ErrorBoundary>
+                );
+              })()}
             />
             <div
               class="sidebar-resizer"
@@ -1752,6 +1772,7 @@ function App() {
                   searchQuery={searchQuery()}
                   searchRecursive={searchRecursive()}
                   favouritePaths={settings.favouritePaths}
+                  recentPaths={settings.recentPaths}
                   onToggleFavourite={toggleFavourite}
                   folderColors={settings.folderColors}
                   onSetFolderColor={setFolderColor}
@@ -1828,12 +1849,28 @@ function App() {
                             pluginSettings: settings.pluginSettings?.[plugin.id] ?? {},
                             onPluginSettingsChange: (patch: any) => updatePluginSettings(plugin.id, patch)
                           };
-                          if (plugin.fullPanel) {
-                            return plugin.fullPanel(props);
-                          } else if (plugin.mainPanel) {
-                            return plugin.mainPanel(props);
-                          }
-                          return null;
+                          const renderPanel = () => {
+                            if (plugin.fullPanel) {
+                              return plugin.fullPanel(props);
+                            } else if (plugin.mainPanel) {
+                              return plugin.mainPanel(props);
+                            }
+                            return null;
+                          };
+                          return (
+                            <ErrorBoundary
+                              fallback={(err) => (
+                                <div style={{ padding: "24px", color: "var(--danger, #ef4444)" }}>
+                                  <h3>Plugin Error: {plugin.name}</h3>
+                                  <p style={{ "font-family": "monospace", "margin-top": "8px" }}>
+                                    {String(err?.message || err)}
+                                  </p>
+                                </div>
+                              )}
+                            >
+                              {renderPanel()}
+                            </ErrorBoundary>
+                          );
                         })()}
                       </div>
                     );

@@ -14,6 +14,8 @@ const {
   hasPermission,
   revokeAll,
   revokePermission,
+  requestPermission,
+  currentPermissionRequest,
 } = await import("../src/lib/pluginPermissions.ts");
 
 describe("plugin permissions", () => {
@@ -88,5 +90,56 @@ describe("plugin permissions", () => {
     expect(readGrants().git).toEqual(["shell"]);
     expect(readGrants().graph).toBeUndefined();
     expect(readGrants().bad).toBeUndefined();
+  });
+
+  test("multiple permission requests are queued and processed in order", async () => {
+    let resolvedFirst: boolean | null = null;
+    let resolvedSecond: boolean | null = null;
+
+    const p1 = requestPermission("pluginA", "Plugin A", "fs:read").then((res) => {
+      resolvedFirst = res;
+    });
+    const p2 = requestPermission("pluginB", "Plugin B", "fs:write").then((res) => {
+      resolvedSecond = res;
+    });
+
+    // First request is active
+    let req = currentPermissionRequest();
+    expect(req).not.toBeNull();
+    expect(req?.pluginId).toBe("pluginA");
+    expect(req?.permission).toBe("fs:read");
+
+    // Resolve first request
+    req?.resolve(true);
+    await p1;
+    expect(resolvedFirst).toBe(true);
+
+    // Second request is now active
+    req = currentPermissionRequest();
+    expect(req).not.toBeNull();
+    expect(req?.pluginId).toBe("pluginB");
+    expect(req?.permission).toBe("fs:write");
+
+    // Resolve second request
+    req?.resolve(false);
+    await p2;
+    expect(resolvedSecond).toBe(false);
+
+    // Queue is empty
+    expect(currentPermissionRequest()).toBeNull();
+  });
+
+  test("revoking/uninstalling a plugin cancels all its pending requests so they do not hang", async () => {
+    let resolved: boolean | null = null;
+    const p = requestPermission("hangingPlugin", "Hanging Plugin", "shell").then((res) => {
+      resolved = res;
+    });
+
+    expect(currentPermissionRequest()?.pluginId).toBe("hangingPlugin");
+    revokeAll("hangingPlugin");
+
+    await p;
+    expect(resolved).toBe(false);
+    expect(currentPermissionRequest()).toBeNull();
   });
 });

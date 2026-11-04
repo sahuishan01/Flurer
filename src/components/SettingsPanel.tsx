@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, ErrorBoundary, For, onCleanup, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { CustomizationSettings } from "./CustomizationSettings";
 import { ShortcutsSettings } from "./ShortcutsSettings";
@@ -500,11 +500,21 @@ export function SettingsPanel(props: SettingsPanelProps) {
                                     const id = pluginCategory.substring(7); // "plugin-".length is 7
                                     const p = registeredPlugins().find((x) => x.id === id);
                                     if (!p || !p.settingsPanel) return null;
-                                    return p.settingsPanel({
-                                        dataBgLightness: props["data-bg-lightness"] || "light",
-                                        pluginSettings: props.pluginSettings[id] || {},
-                                        onPluginSettingsChange: (patch: any) => props.onPluginSettingsChange(id, patch),
-                                    });
+                                    return (
+                                        <ErrorBoundary
+                                            fallback={(err) => (
+                                                <div class="settings-error-alert" style={{ "margin-top": "1em" }}>
+                                                    <strong>Failed to load {p.name} settings:</strong> {String(err?.message || err)}
+                                                </div>
+                                            )}
+                                        >
+                                            {p.settingsPanel({
+                                                dataBgLightness: props["data-bg-lightness"] || "light",
+                                                pluginSettings: props.pluginSettings[id] || {},
+                                                onPluginSettingsChange: (patch: any) => props.onPluginSettingsChange(id, patch),
+                                            })}
+                                        </ErrorBoundary>
+                                    );
                                 }}
                             </Show>
 

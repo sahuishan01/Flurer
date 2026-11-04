@@ -26,6 +26,7 @@ export function DirectoryPickerModal(props: {
   initialPath?: string;
   recentPaths: string[];
   favouritePaths: string[];
+  confirmLabel?: string;
   onSelect: (path: string) => void;
   onClose: () => void;
 }) {
@@ -35,6 +36,23 @@ export function DirectoryPickerModal(props: {
   const [quickAccess, setQuickAccess] = createSignal<QuickAccessEntry[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal("");
+
+  async function handleCreateFolder() {
+    if (!currentPath()) return;
+    try {
+      let name = "New folder";
+      let counter = 1;
+      const existingNames = new Set(subdirs().map((s) => s.name.toLowerCase()));
+      while (existingNames.has(name.toLowerCase())) {
+        counter += 1;
+        name = `New folder (${counter})`;
+      }
+      const created = await invoke<string>("create_folder", { parentDir: currentPath(), name });
+      await loadDir(created);
+    } catch (err) {
+      setError(String(err));
+    }
+  }
 
   async function loadDir(path: string) {
     if (!path) return;
@@ -155,6 +173,9 @@ export function DirectoryPickerModal(props: {
                   }
                 }}
               />
+              <button type="button" onClick={handleCreateFolder}>
+                New folder
+              </button>
             </div>
             <div class="dir-picker-list">
               <Show when={loading()}>
@@ -193,7 +214,7 @@ export function DirectoryPickerModal(props: {
                 props.onClose();
               }}
             >
-              Select folder
+              {props.confirmLabel ?? "Select folder"}
             </button>
           </div>
         </div>

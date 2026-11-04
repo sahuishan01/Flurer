@@ -91,6 +91,16 @@ export function ViewTypeSelect(props: ViewTypeSelectProps) {
     });
   });
 
+  function renderIcon(vt?: ExplorerViewType, size = 14) {
+    if (!vt || typeof vt.icon !== "function") return null;
+    try {
+      return vt.icon({ size });
+    } catch (err) {
+      console.error(`[ViewTypeSelect] Error rendering icon for ${vt.id}:`, err);
+      return null;
+    }
+  }
+
   const a = active();
 
   return (
@@ -112,7 +122,7 @@ export function ViewTypeSelect(props: ViewTypeSelectProps) {
           }
         }}
       >
-        {a ? a.icon({ size: 14 }) : null}
+        {renderIcon(a, 14)}
         <span>{a ? a.label : "View"}</span>
         <ChevronDownIcon size={12} />
       </button>
@@ -138,7 +148,7 @@ export function ViewTypeSelect(props: ViewTypeSelectProps) {
                     aria-checked={selected}
                     onClick={() => select(vt.id)}
                   >
-                    <span class="context-menu-item-icon">{vt.icon({ size: 14 })}</span>
+                    <span class="context-menu-item-icon">{renderIcon(vt, 14)}</span>
                     {vt.label}
                     <Show when={selected}>
                       <span style={{ margin: "0 0 0 auto" }}><CheckIcon size={14} /></span>

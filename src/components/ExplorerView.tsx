@@ -47,6 +47,7 @@ type ExplorerViewProps = {
   /** Explorer view types for the selector (Core's built-ins plus any
    *  contributed by installed plugins). */
   viewTypes?: ExplorerViewType[];
+  recentPaths?: string[];
   "data-bg-lightness"?: string;
 };
 
@@ -232,6 +233,7 @@ export function ExplorerView(props: ExplorerViewProps) {
           searchQuery={props.activePane === 0 ? props.searchQuery : ""}
           searchRecursive={props.activePane === 0 ? props.searchRecursive : false}
           favouritePaths={props.favouritePaths}
+          recentPaths={props.recentPaths}
           onToggleFavourite={props.onToggleFavourite}
           folderColors={props.folderColors}
           onSetFolderColor={props.onSetFolderColor}
@@ -306,6 +308,7 @@ export function ExplorerView(props: ExplorerViewProps) {
                 searchQuery={props.activePane === overallIndex ? props.searchQuery : ""}
                 searchRecursive={props.activePane === overallIndex ? props.searchRecursive : false}
                 favouritePaths={props.favouritePaths}
+                recentPaths={props.recentPaths}
                 onToggleFavourite={props.onToggleFavourite}
                 folderColors={props.folderColors}
                 onSetFolderColor={props.onSetFolderColor}

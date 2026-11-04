@@ -27,6 +27,43 @@ import {
 /** The globals a plugin may use without any gating. */
 type PluginGlobals = Record<string, unknown>;
 
+type TrackedListener = {
+  target: EventTarget;
+  type: string;
+  original: EventListenerOrEventListenerObject;
+  wrapped: EventListener;
+  options?: boolean | AddEventListenerOptions;
+};
+
+const pluginEventListeners = new Map<string, TrackedListener[]>();
+
+/**
+ * Remove all event listeners and DOM artifacts added by a plugin.
+ * Called when a plugin is uninstalled, updated, or unregistered.
+ */
+export function cleanupPluginResources(pluginId: string) {
+  const listeners = pluginEventListeners.get(pluginId);
+  if (listeners) {
+    for (const { target, type, wrapped, options } of listeners) {
+      try {
+        if (typeof target.removeEventListener === "function") {
+          target.removeEventListener(type, wrapped, options);
+        }
+      } catch (err) {
+        console.warn(`[pluginGateway] Failed to remove ${type} listener for ${pluginId}:`, err);
+      }
+    }
+    pluginEventListeners.delete(pluginId);
+  }
+
+  if (typeof document !== "undefined" && typeof document.querySelectorAll === "function") {
+    try {
+      const styles = document.querySelectorAll(`style[id*="${pluginId}"], link[id*="${pluginId}"]`);
+      styles.forEach((el) => el.remove());
+    } catch {}
+  }
+}
+
 /**
  * How a gated call is actually made.
  *
@@ -99,9 +136,62 @@ function scopedWindow(
     },
   };
 
+  function wrapAddEventListener(eventTarget: any) {
+    return (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
+      if (!listener || !eventTarget || typeof eventTarget.addEventListener !== "function") return;
+      const wrapped: EventListener = (event) => {
+        try {
+          if (typeof listener === "function") {
+            listener.call(eventTarget, event);
+          } else if (listener && typeof listener.handleEvent === "function") {
+            listener.handleEvent(event);
+          }
+        } catch (err) {
+          console.error(`[plugin:${pluginId}] Uncaught error in ${type} event listener:`, err);
+        }
+      };
+
+      let list = pluginEventListeners.get(pluginId);
+      if (!list) {
+        list = [];
+        pluginEventListeners.set(pluginId, list);
+      }
+      list.push({ target: eventTarget, type, original: listener, wrapped, options });
+
+      return eventTarget.addEventListener(type, wrapped, options);
+    };
+  }
+
+  function wrapRemoveEventListener(eventTarget: any) {
+    return (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | EventListenerOptions,
+    ) => {
+      if (!eventTarget || typeof eventTarget.removeEventListener !== "function") return;
+      const list = pluginEventListeners.get(pluginId);
+      if (list) {
+        const idx = list.findIndex(
+          (entry) => entry.target === eventTarget && entry.type === type && entry.original === listener,
+        );
+        if (idx >= 0) {
+          const [removed] = list.splice(idx, 1);
+          return eventTarget.removeEventListener(type, removed.wrapped, options);
+        }
+      }
+      return eventTarget.removeEventListener(type, listener as EventListener, options);
+    };
+  }
+
   const overrides: Record<string, unknown> = {
     TauriCore: { ...TauriCore, invoke: scopedInvoke },
     TauriShell: scopedShell,
+    addEventListener: wrapAddEventListener(real),
+    removeEventListener: wrapRemoveEventListener(real),
   };
 
   // Everything else — Solid, SolidWeb, registerPlugin, the UI kit — is
@@ -117,6 +207,26 @@ function scopedWindow(
     get(target, prop, receiver) {
       if (prop in overrides) return overrides[prop as string];
       if (prop === "window" || prop === "globalThis" || prop === "self") return receiver;
+      if (prop === "document") {
+        const doc = (target as any).document;
+        if (!doc) return doc;
+        return new Proxy(doc, {
+          get(docTarget, docProp) {
+            if (docProp === "defaultView") return receiver;
+            if (docProp === "addEventListener") return wrapAddEventListener(docTarget);
+            if (docProp === "removeEventListener") return wrapRemoveEventListener(docTarget);
+            const docVal = Reflect.get(docTarget, docProp);
+            if (typeof docVal === "function") {
+              try {
+                return docVal.bind(docTarget);
+              } catch {
+                return docVal;
+              }
+            }
+            return docVal;
+          },
+        });
+      }
       const value = Reflect.get(target, prop);
       if (typeof value === "function") {
         try {

@@ -233,6 +233,7 @@ export function revokePermission(pluginId: string, permission: PluginPermission)
 
 /** Revoke every permission a plugin holds — used when it is uninstalled. */
 export function revokeAll(pluginId: string) {
+  cancelPendingPermissionRequests(pluginId);
   const current = grants();
   if (!(pluginId in current)) return;
   const next: PluginGrants = { ...current };
@@ -254,18 +255,40 @@ export type PermissionRequest = {
 };
 
 const [pendingRequest, setPendingRequest] = createSignal<PermissionRequest | null>(null);
+const requestQueue: PermissionRequest[] = [];
 
 /** The request waiting for the user, if any. */
 export function currentPermissionRequest(): PermissionRequest | null {
   return pendingRequest();
 }
 
+function processNextPermissionRequest() {
+  if (pendingRequest()) return;
+  const next = requestQueue.shift();
+  if (!next) return;
+
+  setPendingRequest({
+    ...next,
+    resolve: (granted) => {
+      setPendingRequest(null);
+      try {
+        next.resolve(granted);
+      } finally {
+        processNextPermissionRequest();
+      }
+    },
+  });
+}
+
 /**
  * Ask the user for a permission. Resolves true if granted.
  *
- * If a request for the same plugin and permission is already pending,
- * the new one is folded into it — a plugin that calls three gated
- * commands in a row should produce one prompt, not three.
+ * If a request for the same plugin and permission is already active or
+ * queued, the new one is folded into it — a plugin that calls three gated
+ * commands in a row produces one prompt, not three.
+ *
+ * If a different request is already displayed, subsequent requests are queued
+ * so they are presented in order and no request is dropped or hung.
  */
 export function requestPermission(
   pluginId: string,
@@ -283,17 +306,47 @@ export function requestPermission(
     });
   }
 
+  const inQueue = requestQueue.find((r) => r.pluginId === pluginId && r.permission === permission);
+  if (inQueue) {
+    return new Promise<boolean>((resolve) => {
+      const previous = inQueue.resolve;
+      inQueue.resolve = (granted) => {
+        previous(granted);
+        resolve(granted);
+      };
+    });
+  }
+
   return new Promise<boolean>((resolve) => {
-    setPendingRequest({
+    requestQueue.push({
       pluginId,
       pluginName,
       permission,
-      resolve: (granted) => {
-        setPendingRequest(null);
-        resolve(granted);
-      },
+      resolve,
     });
+    processNextPermissionRequest();
   });
+}
+
+/**
+ * Cancel and deny all pending/queued permission requests for a plugin.
+ * Used when a plugin is uninstalled, disabled, or unloaded so no callers
+ * are left hanging indefinitely.
+ */
+export function cancelPendingPermissionRequests(pluginId: string) {
+  for (let i = requestQueue.length - 1; i >= 0; i--) {
+    if (requestQueue[i].pluginId === pluginId) {
+      const req = requestQueue.splice(i, 1)[0];
+      try {
+        req.resolve(false);
+      } catch {}
+    }
+  }
+
+  const current = pendingRequest();
+  if (current && current.pluginId === pluginId) {
+    current.resolve(false);
+  }
 }
 
 /** The error a denied plugin call throws. */

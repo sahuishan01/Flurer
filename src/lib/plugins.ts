@@ -3,7 +3,7 @@ import * as TauriCore from "@tauri-apps/api/core";
 import { CollapsibleSection } from "../components/ui/CollapsibleSection";
 import { FieldGroup, FieldRow } from "../components/ui/Field";
 import { publishPluginGlobals } from "./pluginGlobals";
-import { runPluginScoped } from "./pluginGateway";
+import { runPluginScoped, cleanupPluginResources } from "./pluginGateway";
 import { revokeAll } from "./pluginPermissions";
 import type { ExplorerViewType } from "./view";
 
@@ -100,17 +100,27 @@ const loadedPluginIds = new Set<string>();
 
 export const pluginRegistry = {
   register(plugin: PluginInfo) {
-    if (loadedPluginIds.has(plugin.id)) {
-      setRegisteredPlugins((prev) => prev.filter((p) => p.id !== plugin.id).concat(plugin));
-    } else {
-      loadedPluginIds.add(plugin.id);
-      setRegisteredPlugins((prev) => [...prev, plugin]);
+    if (!plugin || typeof plugin !== "object" || typeof plugin.id !== "string" || !plugin.id.trim()) {
+      console.error("[plugins] Rejected invalid plugin registration:", plugin);
+      return;
     }
-    console.log(`Plugin registered: ${plugin.name} (v${plugin.version})`);
+    const safePlugin: PluginInfo = {
+      ...plugin,
+      id: plugin.id.trim(),
+      name: typeof plugin.name === "string" && plugin.name.trim() ? plugin.name.trim() : plugin.id.trim(),
+    };
+    if (loadedPluginIds.has(safePlugin.id)) {
+      setRegisteredPlugins((prev) => prev.filter((p) => p.id !== safePlugin.id).concat(safePlugin));
+    } else {
+      loadedPluginIds.add(safePlugin.id);
+      setRegisteredPlugins((prev) => [...prev, safePlugin]);
+    }
+    console.log(`Plugin registered: ${safePlugin.name} (v${safePlugin.version})`);
   },
   
   unregister(id: string) {
     loadedPluginIds.delete(id);
+    cleanupPluginResources(id);
     setRegisteredPlugins((prev) => prev.filter((p) => p.id !== id));
     console.log(`Plugin unregistered: ${id}`);
   },

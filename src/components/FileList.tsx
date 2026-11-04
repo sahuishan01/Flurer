@@ -3,6 +3,7 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  ErrorBoundary,
   For,
   onCleanup,
   onMount,
@@ -14,6 +15,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { elementAtDropPoint, startRowDrag, transferItems } from "../lib/dnd";
 import { BulkRenameDialog } from "./BulkRenameDialog";
+import { DirectoryPickerModal } from "./DirectoryPickerModal";
 import { DuplicateFinderModal } from "./DuplicateFinderModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
@@ -97,6 +99,7 @@ type FileListProps = {
   searchQuery: string;
   searchRecursive: boolean;
   favouritePaths: string[];
+  recentPaths?: string[];
   onToggleFavourite: (path: string) => void;
   folderColors: Record<string, string | undefined>;
   onSetFolderColor: (path: string, color: string | null) => void;
@@ -384,6 +387,7 @@ export function FileList(props: FileListProps) {
   const [propertiesTarget, setPropertiesTarget] = createSignal<string | null>(null);
   const [bulkRenameOpen, setBulkRenameOpen] = createSignal(false);
   const [duplicatesOpen, setDuplicatesOpen] = createSignal(false);
+  const [extractToZipPath, setExtractToZipPath] = createSignal<string | null>(null);
 
   // Explorer view types: Core's built-ins plus any contributed by installed
   // plugins (App merges them and passes them here; fall back to Core-only so
@@ -470,6 +474,16 @@ export function FileList(props: FileListProps) {
     setOpError("");
     try {
       await invoke("extract_archive", { zipPath, destDir: props.path });
+      refresh();
+    } catch (err) {
+      setOpError(String(err));
+    }
+  }
+
+  async function extractTo(zipPath: string, destDir: string) {
+    setOpError("");
+    try {
+      await invoke("extract_archive", { zipPath, destDir });
       refresh();
     } catch (err) {
       setOpError(String(err));
@@ -1829,6 +1843,11 @@ export function FileList(props: FileListProps) {
               icon: <ArchiveIcon size={15} />,
               onSelect: () => extractHere(menu.targetPath!),
             },
+            {
+              label: "Extract to…",
+              icon: <ArchiveIcon size={15} />,
+              onSelect: () => setExtractToZipPath(menu.targetPath!),
+            },
           ]
         : []),
       // Color tags apply to any entry, not just folders — files get the
@@ -2366,7 +2385,29 @@ export function FileList(props: FileListProps) {
   function renderPluginView() {
     const vt = allViewTypes().find((v) => v.id === viewMode());
     const PluginView = vt?.render;
-    return PluginView ? <PluginView ctx={listViewCtx()} /> : null;
+    if (typeof PluginView !== "function") return null;
+    return (
+      <ErrorBoundary
+        fallback={(err) => (
+          <div class="file-list-error-banner" style={{ margin: "20px" }}>
+            <p class="file-list-error">
+              Failed to render {vt?.label ?? "custom"} view: {String(err?.message || err)}
+            </p>
+            <div style={{ "margin-top": "8px" }}>
+              <button
+                type="button"
+                class="btn"
+                onClick={() => props.onViewModeChange?.("details")}
+              >
+                Switch to Details view
+              </button>
+            </div>
+          </div>
+        )}
+      >
+        <PluginView ctx={listViewCtx()} />
+      </ErrorBoundary>
+    );
   }
 
   // Grid layout: same shared handlers as the table rows (selection,
@@ -2685,6 +2726,22 @@ export function FileList(props: FileListProps) {
           rootPath={props.path}
           onClose={() => setDuplicatesOpen(false)}
           onDeleted={refresh}
+        />
+      )}
+
+      {extractToZipPath() && (
+        <DirectoryPickerModal
+          title={`Extract to… (${baseName(extractToZipPath()!)})`}
+          initialPath={props.path}
+          recentPaths={props.recentPaths ?? []}
+          favouritePaths={props.favouritePaths}
+          confirmLabel="Extract"
+          onSelect={(destDir) => {
+            const zip = extractToZipPath()!;
+            setExtractToZipPath(null);
+            extractTo(zip, destDir);
+          }}
+          onClose={() => setExtractToZipPath(null)}
         />
       )}
 
