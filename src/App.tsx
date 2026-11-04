@@ -568,6 +568,19 @@ function App() {
     persistSettings();
   }
 
+  async function handleCloseApp() {
+    try {
+      await invoke("close_window", { closeToTray: settings.closeToTray });
+    } catch (err) {
+      console.warn("close_window invoke failed, falling back to window.close():", err);
+      try {
+        await getCurrentWindow().close();
+      } catch (closeErr) {
+        console.error("Window close failed:", closeErr);
+      }
+    }
+  }
+
   // Turning "Always run as admin" on persists the flag (so future launches
   // self-elevate in setup) and immediately hands off to an elevated copy;
   // turning it off only affects future launches — an elevated instance
@@ -1697,6 +1710,8 @@ function App() {
           searchRecursive={searchRecursive()}
           onSearchRecursiveChange={setSearchRecursive}
           showProgressWhenIdle={settings.showProgressWhenIdle}
+          closeToTray={settings.closeToTray}
+          onClose={handleCloseApp}
           viewControls={
             <Show when={mainView() === "explorer"}>
               <ExplorerPathBar

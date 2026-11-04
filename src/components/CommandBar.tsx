@@ -1,4 +1,5 @@
 import { Show, type JSX } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, RecursiveIcon, SearchIcon } from "./icons";
 import { ProgressIndicator } from "./ProgressIndicator";
@@ -11,17 +12,81 @@ import { createPopover } from "../lib/popover";
 // Window control glyphs are CSS-drawn solid blocks rather than stroked
 // SVGs — thin strokes render too faintly at this size on some DPIs, while
 // filled bars/boxes keep a solid, high-contrast shape.
-function WindowControls() {
+function WindowControls(props: { onClose?: () => void; closeToTray?: boolean }) {
   const win = getCurrentWindow();
+
+  async function handleClose(e: MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (props.onClose) {
+      props.onClose();
+      return;
+    }
+    try {
+      await invoke("close_window", { closeToTray: props.closeToTray });
+    } catch (err) {
+      console.warn("close_window failed, falling back to window.close():", err);
+      try {
+        await win.close();
+      } catch (closeErr) {
+        console.error("win.close() failed:", closeErr);
+      }
+    }
+  }
+
+  async function handleMinimize(e: MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      await win.minimize();
+    } catch (err) {
+      console.error("win.minimize() failed:", err);
+    }
+  }
+
+  async function handleMaximize(e: MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      await win.toggleMaximize();
+    } catch (err) {
+      console.error("win.toggleMaximize() failed:", err);
+    }
+  }
+
   return (
-    <div class="window-controls">
-      <button type="button" class="window-control-btn" aria-label="Minimize" title="Minimize" onClick={() => win.minimize()}>
+    <div class="window-controls" data-tauri-drag-region="false">
+      <button
+        type="button"
+        class="window-control-btn"
+        data-tauri-drag-region="false"
+        aria-label="Minimize"
+        title="Minimize"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={handleMinimize}
+      >
         <span class="wc-glyph wc-min" />
       </button>
-      <button type="button" class="window-control-btn" aria-label="Maximize" title="Maximize / Restore" onClick={() => win.toggleMaximize()}>
+      <button
+        type="button"
+        class="window-control-btn"
+        data-tauri-drag-region="false"
+        aria-label="Maximize"
+        title="Maximize / Restore"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={handleMaximize}
+      >
         <span class="wc-glyph wc-max" />
       </button>
-      <button type="button" class="window-control-btn window-control-close" aria-label="Close" title="Close" onClick={() => win.close()}>
+      <button
+        type="button"
+        class="window-control-btn window-control-close"
+        data-tauri-drag-region="false"
+        aria-label="Close"
+        title="Close"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={handleClose}
+      >
         <span class="wc-glyph wc-close" />
       </button>
     </div>
@@ -48,6 +113,8 @@ type CommandBarProps = {
   // "bar stays generic" convention as viewControls above.
   rightExtras?: JSX.Element;
   showProgressWhenIdle?: boolean;
+  closeToTray?: boolean;
+  onClose?: () => void;
   "data-bg-lightness"?: string;
 };
 
@@ -157,7 +224,7 @@ export function CommandBar(props: CommandBarProps) {
         </div>
       </div>
 
-      <WindowControls />
+      <WindowControls onClose={props.onClose} closeToTray={props.closeToTray} />
     </div>
   );
 }

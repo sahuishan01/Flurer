@@ -16,7 +16,7 @@ pub fn launched_minimized() -> bool {
     std::env::args().any(|a| a == MINIMIZED_ARG)
 }
 
-fn save_current_window_metrics_and_get_close_to_tray(app: &AppHandle) -> bool {
+pub fn save_current_window_metrics_and_get_close_to_tray(app: &AppHandle) -> bool {
     let mut close_to_tray = false;
     let state = app.state::<crate::state::AppState>();
     let mut guard = state.settings.try_lock();
@@ -44,12 +44,42 @@ fn save_current_window_metrics_and_get_close_to_tray(app: &AppHandle) -> bool {
             }
         }
         let _ = crate::helpers::settings::save_settings(app, &settings);
+    } else {
+        // Fall back to reading from disk if mutex could not be locked
+        close_to_tray = crate::helpers::settings::load_settings(app).close_to_tray;
     }
     close_to_tray
 }
 
-fn save_current_window_metrics(app: &AppHandle) {
+pub fn save_current_window_metrics(app: &AppHandle) {
     let _ = save_current_window_metrics_and_get_close_to_tray(app);
+}
+
+/// Explicit command to close the window or minimize to tray based on settings
+#[tauri::command]
+pub async fn close_window(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    close_to_tray: Option<bool>,
+) -> Result<(), String> {
+    let should_close_to_tray = close_to_tray.unwrap_or_else(|| {
+        save_current_window_metrics_and_get_close_to_tray(&app)
+    });
+    if should_close_to_tray {
+        save_current_window_metrics(&app);
+        // Hide child/docked webviews so nothing floats or intercepts clicks
+        for (label, wv) in app.webviews() {
+            if label != "main" {
+                let _ = wv.hide();
+            }
+        }
+        let _ = window.hide();
+    } else {
+        save_current_window_metrics(&app);
+        crate::sizecache::flush(&app);
+        app.exit(0);
+    }
+    Ok(())
 }
 
 // Builds the tray icon + its right-click menu (Show / Quit), and wires the
@@ -61,16 +91,25 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
     let menu = MenuBuilder::new(app).item(&show_item).item(&quit_item).build()?;
 
-    let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("Flurer").on_menu_event(|app, event| {
-        match event.id().as_ref() {
-            "show" => shortcuts::show_and_focus_main_window(app),
-            "quit" => {
-                save_current_window_metrics(app);
-                app.exit(0);
+    let mut tray = TrayIconBuilder::new()
+        .menu(&menu)
+        .tooltip("Flurer")
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => shortcuts::show_and_focus_main_window(app),
+                "quit" => {
+                    save_current_window_metrics(app);
+                    crate::sizecache::flush(app);
+                    app.exit(0);
+                }
+                _ => {}
             }
-            _ => {}
-        }
-    });
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
+                shortcuts::show_and_focus_main_window(tray.app_handle());
+            }
+        });
     if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
     }
@@ -83,8 +122,14 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 let close_to_tray = save_current_window_metrics_and_get_close_to_tray(&app_handle);
                 if close_to_tray {
                     api.prevent_close();
+                    for (label, wv) in app_handle.webviews() {
+                        if label != "main" {
+                            let _ = wv.hide();
+                        }
+                    }
                     shortcuts::hide_main_window(&app_handle);
                 } else {
+                    crate::sizecache::flush(&app_handle);
                     app_handle.exit(0);
                 }
             }

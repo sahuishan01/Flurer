@@ -14,6 +14,13 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
+.command-bar button,
+.command-bar input,
+.command-bar [data-tauri-drag-region="false"] {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+
 /* Three fixed zones so every group has one unambiguous place: navigation on
    the far left, the view's own controls (path) filling the middle, and the
    tools + window controls pinned on the far right. Explicit order values
@@ -101,6 +108,8 @@
     flex-shrink: 0;
     /* Keep the close button off the window's right border. */
     padding-right: var(--space-4);
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
 }
 
 .window-control-btn {
@@ -113,8 +122,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: default;
+    cursor: pointer;
     transition: background 0.12s ease, color 0.12s ease;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+    pointer-events: auto;
 }
 
 .window-control-btn:hover {
@@ -126,6 +138,7 @@
 .wc-glyph {
     display: block;
     background: currentColor;
+    pointer-events: none;
 }
 
 .wc-min {

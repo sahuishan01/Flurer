@@ -20,6 +20,7 @@ mod tray;
 mod trash_bin;
 mod updater;
 
+use tray::close_window;
 use archive::{compress_to_zip, extract_archive};
 use cli::{
     add_to_system_path, check_is_default_browser, is_in_path, register_default_browser,
@@ -405,6 +406,8 @@ pub fn run() {
             search_index_query,
             rebuild_search_index,
             clear_search_index,
+            // Window controls
+            close_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

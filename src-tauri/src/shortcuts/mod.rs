@@ -85,6 +85,24 @@ pub fn spawn_new_window(app: &AppHandle) {
 
     match result {
         Ok(window) => {
+            let app_handle = app.clone();
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let close_to_tray = crate::tray::save_current_window_metrics_and_get_close_to_tray(&app_handle);
+                    if close_to_tray {
+                        api.prevent_close();
+                        for (label, wv) in app_handle.webviews() {
+                            if label != "main" {
+                                let _ = wv.hide();
+                            }
+                        }
+                        crate::shortcuts::hide_main_window(&app_handle);
+                    } else {
+                        crate::sizecache::flush(&app_handle);
+                        app_handle.exit(0);
+                    }
+                }
+            });
             let _ = window.set_focus();
         }
         Err(e) => log::error!("failed to spawn new window {label:?}: {e}"),
