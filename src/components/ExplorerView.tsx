@@ -22,6 +22,10 @@ type ExplorerViewProps = {
   onGroupFoldersFirstChange: (value: boolean) => void;
   groupBy: GroupByKey;
   onGroupByChange: (value: GroupByKey) => void;
+  getFolderViewSettings?: (path: string) => { sortKey: SortKey; sortDirection: SortDirection; groupFoldersFirst: boolean; groupBy: GroupByKey };
+  onSortChangeForPath?: (path: string, key: SortKey) => void;
+  onGroupFoldersFirstChangeForPath?: (path: string, value: boolean) => void;
+  onGroupByChangeForPath?: (path: string, value: GroupByKey) => void;
   // How many columns wide the grid lays out (1-4) — extra panes beyond a
   // full row wrap onto a new one automatically. Pane 0 (this view's own
   // `path`) is always present; splitPanePaths holds the *extra* panes'
@@ -204,52 +208,49 @@ export function ExplorerView(props: ExplorerViewProps) {
             </div>
           </div>
         </Show>
-        <FileList
-          data-bg-lightness={props["data-bg-lightness"]}
-          path={props.path}
-          onNavigate={props.onNavigate}
-          active={!isSplit() || props.activePane === 0}
-          sortKey={props.sortKey}
-          sortDirection={props.sortDirection}
-          onSortChange={props.onSortChange}
-          groupFoldersFirst={props.groupFoldersFirst}
-          onGroupFoldersFirstChange={props.onGroupFoldersFirstChange}
-          groupBy={props.groupBy}
-          onGroupByChange={props.onGroupByChange}
-          clipboard={clipboard()}
-          onClipboardChange={setClipboard}
-          // The search box drives whichever pane is active, not always the
-          // primary — otherwise switching focus to an extra pane and typing
-          // a query would silently keep filtering a pane that isn't even
-          // visible as "the one being searched".
-          searchQuery={props.activePane === 0 ? props.searchQuery : ""}
-          searchRecursive={props.activePane === 0 ? props.searchRecursive : false}
-          favouritePaths={props.favouritePaths}
-          onToggleFavourite={props.onToggleFavourite}
-          folderColors={props.folderColors}
-          onSetFolderColor={props.onSetFolderColor}
-          inAppShortcuts={props.inAppShortcuts}
-          showHiddenFiles={props.showHiddenFiles}
-          onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
-        />
+        {(() => {
+          const viewSettings = props.getFolderViewSettings
+            ? props.getFolderViewSettings(props.path)
+            : { sortKey: props.sortKey, sortDirection: props.sortDirection, groupFoldersFirst: props.groupFoldersFirst, groupBy: props.groupBy };
+          return (
+            <FileList
+              data-bg-lightness={props["data-bg-lightness"]}
+              path={props.path}
+              onNavigate={props.onNavigate}
+              active={!isSplit() || props.activePane === 0}
+              sortKey={viewSettings.sortKey}
+              sortDirection={viewSettings.sortDirection}
+              onSortChange={(k) => (props.onSortChangeForPath ? props.onSortChangeForPath(props.path, k) : props.onSortChange(k))}
+              groupFoldersFirst={viewSettings.groupFoldersFirst}
+              onGroupFoldersFirstChange={(v) => (props.onGroupFoldersFirstChangeForPath ? props.onGroupFoldersFirstChangeForPath(props.path, v) : props.onGroupFoldersFirstChange(v))}
+              groupBy={viewSettings.groupBy}
+              onGroupByChange={(v) => (props.onGroupByChangeForPath ? props.onGroupByChangeForPath(props.path, v) : props.onGroupByChange(v))}
+              clipboard={clipboard()}
+              onClipboardChange={setClipboard}
+              searchQuery={props.activePane === 0 ? props.searchQuery : ""}
+              searchRecursive={props.activePane === 0 ? props.searchRecursive : false}
+              favouritePaths={props.favouritePaths}
+              onToggleFavourite={props.onToggleFavourite}
+              folderColors={props.folderColors}
+              onSetFolderColor={props.onSetFolderColor}
+              inAppShortcuts={props.inAppShortcuts}
+              showHiddenFiles={props.showHiddenFiles}
+              onToggleShowHiddenFiles={props.onToggleShowHiddenFiles}
+            />
+          );
+        })()}
       </div>
 
-      {/* Index, not For: panes are addressed by position (pane 0 is always
-          primary, pane k is splitPanePaths[k-1]), and two panes can
-          legitimately show the same folder — keying by path like For does
-          would collide. Index calls its render function once per slot and
-          updates an accessor in place as that slot's path changes, so each
-          pane's local pathInput state below survives navigation instead of
-          being torn down and recreated on every keystroke. */}
       <Index each={props.splitPanePaths}>
         {(pathAt, arrIndex) => {
           const overallIndex = arrIndex + 1;
           const [pathInput, setPathInput] = createSignal(pathAt());
-          // Keep the address bar's input in sync with navigation that
-          // didn't come from typing (double-click, breadcrumb, the primary
-          // pane's own search/sort controls don't apply here, but this
-          // pane's own breadcrumb/back-to-parent do).
           createEffect(() => setPathInput(pathAt()));
+
+          const secViewSettings = () =>
+            props.getFolderViewSettings
+              ? props.getFolderViewSettings(pathAt())
+              : { sortKey: props.sortKey, sortDirection: props.sortDirection, groupFoldersFirst: props.groupFoldersFirst, groupBy: props.groupBy };
 
           return (
             <div
@@ -282,17 +283,15 @@ export function ExplorerView(props: ExplorerViewProps) {
                 path={pathAt()}
                 onNavigate={(p) => updateExtraPane(arrIndex, p)}
                 active={props.activePane === overallIndex}
-                sortKey={props.sortKey}
-                sortDirection={props.sortDirection}
-                onSortChange={props.onSortChange}
-                groupFoldersFirst={props.groupFoldersFirst}
-                onGroupFoldersFirstChange={props.onGroupFoldersFirstChange}
-                groupBy={props.groupBy}
-                onGroupByChange={props.onGroupByChange}
+                sortKey={secViewSettings().sortKey}
+                sortDirection={secViewSettings().sortDirection}
+                onSortChange={(k) => (props.onSortChangeForPath ? props.onSortChangeForPath(pathAt(), k) : props.onSortChange(k))}
+                groupFoldersFirst={secViewSettings().groupFoldersFirst}
+                onGroupFoldersFirstChange={(v) => (props.onGroupFoldersFirstChangeForPath ? props.onGroupFoldersFirstChangeForPath(pathAt(), v) : props.onGroupFoldersFirstChange(v))}
+                groupBy={secViewSettings().groupBy}
+                onGroupByChange={(v) => (props.onGroupByChangeForPath ? props.onGroupByChangeForPath(pathAt(), v) : props.onGroupByChange(v))}
                 clipboard={clipboard()}
                 onClipboardChange={setClipboard}
-                // The search box drives whichever pane is active — see the
-                // same gating on the primary pane's FileList above.
                 searchQuery={props.activePane === overallIndex ? props.searchQuery : ""}
                 searchRecursive={props.activePane === overallIndex ? props.searchRecursive : false}
                 favouritePaths={props.favouritePaths}

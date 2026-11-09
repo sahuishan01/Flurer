@@ -45,14 +45,11 @@ export type BackgroundSettings = {
   unsplashChangeFrequencyMs: number;
 };
 
-export type GraphNodePosition = { nodeId: string; x: number; y: number };
-
-export type GraphState = {
-  expandedNodeIds: string[];
-  panX: number;
-  panY: number;
-  zoom: number;
-  nodePositions: GraphNodePosition[];
+export type FolderViewSettings = {
+  sortKey?: SortKey;
+  sortDirection?: SortDirection;
+  groupFoldersFirst?: boolean;
+  groupBy?: GroupByKey;
 };
 
 export type Settings = {
@@ -92,6 +89,8 @@ export type Settings = {
   // list; default, so nothing changes for existing users until they pick
   // one from the new dropdown.
   groupBy: GroupByKey;
+  // Per-folder view customization overrides (path -> { sortKey, sortDirection, groupFoldersFirst, groupBy })
+  folderViewSettings: Record<string, FolderViewSettings | undefined>;
   fontFamily: string;
   fontSizePx: number;
   sidebarTooltipDelayMs: number;
@@ -201,6 +200,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sortDirection: "ascending",
   groupFoldersFirst: true,
   groupBy: "none",
+  folderViewSettings: {},
   fontFamily: "Inter, Avenir, Helvetica, Arial, sans-serif",
   fontSizePx: 16,
   sidebarTooltipDelayMs: 500,

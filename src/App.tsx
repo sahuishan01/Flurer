@@ -642,24 +642,58 @@ function App() {
   }
 
   // Clicking the same column again flips direction; clicking a different one
-  // switches to it starting ascending — same behavior ExplorerView used to
-  // handle locally, just persisted now so it survives a restart.
-  function updateSort(key: SortKey) {
-    if (key === settings.sortKey) {
-      setSettings("sortDirection", settings.sortDirection === "ascending" ? "descending" : "ascending");
-    } else {
-      setSettings("sortKey", key);
-      setSettings("sortDirection", "ascending");
-    }
+  // Returns effective view settings for a path (per-folder override or fallback to global settings)
+  function getFolderViewSettings(path: string) {
+    const key = pathKey(path);
+    const custom = settings.folderViewSettings?.[key];
+    return {
+      sortKey: custom?.sortKey ?? settings.sortKey,
+      sortDirection: custom?.sortDirection ?? settings.sortDirection,
+      groupFoldersFirst: custom?.groupFoldersFirst ?? settings.groupFoldersFirst,
+      groupBy: custom?.groupBy ?? settings.groupBy,
+    };
+  }
+
+  function updateSortForFolder(path: string, key: SortKey) {
+    const current = getFolderViewSettings(path);
+    const nextDirection: SortDirection =
+      key === current.sortKey
+        ? current.sortDirection === "ascending"
+          ? "descending"
+          : "ascending"
+        : "ascending";
+
+    const pk = pathKey(path);
+    const existing = settings.folderViewSettings?.[pk] ?? {};
+    setSettings("folderViewSettings", pk, {
+      ...existing,
+      sortKey: key,
+      sortDirection: nextDirection,
+    });
+    // Also update global fallback if modifying global/primary settings
+    setSettings("sortKey", key);
+    setSettings("sortDirection", nextDirection);
     persistSettings();
   }
 
-  function updateGroupFoldersFirst(value: boolean) {
+  function updateGroupFoldersFirstForFolder(path: string, value: boolean) {
+    const pk = pathKey(path);
+    const existing = settings.folderViewSettings?.[pk] ?? {};
+    setSettings("folderViewSettings", pk, {
+      ...existing,
+      groupFoldersFirst: value,
+    });
     setSettings("groupFoldersFirst", value);
     persistSettings();
   }
 
-  function updateGroupBy(value: GroupByKey) {
+  function updateGroupByForFolder(path: string, value: GroupByKey) {
+    const pk = pathKey(path);
+    const existing = settings.folderViewSettings?.[pk] ?? {};
+    setSettings("folderViewSettings", pk, {
+      ...existing,
+      groupBy: value,
+    });
     setSettings("groupBy", value);
     persistSettings();
   }
@@ -1549,11 +1583,15 @@ function App() {
                   inAppShortcuts={settings.inAppShortcuts}
                   sortKey={settings.sortKey}
                   sortDirection={settings.sortDirection}
-                  onSortChange={updateSort}
+                  onSortChange={(key) => updateSortForFolder(currentPath(), key)}
                   groupFoldersFirst={settings.groupFoldersFirst}
-                  onGroupFoldersFirstChange={updateGroupFoldersFirst}
+                  onGroupFoldersFirstChange={(val) => updateGroupFoldersFirstForFolder(currentPath(), val)}
                   groupBy={settings.groupBy}
-                  onGroupByChange={updateGroupBy}
+                  onGroupByChange={(val) => updateGroupByForFolder(currentPath(), val)}
+                  getFolderViewSettings={getFolderViewSettings}
+                  onSortChangeForPath={updateSortForFolder}
+                  onGroupFoldersFirstChangeForPath={updateGroupFoldersFirstForFolder}
+                  onGroupByChangeForPath={updateGroupByForFolder}
                   splitCols={settings.splitCols}
                   onSplitColsChange={(cols) => setSettings("splitCols", cols)}
                   splitPanePaths={settings.splitPanePaths}
