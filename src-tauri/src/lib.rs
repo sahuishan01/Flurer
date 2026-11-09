@@ -107,7 +107,9 @@ pub fn run() {
                     log::error!("single_instance emit open-new-tab failed: {e}");
                 }
             } else {
-                log::warn!("single_instance no target_dir or target_url resolved");
+                log::info!("single_instance no target_dir or target_url; opening a new window");
+                shortcuts::spawn_new_window(app);
+                return;
             }
             shortcuts::show_and_focus_main_window(app);
         }))
