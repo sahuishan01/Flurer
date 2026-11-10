@@ -146,7 +146,13 @@ pub(crate) fn clean_dir_path(path: &str) -> String {
 
 #[cfg(not(windows))]
 pub(crate) fn clean_dir_path(path: &str) -> String {
-    let cleaned = path.trim_end_matches('/');
+    let mut cleaned = path.trim_end_matches('/');
+    if cleaned.ends_with('\\') && !std::path::Path::new(cleaned).exists() {
+        let without_bs = cleaned.trim_end_matches('\\');
+        if std::path::Path::new(without_bs).exists() {
+            cleaned = without_bs.trim_end_matches('/');
+        }
+    }
     if cleaned.is_empty() && path.starts_with('/') {
         "/".to_string()
     } else {

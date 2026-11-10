@@ -199,24 +199,51 @@ fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
 }
 
 #[cfg(not(windows))]
+fn is_user_facing_mount(mount: &str, is_removable: bool) -> bool {
+    if mount == "/" || mount == "/home" {
+        return true;
+    }
+    if is_removable {
+        return true;
+    }
+    if mount.starts_with("/media/") || mount.starts_with("/run/media/") || mount.starts_with("/mnt/") {
+        return true;
+    }
+    false
+}
+
+#[cfg(not(windows))]
 fn query_disk_topology() -> Result<Vec<PhysicalDisk>, String> {
     // Unix exposes mounted filesystems instead of drive letters. Keep the
-    // existing volume API, using the mount point as its navigation path.
+    // existing volume API, using user-facing mount points as navigation paths.
     let disks = sysinfo::Disks::new_with_refreshed_list();
     let mut seen = std::collections::HashSet::new();
     Ok(disks.list().iter().filter_map(|disk| {
         let mount = disk.mount_point().to_string_lossy().into_owned();
+        let is_removable = disk.is_removable();
+        if !is_user_facing_mount(&mount, is_removable) {
+            return None;
+        }
         if !seen.insert(mount.clone()) { return None; }
         let name = disk.name().to_string_lossy().into_owned();
+        let volume_name = if mount == "/" {
+            "Root".to_string()
+        } else if mount == "/home" {
+            "Home".to_string()
+        } else if !name.is_empty() {
+            name.clone()
+        } else {
+            mount.clone()
+        };
         Some(PhysicalDisk {
             index: 0,
-            model: name.clone(),
+            model: if name.is_empty() { volume_name.clone() } else { name },
             size: disk.total_space(),
-            media_type: if disk.is_removable() { "Removable" } else { "Fixed" }.to_string(),
+            media_type: if is_removable { "Removable" } else { "Fixed" }.to_string(),
             interface_type: String::new(),
             volumes: vec![VirtualDisk {
                 drive_letter: mount.clone(),
-                volume_name: if mount == "/" { "Filesystem".to_string() } else { name },
+                volume_name,
                 file_system: disk.file_system().to_string_lossy().into_owned(),
                 total_space: disk.total_space(),
                 free_space: disk.available_space(),
@@ -239,6 +266,8 @@ mod tests {
                 assert!(std::path::Path::new(&volume.drive_letter).is_absolute());
                 assert!(std::path::Path::new(&volume.drive_letter).is_dir());
                 assert!(volume.free_space <= volume.total_space);
+                assert_ne!(volume.drive_letter, "/var/log");
+                assert_ne!(volume.drive_letter, "/boot");
             }
         }
     }

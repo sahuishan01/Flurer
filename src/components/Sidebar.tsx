@@ -18,12 +18,19 @@ import type { MainView } from "../lib/view";
 import type { PhysicalDisk, VirtualDisk } from "../lib/graph";
 import type { SidebarSectionId } from "../lib/settings";
 import { DEFAULT_SIDEBAR_SECTION_ORDER } from "../lib/settings";
-import { baseName, formatBytes, pathSegments, type DirEntry, type DirListing } from "../lib/fs";
+import { baseName, cleanDirPath, formatBytes, isWindows, pathSegments, type DirEntry, type DirListing } from "../lib/fs";
 
 type QuickAccessEntry = {
   label: string;
   path: string;
 };
+
+function drivePath(volume: VirtualDisk): string {
+  if (isWindows) {
+    return `${volume.driveLetter}\\`;
+  }
+  return volume.driveLetter.endsWith("/") ? volume.driveLetter : `${volume.driveLetter}/`;
+}
 
 function driveLabel(volume: VirtualDisk): string {
   return volume.volumeName ? `${volume.driveLetter} (${volume.volumeName})` : volume.driveLetter;
@@ -294,43 +301,49 @@ export function Sidebar(props: SidebarProps) {
         <span class="sidebar-section-label is-grab" data-section-id={id} {...sectionDragHandlers(id)}>{SECTION_TITLES[id]}</span>
         {id === "drives" && (
           <For each={drives()}>
-            {(volume) => (
-              <button
-                type="button"
-                class="sidebar-drive"
-                classList={{
-                  active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
-                }}
-                aria-label={driveLabel(volume)}
-                data-tip={driveLabel(volume)}
-                data-drop-path={`${volume.driveLetter}\\`}
-                onClick={() => props.onSelectPath(`${volume.driveLetter}\\`)}
-              >
-                <div
-                  class="sidebar-item"
+            {(volume) => {
+              const path = drivePath(volume);
+              const isActive = () =>
+                props.activeView === "explorer" &&
+                cleanDirPath(props.currentPath) === cleanDirPath(path);
+              return (
+                <button
+                  type="button"
+                  class="sidebar-drive"
                   classList={{
-                    active: props.activeView === "explorer" && props.currentPath === `${volume.driveLetter}\\`,
+                    active: isActive(),
                   }}
+                  aria-label={driveLabel(volume)}
+                  data-tip={driveLabel(volume)}
+                  data-drop-path={path}
+                  onClick={() => props.onSelectPath(path)}
                 >
-                  <span class="sidebar-icon">
-                    <VolumeIcon size={15} />
-                  </span>
-                  {driveLabel(volume)}
-                </div>
-                <div class="sidebar-drive-usage">
-                  <div class="sidebar-drive-usage-bar">
-                    <div
-                      class="sidebar-drive-usage-fill"
-                      classList={{ low: usedPercent(volume) >= 90 }}
-                      style={{ width: `${usedPercent(volume)}%` }}
-                    />
+                  <div
+                    class="sidebar-item"
+                    classList={{
+                      active: isActive(),
+                    }}
+                  >
+                    <span class="sidebar-icon">
+                      <VolumeIcon size={15} />
+                    </span>
+                    {driveLabel(volume)}
                   </div>
-                  <span class="sidebar-drive-usage-text">
-                    {formatBytes(volume.freeSpace)} free of {formatBytes(volume.totalSpace)}
-                  </span>
-                </div>
-              </button>
-            )}
+                  <div class="sidebar-drive-usage">
+                    <div class="sidebar-drive-usage-bar">
+                      <div
+                        class="sidebar-drive-usage-fill"
+                        classList={{ low: usedPercent(volume) >= 90 }}
+                        style={{ width: `${usedPercent(volume)}%` }}
+                      />
+                    </div>
+                    <span class="sidebar-drive-usage-text">
+                      {formatBytes(volume.freeSpace)} free of {formatBytes(volume.totalSpace)}
+                    </span>
+                  </div>
+                </button>
+              );
+            }}
           </For>
         )}
         {id === "recents" && (
