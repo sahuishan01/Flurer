@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(target_os = "linux"))]
 use crate::elevation::launch_elevated_and_relaunch;
 
 const GITHUB_REPO: &str = "sahuishan01/Flurer";
@@ -80,6 +81,11 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
             .find(|a| a["name"].as_str().map(|n| n.ends_with(suffix)).unwrap_or(false))
             .and_then(|a| a["browser_download_url"].as_str().map(String::from))
     };
+    #[cfg(target_os = "linux")]
+    let download_url = find_by_suffix(".AppImage")
+        .or_else(|| find_by_suffix(".deb"))
+        .ok_or("No Linux package found in the latest release")?;
+    #[cfg(not(target_os = "linux"))]
     let download_url = find_by_suffix(".exe")
         .or_else(|| find_by_suffix(".msi"))
         .ok_or("No installer asset found in the latest release")?;
@@ -111,10 +117,177 @@ pub async fn check_for_updates(current_version: String) -> Result<UpdateInfo, St
 /// one (e.g. `%LOCALAPPDATA%\Programs`). Used to keep a silent update
 /// install in the same scope as the install it's replacing — see the call
 /// site in `download_and_install_update`.
+#[cfg(not(target_os = "linux"))]
 fn is_per_machine_install() -> bool {
     std::env::current_exe()
         .map(|p| p.to_string_lossy().to_lowercase().contains("program files"))
         .unwrap_or(false)
+}
+
+/// Version segment in a release asset name, e.g. `flurer_0.4.254_amd64.AppImage`.
+#[cfg(target_os = "linux")]
+fn update_version_from_filename(file_name: &str) -> Option<String> {
+    file_name.split(|c: char| c == '_' || c == '-').find_map(|part| {
+        let mut pieces = part.split('.');
+        let major = pieces.next()?;
+        let minor = pieces.next()?;
+        let patch = pieces.next()?;
+        if pieces.next().is_some()
+            || !major.chars().all(|c| c.is_ascii_digit())
+            || !minor.chars().all(|c| c.is_ascii_digit())
+            || !patch.chars().all(|c| c.is_ascii_digit())
+        {
+            return None;
+        }
+        Some(format!("{major}.{minor}.{patch}"))
+    })
+}
+
+/// Where a downloaded AppImage should be installed for this user.
+///
+/// Only per-user installs under `~/.local/opt/flurer` are updated in place:
+/// a system-owned `/usr/bin/flurer` is not writable without root and should
+/// go through the OS package manager instead.
+#[cfg(target_os = "linux")]
+fn linux_update_target(
+    home: &std::path::Path,
+    current_exe: &std::path::Path,
+    appimage: Option<&std::path::Path>,
+    version: &str,
+) -> Result<std::path::PathBuf, String> {
+    let install_root = home.join(".local").join("opt").join("flurer");
+    let per_user = current_exe.starts_with(&install_root)
+        || appimage.is_some_and(|path| path.starts_with(&install_root));
+    if !per_user {
+        return Err(
+            "Automatic updates on Linux require a per-user install under ~/.local/opt/flurer. \
+             Download the latest release from https://github.com/sahuishan01/Flurer/releases/latest instead."
+                .to_string(),
+        );
+    }
+    if let Some(appimage) = appimage {
+        return Ok(appimage.to_path_buf());
+    }
+    Ok(install_root.join(format!("flurer-{version}.AppImage")))
+}
+
+/// Derive the owning user's home from an install path such as
+/// `/home/ishan/.local/opt/flurer/0.4.253/usr/bin/flurer`.
+///
+/// The updater may run inside an elevated (root) instance whose HOME is
+/// /root; deriving from the executable keeps the install, launcher, and
+/// autostart in the actual user's home instead of creating a root-owned
+/// copy under /root.
+#[cfg(target_os = "linux")]
+fn install_home_from_path(path: &std::path::Path) -> Option<std::path::PathBuf> {
+    let root = std::path::Path::new(".local/opt/flurer");
+    path.ancestors()
+        .find(|ancestor| ancestor.ends_with(root))
+        .and_then(|ancestor| ancestor.ancestors().nth(3))
+        .map(std::path::Path::to_path_buf)
+}
+
+#[cfg(target_os = "linux")]
+fn chown_if_root(path: &std::path::Path, owner: Option<(u32, u32)>) {
+    if unsafe { libc::geteuid() } != 0 {
+        return;
+    }
+    if let Some((uid, gid)) = owner {
+        let _ = std::os::unix::fs::chown(path, Some(uid), Some(gid));
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn install_linux_update(source: &std::path::Path, file_name: &str) -> Result<std::path::PathBuf, String> {
+    let current = std::env::current_exe().map_err(|e| format!("Could not resolve current executable: {e}"))?;
+    let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
+    let home = install_home_from_path(&current)
+        .or_else(|| appimage.as_deref().and_then(install_home_from_path))
+        .or_else(dirs::home_dir)
+        .ok_or_else(|| "Could not determine the installing user's home directory".to_string())?;
+    // Prefer the AppImage file's ownership: an AppImage's mounted inner
+    // binary is root-owned in the squashfs, but the .AppImage file itself
+    // belongs to the user.
+    let owner_source = appimage.as_deref().unwrap_or(&current);
+    let owner = std::fs::metadata(owner_source).ok().map(|meta| {
+        use std::os::unix::fs::MetadataExt;
+        (meta.uid(), meta.gid())
+    });
+    install_linux_update_at(source, file_name, &home, &current, appimage.as_deref(), owner)
+}
+
+#[cfg(target_os = "linux")]
+fn install_linux_update_at(
+    source: &std::path::Path,
+    file_name: &str,
+    home: &std::path::Path,
+    current: &std::path::Path,
+    appimage: Option<&std::path::Path>,
+    owner: Option<(u32, u32)>,
+) -> Result<std::path::PathBuf, String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    if !file_name.ends_with(".AppImage") {
+        return Err("The latest Linux release has no AppImage asset; download the package manually.".to_string());
+    }
+    let version = update_version_from_filename(file_name).unwrap_or_else(|| "latest".to_string());
+    let target = linux_update_target(home, current, appimage, &version)?;
+    let parent = target
+        .parent()
+        .ok_or_else(|| "Invalid update target path".to_string())?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("Could not create {}: {e}", parent.display()))?;
+
+    let tmp_name = format!(
+        ".{}.{}.new",
+        target.file_name().unwrap_or_default().to_string_lossy(),
+        std::process::id()
+    );
+    let tmp = parent.join(tmp_name);
+    std::fs::copy(source, &tmp).map_err(|e| format!("Could not write update: {e}"))?;
+    std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))
+        .map_err(|e| format!("Could not mark update executable: {e}"))?;
+    std::fs::rename(&tmp, &target).map_err(|e| format!("Could not replace {}: {e}", target.display()))?;
+    chown_if_root(&target, owner);
+    let _ = std::fs::remove_file(source);
+
+    let bin_link = home.join(".local").join("bin").join("flurer");
+    if let Some(bin_dir) = bin_link.parent() {
+        let _ = std::fs::create_dir_all(bin_dir);
+    }
+    let replace_link = match std::fs::symlink_metadata(&bin_link) {
+        Ok(meta) => meta.file_type().is_symlink(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+        Err(_) => false,
+    };
+    if replace_link {
+        let link_tmp = bin_link.with_file_name(format!(".flurer.{}.link", std::process::id()));
+        let _ = std::fs::remove_file(&link_tmp);
+        std::os::unix::fs::symlink(&target, &link_tmp)
+            .map_err(|e| format!("Could not create launcher symlink: {e}"))?;
+        std::fs::rename(&link_tmp, &bin_link)
+            .map_err(|e| format!("Could not replace launcher symlink: {e}"))?;
+    }
+
+    let autostart = home.join(".config").join("autostart").join("flurer.desktop");
+    if let Ok(contents) = std::fs::read_to_string(&autostart) {
+        let mut lines: Vec<String> = contents
+            .lines()
+            .map(|line| {
+                if line.starts_with("Exec=") {
+                    format!("Exec={} --minimized", target.display())
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect();
+        lines.push(String::new());
+        let _ = crate::helpers::settings::atomic_write(&autostart, lines.join("\n").as_bytes());
+        chown_if_root(&autostart, owner);
+    }
+
+    log::info!("update installed: {} -> {}", source.display(), target.display());
+    Ok(target)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,32 +389,158 @@ pub async fn download_and_install_update(app: tauri::AppHandle, url: String) -> 
         .map_err(|e| format!("Failed to flush installer: {e}"))?;
     drop(file);
 
-    emit(total_size, total_size, "Launching installer…", false, None);
+    #[cfg(target_os = "linux")]
+    {
+        emit(total_size, total_size, "Installing update…", false, None);
+        let target = match install_linux_update(&output_path, &file_name) {
+            Ok(target) => target,
+            Err(e) => {
+                emit(downloaded, total_size, "Failed", true, Some(e.clone()));
+                crate::progress::cleanup_task(task_id);
+                log::error!("download_and_install_update: Linux install failed: {e}");
+                return Err(e);
+            }
+        };
+        emit(
+            total_size,
+            total_size,
+            "Update installed — restart Flurer to finish",
+            true,
+            None,
+        );
+        crate::progress::cleanup_task(task_id);
+        log::info!("download_and_install_update: installed {}", target.display());
+        // Do not spawn/exit here. The elevated instance lives in a transient
+        // systemd service, and a child spawned from it is killed when the
+        // service stops. Install in place and let the next launch pick up the
+        // new AppImage; the UI tells the user to restart.
+        Ok(())
+    }
 
-    let installer_path = output_path.to_string_lossy().to_string();
-    let is_msi = file_name.ends_with(".msi");
+    #[cfg(not(target_os = "linux"))]
+    {
+        emit(total_size, total_size, "Launching installer…", false, None);
 
-    let child = if is_msi {
-        launch_elevated_and_relaunch("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
-    } else {
-        let scope_flag = if is_per_machine_install() { "/AllUsers" } else { "/CurrentUser" };
-        launch_elevated_and_relaunch(&installer_path, &[scope_flag, "/S"])
-    };
+        let installer_path = output_path.to_string_lossy().to_string();
+        let is_msi = file_name.ends_with(".msi");
 
-    match child {
-        Ok(_) => {
-            log::info!("download_and_install_update: launched silent installer {installer_path} ({total_size} bytes), app will exit and relaunch once it's done");
-            emit(total_size, total_size, "Installer launched. Relaunching Flurer…", true, None);
-            crate::progress::cleanup_task(task_id);
-            app.exit(0);
-            Ok(())
+        let child = if is_msi {
+            launch_elevated_and_relaunch("msiexec", &["/i", &installer_path, "/quiet", "/norestart"])
+        } else {
+            let scope_flag = if is_per_machine_install() { "/AllUsers" } else { "/CurrentUser" };
+            launch_elevated_and_relaunch(&installer_path, &[scope_flag, "/S"])
+        };
+
+        match child {
+            Ok(_) => {
+                log::info!("download_and_install_update: launched silent installer {installer_path} ({total_size} bytes), app will exit and relaunch once it's done");
+                emit(total_size, total_size, "Installer launched. Relaunching Flurer…", true, None);
+                crate::progress::cleanup_task(task_id);
+                app.exit(0);
+                Ok(())
+            }
+            Err(e) => {
+                let err_msg = format!("Failed to launch installer: {e}");
+                emit(downloaded, total_size, "Failed", true, Some(err_msg.clone()));
+                crate::progress::cleanup_task(task_id);
+                log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
+                Err(err_msg)
+            }
         }
-        Err(e) => {
-            let err_msg = format!("Failed to launch installer: {e}");
-            emit(downloaded, total_size, "Failed", true, Some(err_msg.clone()));
-            crate::progress::cleanup_task(task_id);
-            log::error!("download_and_install_update: failed to launch installer {installer_path}: {e}");
-            Err(err_msg)
-        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(target_os = "linux")]
+    use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn asset_version_is_parsed_from_appimage_name() {
+        assert_eq!(
+            update_version_from_filename("flurer_0.4.254_amd64.AppImage"),
+            Some("0.4.254".to_string())
+        );
+        assert_eq!(
+            update_version_from_filename("Flurer-1.2.3-x86_64.AppImage"),
+            Some("1.2.3".to_string())
+        );
+        assert_eq!(update_version_from_filename("flurer.AppImage"), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn update_target_switches_per_user_install_to_appimage() {
+        let home = std::path::Path::new("/home/ishan");
+        let root = home.join(".local/opt/flurer");
+        let current = root.join("0.4.253/usr/bin/flurer");
+        let target = linux_update_target(home, &current, None, "0.4.254").unwrap();
+        assert_eq!(target, root.join("flurer-0.4.254.AppImage"));
+
+        let appimage = root.join("flurer-0.4.253.AppImage");
+        let target = linux_update_target(home, &root.join("0.4.253/usr/bin/flurer"), Some(&appimage), "0.4.254").unwrap();
+        assert_eq!(target, appimage);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn system_install_refuses_automatic_update() {
+        assert!(linux_update_target(
+            std::path::Path::new("/home/ishan"),
+            std::path::Path::new("/usr/bin/flurer"),
+            None,
+            "0.4.254"
+        )
+        .is_err());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn home_is_derived_from_user_install_path_when_running_as_root() {
+        let home = install_home_from_path(std::path::Path::new(
+            "/home/ishan/.local/opt/flurer/0.4.253/usr/bin/flurer",
+        ))
+        .unwrap();
+        assert_eq!(home, std::path::Path::new("/home/ishan"));
+        assert_eq!(
+            install_home_from_path(std::path::Path::new(
+                "/home/ishan/.local/opt/flurer/flurer-0.4.253.AppImage"
+            ))
+            .unwrap(),
+            std::path::Path::new("/home/ishan")
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn install_replaces_binary_launcher_and_autostart() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path();
+        let root = home.join(".local/opt/flurer");
+        let current = root.join("0.4.253/usr/bin/flurer");
+        std::fs::create_dir_all(current.parent().unwrap()).unwrap();
+        std::fs::write(&current, b"old").unwrap();
+
+        let bin_dir = home.join(".local/bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        std::os::unix::fs::symlink(&current, bin_dir.join("flurer")).unwrap();
+
+        let autostart = home.join(".config/autostart/flurer.desktop");
+        std::fs::create_dir_all(autostart.parent().unwrap()).unwrap();
+        std::fs::write(&autostart, "[Desktop Entry]\nExec=/old/flurer --minimized\n").unwrap();
+
+        let source = home.join("download.AppImage");
+        std::fs::write(&source, b"new-appimage").unwrap();
+        let target = install_linux_update_at(&source, "flurer_0.4.254_amd64.AppImage", home, &current, None, None).unwrap();
+
+        assert_eq!(target, root.join("flurer-0.4.254.AppImage"));
+        assert_eq!(std::fs::read(&target).unwrap(), b"new-appimage");
+        assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o755);
+        assert_eq!(std::fs::read_link(bin_dir.join("flurer")).unwrap(), target);
+        let entry = std::fs::read_to_string(&autostart).unwrap();
+        assert!(entry.contains(&format!("Exec={} --minimized", target.display())), "{entry}");
     }
 }

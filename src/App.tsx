@@ -29,7 +29,7 @@ import {
   type Theme,
   type TopBarMetrics,
 } from "./lib/settings";
-import { cleanDirPath, parentDir, resolvePath, defaultPath, nativeAbsolutePath, isPathWithin, type GroupByKey, type SortKey } from "./lib/fs";
+import { cleanDirPath, parentDir, resolvePath, defaultPath, nativeAbsolutePath, isPathWithin, isWindows, type GroupByKey, type SortKey } from "./lib/fs";
 import { DEFAULT_IN_APP_SHORTCUTS, matchesKeyCombo, type InAppShortcutAction } from "./lib/shortcuts";
 import { getDisplaySize, type CachedWallpaper, type Wallpaper } from "./lib/unsplash";
 import { EXPLORER_VIEW_TYPES, type GraphFocusRequest, type MainView } from "./lib/view";
@@ -393,15 +393,21 @@ function App() {
     }
   });
 
-  const [pendingUpdateInfo, setPendingUpdateInfo] = createSignal<{
+  type PendingUpdate = {
     hasUpdate: boolean;
     latestVersion: string;
     currentVersion: string;
     downloadUrl: string;
     releaseUrl?: string;
     releaseBody?: string;
-  } | null>(null);
+  };
+  const [pendingUpdateInfo, setPendingUpdateInfo] = createSignal<PendingUpdate | null>(null);
   const [installingUpdate, setInstallingUpdate] = createSignal(false);
+  const [updateInstalled, setUpdateInstalled] = createSignal(false);
+  // Auto-install only once per version per session: a failed attempt should
+  // surface its error and wait for the user, not hammer the network every
+  // interval tick.
+  const [autoInstallAttemptedVersion, setAutoInstallAttemptedVersion] = createSignal<string | null>(null);
   const [updateModalError, setUpdateModalError] = createSignal("");
   // Live download/install progress for the update popup — fed by the
   // "update-progress" events the updater emits while it downloads.
@@ -432,6 +438,24 @@ function App() {
     }
   });
 
+  async function installUpdate(info: PendingUpdate) {
+    if (installingUpdate()) return;
+    setInstallingUpdate(true);
+    setUpdateModalError("");
+    setUpdateProgress(null);
+    try {
+      await invoke("download_and_install_update", { url: info.downloadUrl });
+      // Windows exits the process from the backend during install, so this
+      // only runs on Linux, where the new version is installed in place and
+      // the user restarts to apply it.
+      setInstallingUpdate(false);
+      setUpdateInstalled(true);
+    } catch (err) {
+      setUpdateModalError(String(err));
+      setInstallingUpdate(false);
+    }
+  }
+
   // Background auto-update check with dynamic interval & confirmation popup
   createEffect(() => {
     if (!settings.autoCheckUpdates) return;
@@ -454,7 +478,14 @@ function App() {
           if (settings.ignoredUpdateVersion === info.latestVersion) {
             return;
           }
-          setPendingUpdateInfo(info);
+          if ((settings.autoInstallUpdates ?? false) && !installingUpdate()) {
+            if (autoInstallAttemptedVersion() === info.latestVersion) return;
+            setAutoInstallAttemptedVersion(info.latestVersion);
+            setPendingUpdateInfo(info);
+            void installUpdate(info);
+          } else {
+            setPendingUpdateInfo(info);
+          }
         }
       } catch (err) {
         console.error("Auto-update check failed:", err);
@@ -636,6 +667,11 @@ function App() {
 
   function updateAutoCheckUpdates(enabled: boolean) {
     setSettings("autoCheckUpdates", enabled);
+    persistSettings();
+  }
+
+  function updateAutoInstallUpdates(enabled: boolean) {
+    setSettings("autoInstallUpdates", enabled);
     persistSettings();
   }
 
@@ -1975,6 +2011,8 @@ function App() {
                   favouritePaths={settings.favouritePaths}
                   autoCheckUpdates={settings.autoCheckUpdates ?? true}
                   onAutoCheckUpdatesChange={updateAutoCheckUpdates}
+                  autoInstallUpdates={settings.autoInstallUpdates ?? false}
+                  onAutoInstallUpdatesChange={updateAutoInstallUpdates}
                   restoreLastStateOnReopen={settings.restoreLastStateOnReopen ?? false}
                   onRestoreLastStateOnReopenChange={updateRestoreLastStateOnReopen}
                   autoCheckUpdateIntervalSeconds={settings.autoCheckUpdateIntervalSeconds ?? 14400}
@@ -2001,11 +2039,16 @@ function App() {
         {(info) => (
           <Modal
             title={`Update Available — v${info().latestVersion}`}
-            onClose={() => setPendingUpdateInfo(null)}
+            onClose={() => {
+              setPendingUpdateInfo(null);
+              setUpdateInstalled(false);
+            }}
           >
             <p style={{ "margin-bottom": "1em" }}>
               Flurer <strong>v{info().latestVersion}</strong> is available (currently running <strong>v{info().currentVersion}</strong>).
-              Would you like to update and restart now?
+              {isWindows
+                ? "Would you like to update and restart now?"
+                : "Would you like to install it now? Restart Flurer afterwards to apply it."}
             </p>
             <Show when={info().releaseBody}>
               <div class="updates-release-notes" style={{ "margin-bottom": "1em", "max-height": "120px", overflow: "auto" }}>
@@ -2028,36 +2071,48 @@ function App() {
                 </div>
               )}
             </Show>
+            <Show when={updateInstalled()}>
+              <div class="settings-success" style={{ "margin-bottom": "1em" }}>
+                Update installed. Restart Flurer to use v{info().latestVersion}.
+              </div>
+            </Show>
             <div class="modal-actions" style={{ display: "flex", gap: "8px", "justify-content": "flex-end" }}>
-              <button
-                type="button"
-                class="btn-accent"
-                disabled={installingUpdate()}
-                onClick={async () => {
-                  setInstallingUpdate(true);
-                  setUpdateModalError("");
-                  setUpdateProgress(null);
-                  try {
-                    await invoke("download_and_install_update", { url: info().downloadUrl });
-                  } catch (err) {
-                    setUpdateModalError(String(err));
-                    setInstallingUpdate(false);
-                  }
-                }}
-              >
-                {installingUpdate() ? "Downloading & Installing…" : "Update & Restart Now"}
-              </button>
-              <button
-                type="button"
-                disabled={installingUpdate()}
-                onClick={() => setPendingUpdateInfo(null)}
-              >
-                Remind Me Later
-              </button>
+              <Show when={!updateInstalled()}>
+                <button
+                  type="button"
+                  class="btn-accent"
+                  disabled={installingUpdate()}
+                  onClick={() => void installUpdate(info())}
+                >
+                  {installingUpdate()
+                    ? "Downloading & Installing…"
+                    : isWindows
+                      ? "Update & Restart Now"
+                      : "Update Now"}
+                </button>
+                <button
+                  type="button"
+                  disabled={installingUpdate()}
+                  onClick={() => setPendingUpdateInfo(null)}
+                >
+                  Remind Me Later
+                </button>
+              </Show>
+              <Show when={updateInstalled()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingUpdateInfo(null);
+                    setUpdateInstalled(false);
+                  }}
+                >
+                  Close
+                </button>
+              </Show>
               <button
                 type="button"
                 class="danger"
-                disabled={installingUpdate()}
+                disabled={installingUpdate() || updateInstalled()}
                 onClick={() => {
                   setSettings("ignoredUpdateVersion", info().latestVersion);
                   persistSettings();

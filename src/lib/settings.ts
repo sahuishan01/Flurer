@@ -135,8 +135,11 @@ export type Settings = {
   // Empty means the index is unused and search falls back to walking the
   // tree per query (see searchindex/mod.rs).
   searchIndexRoots: string[];
-  // Automatically poll for updates on startup & periodically and install them when available
+  // Automatically poll for updates on startup & periodically and prompt.
   autoCheckUpdates: boolean;
+  // When true, install a found update automatically instead of waiting for
+  // the user to press "Update & Restart Now".
+  autoInstallUpdates: boolean;
   restoreLastStateOnReopen: boolean;
   lastPath: string;
   autoCheckUpdateIntervalSeconds: number;
@@ -232,6 +235,7 @@ export const DEFAULT_SETTINGS: Settings = {
   inAppShortcuts: { ...DEFAULT_IN_APP_SHORTCUTS },
   searchIndexRoots: [],
   autoCheckUpdates: true,
+  autoInstallUpdates: false,
   restoreLastStateOnReopen: false,
   lastPath: "",
   autoCheckUpdateIntervalSeconds: 14400,

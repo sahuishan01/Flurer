@@ -495,6 +495,11 @@ const UPDATE_SECTIONS: SettingsSectionDef[] = [
                 keywords: ["auto check", "automatic", "updates", "background check", "updater"],
             },
             {
+                id: "updates.updates.autoInstall",
+                label: "Install updates automatically",
+                keywords: ["auto install", "automatic", "updates", "restart", "updater", "background install"],
+            },
+            {
                 id: "updates.updates.interval",
                 label: "Auto-check interval",
                 keywords: ["interval", "seconds", "how often", "updates", "check"],

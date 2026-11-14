@@ -144,6 +144,8 @@ type SettingsPanelProps = {
     favouritePaths: string[];
     autoCheckUpdates?: boolean;
     onAutoCheckUpdatesChange?: (enabled: boolean) => void;
+    autoInstallUpdates?: boolean;
+    onAutoInstallUpdatesChange?: (enabled: boolean) => void;
     restoreLastStateOnReopen?: boolean;
     onRestoreLastStateOnReopenChange?: (enabled: boolean) => void;
     showHiddenFiles?: boolean;
@@ -553,6 +555,8 @@ export function SettingsPanel(props: SettingsPanelProps) {
                                 <UpdatesView
                                     autoCheckUpdates={props.autoCheckUpdates}
                                     onAutoCheckUpdatesChange={props.onAutoCheckUpdatesChange}
+                                    autoInstallUpdates={props.autoInstallUpdates}
+                                    onAutoInstallUpdatesChange={props.onAutoInstallUpdatesChange}
                                     autoCheckUpdateIntervalSeconds={props.autoCheckUpdateIntervalSeconds}
                                     onAutoCheckUpdateIntervalSecondsChange={props.onAutoCheckUpdateIntervalSecondsChange}
                                     ignoredUpdateVersion={props.ignoredUpdateVersion}

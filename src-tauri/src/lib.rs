@@ -166,7 +166,17 @@ pub fn run() {
                     log::warn!("single_instance: message-target window not found; cross-integrity handoff may be blocked");
                 }
             }
-            let settings = load_settings(&app.handle());
+            let mut settings = load_settings(&app.handle());
+            // A pinned network widget whose interface is gone has no row in
+            // Settings (the list is current interfaces only), so it could
+            // never be unchecked. Drop such stale ids here and persist them.
+            let stale_networks = metrics::prune_missing_network_items(&mut settings);
+            if !stale_networks.is_empty() {
+                log::info!("metrics: removing stale network widgets {stale_networks:?}");
+                if let Err(e) = save_settings(&app.handle(), &settings) {
+                    log::error!("metrics: failed to persist pruned network widgets: {e}");
+                }
+            }
             // "Always run as admin": if the setting is on and this instance
             // isn't elevated, hand off to an elevated copy before building
             // any window state. Declining the prompt is not fatal — the

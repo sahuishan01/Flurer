@@ -6,7 +6,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { RefreshIcon } from "./icons";
 import { FieldGroup, FieldRow } from "./ui/Field";
 import { CollapsibleSection } from "./ui/CollapsibleSection";
-import { formatBytes } from "../lib/fs";
+import { formatBytes, isWindows } from "../lib/fs";
 
 type UpdateInfo = {
   latestVersion: string;
@@ -27,6 +27,8 @@ export type UpdateProgressPayload = {
 type UpdatesViewProps = {
   autoCheckUpdates?: boolean;
   onAutoCheckUpdatesChange?: (enabled: boolean) => void;
+  autoInstallUpdates?: boolean;
+  onAutoInstallUpdatesChange?: (enabled: boolean) => void;
   autoCheckUpdateIntervalSeconds?: number;
   onAutoCheckUpdateIntervalSecondsChange?: (seconds: number) => void;
   ignoredUpdateVersion?: string | null;
@@ -40,6 +42,7 @@ export function UpdatesView(props: UpdatesViewProps) {
   const [downloading, setDownloading] = createSignal(false);
   const [appVersion, setAppVersion] = createSignal("");
   const [progress, setProgress] = createSignal<UpdateProgressPayload | null>(null);
+  const [installed, setInstalled] = createSignal(false);
 
   let unlistenProgress: (() => void) | undefined;
 
@@ -70,6 +73,7 @@ export function UpdatesView(props: UpdatesViewProps) {
     setChecking(true);
     setError("");
     setUpdateInfo(null);
+    setInstalled(false);
     try {
       const result = await invoke<UpdateInfo>("check_for_updates", {
         currentVersion: version,
@@ -90,6 +94,9 @@ export function UpdatesView(props: UpdatesViewProps) {
     setProgress(null);
     try {
       await invoke("download_and_install_update", { url: info.downloadUrl });
+      // Windows exits this process during install; on Linux the new
+      // version is installed in place and a restart is needed.
+      setInstalled(true);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -128,6 +135,22 @@ export function UpdatesView(props: UpdatesViewProps) {
               onChange={(e) => props.onAutoCheckUpdatesChange?.(e.currentTarget.checked)}
             />
           </FieldRow>
+
+          <Show when={props.autoCheckUpdates ?? true}>
+            <FieldRow
+              id="updates.updates.autoInstall"
+              label="Install updates automatically"
+              description="Download and install a found update in the background, then restart Flurer. Leave off to review each update before installing."
+            >
+              <input
+                type="checkbox"
+                class="setting-checkbox"
+                aria-label="Install updates automatically"
+                checked={props.autoInstallUpdates ?? false}
+                onChange={(e) => props.onAutoInstallUpdatesChange?.(e.currentTarget.checked)}
+              />
+            </FieldRow>
+          </Show>
 
           <Show when={props.autoCheckUpdates ?? true}>
             <FieldRow
@@ -181,8 +204,8 @@ export function UpdatesView(props: UpdatesViewProps) {
                 {checking() ? "Checking…" : "Check for Updates"}
               </button>
               <Show when={canUpdate()}>
-                <button type="button" class="btn-accent" onClick={downloadAndInstall} disabled={downloading()}>
-                  {downloading() ? "Updating…" : "Update Now"}
+                <button type="button" class="btn-accent" onClick={downloadAndInstall} disabled={downloading() || installed()}>
+                  {downloading() ? "Updating…" : installed() ? "Installed" : "Update Now"}
                 </button>
                 <button type="button" onClick={openRelease}>
                   View on GitHub
@@ -211,6 +234,12 @@ export function UpdatesView(props: UpdatesViewProps) {
           </div>
         </Show>
 
+        <Show when={installed()}>
+          <p class="settings-success">
+            ✓ Update installed. Restart Flurer to use v{info()?.latestVersion}.
+          </p>
+        </Show>
+
         <Show when={error()}>
           <div class="settings-error-alert">{error()}</div>
         </Show>
@@ -222,8 +251,9 @@ export function UpdatesView(props: UpdatesViewProps) {
 
         <Show when={canUpdate()}>
           <p class="settings-hint">
-            Installs silently in the background (you'll still see Windows' permission prompt) — no setup wizard. Flurer
-            closes during the update and reopens on its own once it's done.
+            {isWindows
+              ? "Installs silently in the background (you'll still see Windows' permission prompt) — no setup wizard. Flurer closes during the update and reopens on its own once it's done."
+              : "Downloads and installs the new AppImage in the background. Restart Flurer afterwards to apply it."}
           </p>
           <Show when={info()!.releaseBody}>
             <div class="updates-release-notes">{info()!.releaseBody}</div>

@@ -273,6 +273,41 @@ fn sampler(app: AppHandle) {
     }
 }
 
+/// Drops pinned network widgets whose interface no longer exists. A saved
+/// interface name (e.g. a removed `enp6s0`) would otherwise keep rendering a
+/// dead `—` widget with no way to uncheck it: the Settings list is built from
+/// *current* interfaces, so it has no row for the stale id.
+///
+/// Returns the removed ids so the caller can log/persist the updated settings.
+/// If the inventory came back empty (transient probe failure), leave the
+/// selection alone rather than deleting every network widget.
+pub fn prune_missing_network_items(settings: &mut crate::state::Settings) -> Vec<String> {
+    let current: std::collections::HashSet<String> = sysinfo::Networks::new_with_refreshed_list()
+        .iter()
+        .map(|(name, _)| name.clone())
+        .collect();
+    if current.is_empty() {
+        return Vec::new();
+    }
+    prune_missing_network_items_with(settings, &current)
+}
+
+fn prune_missing_network_items_with(
+    settings: &mut crate::state::Settings,
+    current: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    let mut removed = Vec::new();
+    settings.top_bar_metrics.items.retain(|item| {
+        if item.kind == "network" && !current.contains(&item.id) {
+            removed.push(item.id.clone());
+            false
+        } else {
+            true
+        }
+    });
+    removed
+}
+
 /// Device listing for the Settings UI: what can be checked into
 /// top_bar_metrics.items. CPU and memory are singletons and not listed.
 #[tauri::command]
@@ -307,4 +342,26 @@ pub fn get_metric_devices() -> DeviceInventory {
         .map(|d| GpuDeviceInfo { id: d.id, name: d.name, mem_total: d.mem_total })
         .collect();
     DeviceInventory { drives, networks, gpus }
+}
+
+#[cfg(test)]
+mod stale_network_tests {
+    use super::*;
+
+    #[test]
+    fn prunes_only_missing_network_items() {
+        let mut settings = crate::state::Settings::default();
+        settings.top_bar_metrics.items = vec![
+            crate::state::MetricItem { kind: "cpu".into(), id: "cpu".into() },
+            crate::state::MetricItem { kind: "network".into(), id: "enp6s0".into() },
+            crate::state::MetricItem { kind: "network".into(), id: "wlan0".into() },
+            crate::state::MetricItem { kind: "drive".into(), id: "/".into() },
+        ];
+        let current = ["wlan0".to_string()].into_iter().collect();
+        let removed = prune_missing_network_items_with(&mut settings, &current);
+        assert_eq!(removed, vec!["enp6s0".to_string()]);
+        assert_eq!(settings.top_bar_metrics.items.len(), 3);
+        assert!(settings.top_bar_metrics.items.iter().any(|item| item.kind == "cpu"));
+        assert!(settings.top_bar_metrics.items.iter().any(|item| item.kind == "drive"));
+    }
 }

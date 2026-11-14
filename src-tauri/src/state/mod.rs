@@ -221,6 +221,11 @@ pub struct Settings {
     pub search_index_roots: Vec<String>,
     #[serde(default = "default_auto_check_updates")]
     pub auto_check_updates: bool,
+    // When true, a background check that finds an update downloads and
+    // installs it automatically instead of waiting for the user to press
+    // "Update & Restart Now" in the prompt.
+    #[serde(default)]
+    pub auto_install_updates: bool,
     #[serde(default)]
     pub restore_last_state_on_reopen: bool,
     #[serde(default)]
@@ -365,6 +370,7 @@ impl Default for Settings {
             sidebar_width: default_sidebar_width(),
             search_index_roots: Vec::new(),
             auto_check_updates: default_auto_check_updates(),
+            auto_install_updates: false,
             restore_last_state_on_reopen: false,
             last_path: String::new(),
             auto_check_update_interval_seconds: default_auto_check_update_interval_seconds(),
