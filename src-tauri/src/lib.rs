@@ -72,9 +72,6 @@ pub fn run() {
     // %LOCALAPPDATA%/.flurer/{logs,crashes} instead of being lost to a
     // terminal the packaged app doesn't have.
     logging::init();
-    // pkexec makes every uid root; keep file access root but give the session
-    // its user identity back so D-Bus/portals see the user who authorized it.
-    elevation::restore_real_uid();
     // Before anything can touch GTK/WebKit: an elevated Linux launch gets a
     // stripped environment from pkexec, so the display/session variables the
     // GUI needs arrive as --elevated-env arguments and must be applied first.

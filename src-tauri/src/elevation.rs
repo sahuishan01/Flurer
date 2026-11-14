@@ -16,6 +16,12 @@
 //! process to write a ready marker before exiting — so declining the polkit
 //! prompt leaves the current window alive instead of closing Flurer with
 //! nothing to replace it.
+//!
+//! Linux launchers normally run Flurer inside a transient systemd *scope*
+//! (uwsm/gtk-launch), whose KillMode=control-group reaps every child —
+//! including pkexec's elevated process — when the original Flurer exits.
+//! Elevated launches therefore go through `systemd-run` as a transient
+//! system *service*, detached from the launcher scope.
 
 use std::path::Path;
 #[cfg(target_os = "linux")]
@@ -209,34 +215,6 @@ pub fn prepare_elevated_process() {
 #[cfg(not(target_os = "linux"))]
 pub fn prepare_elevated_process() {}
 
-/// Restores the real uid to the user who authorized the elevated launch,
-/// while leaving the effective uid at 0.
-///
-/// pkexec makes every uid root. Keeping that would make D-Bus peer
-/// credentials, portals, and other session consumers see a root client;
-/// setting the real uid back to the invoking user keeps the session wiring
-/// attributed to them, and file access still uses euid 0. Runs after the
-/// logger exists so a failure (which would leave the process fully root) is
-/// at least recorded.
-#[cfg(target_os = "linux")]
-pub fn restore_real_uid() {
-    if !is_current_process_elevated() {
-        return;
-    }
-    if let Some(uid) = invoking_uid() {
-        let uid = uid as libc::uid_t;
-        if unsafe { libc::setresuid(uid, 0, 0) } != 0 {
-            log::warn!(
-                "elevated: could not restore real uid {uid}: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-pub fn restore_real_uid() {}
-
 // The uid that asked polkit/sudo to elevate us. Used to refuse copying an
 // arbitrary file into the elevated profile and to keep the ready marker
 // inside a directory that user can see.
@@ -373,17 +351,25 @@ fn marker_parent_is_safe(parent: &Path) -> bool {
 }
 
 #[cfg(target_os = "linux")]
-fn new_ready_marker_path() -> PathBuf {
+fn unique_nanos() -> u128 {
     use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0)
+}
+
+#[cfg(target_os = "linux")]
+fn new_ready_marker_path() -> PathBuf {
     let dir = std::env::var_os("XDG_RUNTIME_DIR")
         .map(PathBuf::from)
         .filter(|dir| dir.is_dir())
         .unwrap_or_else(std::env::temp_dir);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-    dir.join(format!("flurer-elevated-{}-{nanos}.ready", std::process::id()))
+    dir.join(format!(
+        "flurer-elevated-{}-{}.ready",
+        std::process::id(),
+        unique_nanos()
+    ))
 }
 
 /// The program pkexec should execute.
@@ -433,6 +419,30 @@ fn pkexec_path() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "linux")]
+fn systemd_run_path() -> Option<PathBuf> {
+    ["/usr/bin/systemd-run", "/bin/systemd-run", "/usr/local/bin/systemd-run"]
+        .iter()
+        .map(PathBuf::from)
+        .find(|path| path.is_file())
+        .or_else(|| {
+            std::env::var_os("PATH").and_then(|paths| {
+                std::env::split_paths(&paths)
+                    .map(|dir| dir.join("systemd-run"))
+                    .find(|path| path.is_file())
+            })
+        })
+}
+
+/// `systemd-run` only if the system manager is actually reachable.
+#[cfg(target_os = "linux")]
+fn systemd_run_available() -> Option<PathBuf> {
+    if !Path::new("/run/systemd/system").is_dir() {
+        return None;
+    }
+    systemd_run_path()
+}
+
+#[cfg(target_os = "linux")]
 fn elevated_args(marker: &Path, settings_source: Option<&Path>, extra_args: &[String]) -> Vec<String> {
     let mut args = vec![
         // The elevated copy must not race our shutdown: it waits for this
@@ -469,22 +479,72 @@ fn elevated_args(marker: &Path, settings_source: Option<&Path>, extra_args: &[St
 }
 
 #[cfg(target_os = "linux")]
-fn spawn_pkexec(exe: &Path, args: &[String]) -> Result<std::process::Child, String> {
+struct SpawnedElevation {
+    child: std::process::Child,
+    detached: bool,
+}
+
+#[cfg(target_os = "linux")]
+fn spawn_pkexec(exe: &Path, args: &[String]) -> Result<SpawnedElevation, String> {
     let pkexec = pkexec_path().ok_or_else(|| {
         "Could not find pkexec. Install polkit (Arch: sudo pacman -S polkit) and make sure a polkit authentication agent is running.".to_string()
     })?;
+    let systemd_run = systemd_run_available();
     let mut cmd = std::process::Command::new(pkexec);
     // A GUI app has no controlling terminal, so polkit's own textual agent
     // can never prompt here. Requiring a real (session) agent makes the
     // failure immediate and explainable instead of hanging on stdin.
     cmd.arg("--disable-internal-agent");
+
+    if let Some(systemd_run) = &systemd_run {
+        // The app is normally started inside a transient systemd *scope*
+        // created by the desktop launcher (uwsm/gtk-launch). A scope's
+        // KillMode=control-group means every process in it — including a
+        // pkexec child — dies when the main Flurer process exits. That is
+        // why the elevated window vanished right after the password prompt.
+        // Start the elevated instance as a transient *service* instead: it
+        // lives in system.slice under pid 1, independent of the launcher
+        // scope, and survives the old instance exiting.
+        let uid = unsafe { libc::getuid() };
+        let unit = format!(
+            "flurer-elevated-{}-{}",
+            std::process::id(),
+            unique_nanos()
+        );
+        log::info!("relaunch_as_admin: starting detached systemd unit {unit}");
+        cmd.arg(systemd_run);
+        cmd.arg(format!("--unit={unit}"));
+        cmd.arg("--collect");
+        cmd.arg("--quiet");
+        cmd.arg("--description=Flurer (elevated)");
+        cmd.arg("--property=LimitNOFILE=65536");
+        cmd.arg(format!("--setenv=PKEXEC_UID={uid}"));
+        cmd.arg(format!("--setenv=SUDO_UID={uid}"));
+        cmd.arg("--setenv=HOME=/root");
+        cmd.arg("--setenv=USER=root");
+        cmd.arg("--setenv=LOGNAME=root");
+        cmd.arg("--setenv=SHELL=/bin/bash");
+        cmd.arg("--setenv=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/bin");
+        for key in ["LANG", "LANGUAGE", "LC_ALL"] {
+            if let Ok(value) = std::env::var(key) {
+                cmd.arg(format!("--setenv={key}={value}"));
+            }
+        }
+        cmd.arg("--");
+    }
+
     cmd.arg(exe);
     cmd.args(args);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::null());
     cmd.stderr(std::process::Stdio::null());
-    cmd.spawn()
-        .map_err(|e| format!("Failed to start pkexec: {e}"))
+    let child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start pkexec: {e}"))?;
+    Ok(SpawnedElevation {
+        child,
+        detached: systemd_run.is_some(),
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -495,37 +555,59 @@ enum LinuxStart {
 }
 
 #[cfg(target_os = "linux")]
-fn wait_for_elevated_start(mut child: std::process::Child, marker: &Path) -> LinuxStart {
+fn wait_for_elevated_start(
+    mut child: std::process::Child,
+    marker: &Path,
+    detached: bool,
+) -> LinuxStart {
     use std::time::{Duration, Instant};
 
     // Long enough for a person to type a password, short enough that a
     // genuinely stuck pkexec doesn't hang the caller forever.
     let deadline = Instant::now() + Duration::from_secs(120);
+    // With systemd-run, pkexec exits as soon as the transient service is
+    // started; the app is no longer our child. Keep waiting for its marker.
+    let mut service_ready_deadline: Option<Instant> = None;
     loop {
         if marker.is_file() {
             return LinuxStart::Started;
         }
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                return match status.code() {
-                    Some(126) => LinuxStart::Cancelled,
-                    Some(127) => LinuxStart::Failed(
-                        "Administrator authentication failed. Make sure a polkit authentication agent is running \
-                         (on Hyprland/Omarchy the shell normally provides one; otherwise install hyprpolkitagent \
-                         or polkit-gnome) and that your user is allowed to authenticate (usually via the wheel group)."
-                            .to_string(),
-                    ),
-                    code => LinuxStart::Failed(format!(
-                        "pkexec exited with status {} before Flurer started.",
-                        code.map(|c| c.to_string()).unwrap_or_else(|| "signal".to_string())
-                    )),
-                };
+        if service_ready_deadline.is_none() {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    if detached && status.success() {
+                        service_ready_deadline = Some(Instant::now() + Duration::from_secs(30));
+                    } else {
+                        return match status.code() {
+                            Some(126) => LinuxStart::Cancelled,
+                            Some(127) => LinuxStart::Failed(
+                                "Administrator authentication failed. Make sure a polkit authentication agent is running \
+                                 (on Hyprland/Omarchy the shell normally provides one; otherwise install hyprpolkitagent \
+                                 or polkit-gnome) and that your user is allowed to authenticate (usually via the wheel group)."
+                                    .to_string(),
+                            ),
+                            code => LinuxStart::Failed(format!(
+                                "pkexec exited with status {} before Flurer started.",
+                                code.map(|c| c.to_string()).unwrap_or_else(|| "signal".to_string())
+                            )),
+                        };
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return LinuxStart::Failed(format!("Failed while waiting for pkexec: {e}"));
+                }
             }
-            Ok(None) => {}
-            Err(e) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return LinuxStart::Failed(format!("Failed while waiting for pkexec: {e}"));
+        }
+        if let Some(ready_deadline) = service_ready_deadline {
+            if Instant::now() >= ready_deadline {
+                return LinuxStart::Failed(
+                    "The elevated systemd service started but Flurer never reported ready. \
+                     Check `journalctl -u 'flurer-elevated-*'` and /root/.local/share/.flurer/logs."
+                        .to_string(),
+                );
             }
         }
         if Instant::now() >= deadline {
@@ -556,8 +638,8 @@ fn relaunch_linux(app: &tauri::AppHandle, path: Option<String>) -> Result<(), St
         .collect();
     let args = elevated_args(&marker, settings_source.as_deref(), &extra_args);
 
-    let child = spawn_pkexec(&launch_program(&exe), &args)?;
-    let result = wait_for_elevated_start(child, &marker);
+    let spawned = spawn_pkexec(&launch_program(&exe), &args)?;
+    let result = wait_for_elevated_start(spawned.child, &marker, spawned.detached);
     let _ = std::fs::remove_file(&marker);
     match result {
         LinuxStart::Started => {
@@ -588,8 +670,8 @@ pub fn elevate_and_wait(
     let marker = new_ready_marker_path();
     let _ = std::fs::remove_file(&marker);
     let args = elevated_args(&marker, settings_source, extra_args);
-    let child = spawn_pkexec(&launch_program(exe), &args)?;
-    let result = wait_for_elevated_start(child, &marker);
+    let spawned = spawn_pkexec(&launch_program(exe), &args)?;
+    let result = wait_for_elevated_start(spawned.child, &marker, spawned.detached);
     let _ = std::fs::remove_file(&marker);
     match result {
         LinuxStart::Started => Ok(true),
@@ -725,5 +807,29 @@ mod tests {
         let temp = std::env::temp_dir();
         assert!(marker_parent_is_safe(&temp));
         assert!(!marker_parent_is_safe(std::path::Path::new("/etc")));
+    }
+
+    // systemd-run (the launcher) exits as soon as the transient service is
+    // started, before the elevated app has written its ready marker. The
+    // wait must keep polling instead of treating a successful launcher exit
+    // as "the app exited without starting".
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detached_wait_keeps_polling_after_launcher_exits() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("ready");
+        let marker_arg = marker.to_string_lossy().to_string();
+        let child = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("(sleep 0.4; : > \"$1\") & exit 0")
+            .arg("sh")
+            .arg(&marker_arg)
+            .spawn()
+            .unwrap();
+        match wait_for_elevated_start(child, &marker, true) {
+            LinuxStart::Started => {}
+            LinuxStart::Cancelled => panic!("unexpected cancellation"),
+            LinuxStart::Failed(e) => panic!("expected the marker to arrive, got: {e}"),
+        }
     }
 }
