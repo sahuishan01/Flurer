@@ -80,7 +80,7 @@
     padding: 1.2em 0;
     text-align: center;
     color: var(--text-secondary);
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }
 
 .plugin-list {
@@ -362,7 +362,7 @@
     align-items: center;
     gap: 0.4em;
     color: var(--success);
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }
 
 .updates-meta {
@@ -465,7 +465,7 @@
     display: flex;
     justify-content: space-between;
     gap: 0.6em;
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }
 
 .progress-task-label {

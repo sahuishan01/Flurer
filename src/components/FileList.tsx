@@ -21,6 +21,7 @@ import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 import { Modal } from "./Modal";
 import { PreviewPanel } from "./PreviewPanel";
 import { ViewTypeSelect } from "./ViewTypeSelect";
+import { ThemedSelect } from "./ThemedSelect";
 import {
   EXPLORER_VIEW_TYPES,
   lookupViewType,
@@ -2535,20 +2536,21 @@ export function FileList(props: FileListProps) {
         )}
 
         <div class="file-list-toolbar-row">
-          <select
-            class="group-by-select"
+          <ThemedSelect
+            compact
             title="Group by"
-            aria-label="Group by"
+            ariaLabel="Group by"
             value={props.groupBy}
-            onChange={(e) => props.onGroupByChange(e.currentTarget.value as GroupByKey)}
-          >
-            <option value="none">Group by: None</option>
-            <option value="folders">Group by: Folders</option>
-            <option value="name">Group by: Name</option>
-            <option value="type">Group by: Type</option>
-            <option value="size">Group by: Size</option>
-            <option value="modified">Group by: Date modified</option>
-          </select>
+            options={[
+              { value: "none", label: "Group by: None" },
+              { value: "folders", label: "Group by: Folders" },
+              { value: "name", label: "Group by: Name" },
+              { value: "type", label: "Group by: Type" },
+              { value: "size", label: "Group by: Size" },
+              { value: "modified", label: "Group by: Date modified" },
+            ]}
+            onChange={(value) => props.onGroupByChange(value as GroupByKey)}
+          />
           <ViewTypeSelect
             viewTypes={allViewTypes()}
             value={viewMode()}

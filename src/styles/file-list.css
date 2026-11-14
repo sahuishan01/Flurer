@@ -551,5 +551,5 @@
 
 .file-location {
     opacity: 0.7;
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }

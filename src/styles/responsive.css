@@ -177,7 +177,7 @@
     }
 
     .breadcrumb-segment {
-        font-size: var(--text-secondary);
+        font-size: var(--text-meta);
         padding: 0.2em 0.3em;
     }
 

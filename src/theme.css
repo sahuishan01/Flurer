@@ -93,12 +93,19 @@
     --text-secondary: #5f5f5f;
     --text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
     --text-backplate: rgba(255, 255, 255, 0.2);
-    --option-bg: #ffffff;
-    --option-color: #1c1c1c;
+    /* Menus/selects follow the same tint as the panels, so ocean gets an
+       ocean-tinted popup instead of a neutral grey and paper stays warm. */
+    --option-bg: rgb(var(--panel-tint-rgb));
+    --option-color: var(--text-primary);
     
     /* Accent & System Colors */
     --accent-default: #0078d4;
     --accent-hover: #106ebe;
+    /* Native form controls, scrollbars, and select popups are rendered by
+       the OS/webview. Without this they follow the system light theme even
+       when the app is dark, producing white popups with white option text. */
+    color-scheme: light;
+    accent-color: var(--accent-default);
     --accent-active: #005a9e;
     --accent-border: rgba(0, 120, 212, 0.2);
     --accent-bg-soft: rgba(0, 120, 212, 0.08);
@@ -109,6 +116,7 @@
    data-mode, so per-theme accent blocks below only need to override
    accents/tints on top of this base. */
 [data-mode="dark"] {
+    color-scheme: dark;
     --panel-rgb: 32, 32, 32;
     --panel-tint-rgb: 32, 32, 32;
     /* Windows 11 Acrylic Material (Sidebar) - Dark Mode */
@@ -161,8 +169,8 @@
     --text-secondary: #d4d4d4;
     --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.5);
     --text-backplate: rgba(0, 0, 0, 0.35);
-    --option-bg: #202020;
-    --option-color: #ffffff;
+    --option-bg: rgb(var(--panel-tint-rgb));
+    --option-color: var(--text-primary);
     
     /* Accent & System Colors - Dark Mode */
     --accent-default: #60cdff;

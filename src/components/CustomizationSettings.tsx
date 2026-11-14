@@ -25,6 +25,7 @@ import {
 } from "../lib/unsplash";
 
 import { FieldGroup, FieldRow } from "./ui/Field";
+import { ThemedSelect } from "./ThemedSelect";
 import { CollapsibleSection } from "./ui/CollapsibleSection";
 
 const THUMBNAIL_SIZE = 160;
@@ -489,12 +490,11 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
                 </label>
                 <label class="color-field">
                   Direction
-                  <select
+                  <ThemedSelect
                     value={props.background.gradientDirection}
-                    onChange={(e) => props.onBackgroundChange({ gradientDirection: e.currentTarget.value })}
-                  >
-                    <For each={GRADIENT_DIRECTIONS}>{(dir) => <option value={dir}>{dir}</option>}</For>
-                  </select>
+                    options={GRADIENT_DIRECTIONS.map((dir) => ({ value: dir, label: dir }))}
+                    onChange={(value) => props.onBackgroundChange({ gradientDirection: value })}
+                  />
                 </label>
               </div>
             </FieldRow>
@@ -665,16 +665,16 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
 
               <FieldRow id="customization.wallpaper.frequency" label="Change every">
                 <div class="setting-control-select">
-                  <select
-                    value={props.background.unsplashChangeFrequencyMs}
-                    onChange={(e) =>
-                      props.onBackgroundChange({ unsplashChangeFrequencyMs: Number(e.currentTarget.value) })
+                  <ThemedSelect
+                    value={String(props.background.unsplashChangeFrequencyMs)}
+                    options={UNSPLASH_FREQUENCY_OPTIONS.map((option) => ({
+                      value: String(option.ms),
+                      label: option.label,
+                    }))}
+                    onChange={(value) =>
+                      props.onBackgroundChange({ unsplashChangeFrequencyMs: Number(value) })
                     }
-                  >
-                    <For each={UNSPLASH_FREQUENCY_OPTIONS}>
-                      {(option) => <option value={option.ms}>{option.label}</option>}
-                    </For>
-                  </select>
+                  />
                 </div>
               </FieldRow>
 
@@ -1125,12 +1125,14 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           <Show when={props.topBarMetrics.enabled}>
             <FieldRow id="customization.metrics.interval" label="Refresh interval">
               <div class="setting-control-select">
-                <select
+                <ThemedSelect
                   value={String(props.topBarMetrics.intervalSeconds)}
-                  onChange={(e) => props.onTopBarMetricsChange({ intervalSeconds: Number(e.currentTarget.value) })}
-                >
-                  <For each={[1, 2, 3, 5, 10]}>{(s) => <option value={String(s)}>{s} s</option>}</For>
-                </select>
+                  options={[1, 2, 3, 5, 10].map((seconds) => ({
+                    value: String(seconds),
+                    label: `${seconds} s`,
+                  }))}
+                  onChange={(value) => props.onTopBarMetricsChange({ intervalSeconds: Number(value) })}
+                />
               </div>
             </FieldRow>
 

@@ -36,6 +36,7 @@ typography:
     fontWeight: 500
     lineHeight: 1.4
   secondary:
+    token: "--text-meta" # --text-secondary is the colour token, not the size
     fontFamily: "Segoe UI Variable Text, Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
     fontSize: 0.875em
     fontWeight: 400

@@ -82,7 +82,7 @@
     background-color: var(--panel-bg);
     border: 1px solid var(--border-strong);
     box-shadow: var(--shadow-md);
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }
 
 .metric-detail-title {

@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "./Modal";
+import { ThemedSelect } from "./ThemedSelect";
 import type { DirEntry } from "../lib/fs";
 
 type BulkRenameDialogProps = {
@@ -149,10 +150,14 @@ export function BulkRenameDialog(props: BulkRenameDialogProps) {
             </label>
             <label class="bulk-rename-field bulk-rename-field-small">
               Position
-              <select value={position()} onChange={(e) => setPosition(e.currentTarget.value as NumberPosition)}>
-                <option value="suffix">Suffix</option>
-                <option value="prefix">Prefix</option>
-              </select>
+              <ThemedSelect
+                value={position()}
+                options={[
+                  { value: "suffix", label: "Suffix" },
+                  { value: "prefix", label: "Prefix" },
+                ]}
+                onChange={(value) => setPosition(value as NumberPosition)}
+              />
             </label>
           </div>
         </Show>

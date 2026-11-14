@@ -141,7 +141,9 @@ describe("DESIGN.md stays in sync with the stylesheet", () => {
       title: "--text-title",
       body: "--text-body",
       label: "--text-label",
-      secondary: "--text-secondary",
+      // The metadata type role is --text-meta; --text-secondary is the
+      // semantic COLOUR token checked above. They used to collide.
+      secondary: "--text-meta",
       caption: "--text-caption",
       section: "--text-section",
       badge: "--text-badge",

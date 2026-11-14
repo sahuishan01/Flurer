@@ -20,7 +20,10 @@
     --text-title: 1.1em;        /* section headings */
     --text-body: 1em;           /* base body */
     --text-label: 0.875em;      /* buttons, inputs, controls */
-    --text-secondary: 0.875em;  /* metadata, timestamps */
+    /* Metadata size must not share the name of the --text-secondary COLOR
+       token from theme.css: the later :root block here used to overwrite
+       that color with a length, invalidating every `color: var(...)` usage. */
+    --text-meta: 0.875em;       /* metadata, timestamps */
     --text-caption: 0.75em;     /* hints, drive text, errors */
     --text-section: 0.7em;      /* sidebar section labels */
     --text-badge: 0.625em;      /* progress badge count */
@@ -133,7 +136,6 @@ html[data-theme="paper"] {
     --border-strong: rgba(92, 64, 29, 0.26);
     --hover-bg: rgba(92, 64, 29, 0.06);
     --active-bg: rgba(92, 64, 29, 0.1);
-    --option-bg: #fbf7ef;
     --scrollbar-thumb: rgba(92, 64, 29, 0.22);
     --scrollbar-thumb-hover: rgba(92, 64, 29, 0.36);
 }

@@ -414,12 +414,12 @@ button.danger:not(.context-menu-item):hover {
 .graph-hint {
     color: var(--text-color);
     opacity: 0.6;
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }
 
 .graph-error {
     color: var(--danger);
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
 }
 
 .graph-canvas {
@@ -503,7 +503,7 @@ button.danger:not(.context-menu-item):hover {
     padding: 0 0.7em;
     box-sizing: border-box;
     color: var(--text-color);
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
     font-family: inherit;
     user-select: none;
     -webkit-user-select: none;
@@ -569,7 +569,7 @@ button.danger:not(.context-menu-item):hover {
     border: 1px solid var(--border-strong);
     box-shadow: var(--shadow-md);
     color: var(--text-color);
-    font-size: var(--text-secondary);
+    font-size: var(--text-meta);
     pointer-events: none;
 }
 
