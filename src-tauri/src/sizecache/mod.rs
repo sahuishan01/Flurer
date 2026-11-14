@@ -824,6 +824,16 @@ fn start_watching(state: &AppState, path: &Path) {
         return;
     }
     let scope = watch_scope(path);
+    // watch_scope is the filesystem root ("/") for every absolute Linux
+    // path. Registering a recursive watch there makes notify walk the whole
+    // tree synchronously on the Tauri IPC thread; as root every directory is
+    // readable, so that walk both blocks the UI and spins. Live size updates
+    // are not worth freezing the elevated window over — explicit Recalculate
+    // still works — so skip them in that case.
+    #[cfg(target_os = "linux")]
+    if scope == Path::new("/") && crate::elevation::is_current_process_elevated() {
+        return;
+    }
     start_watching_exact(state, &scope);
 }
 

@@ -62,9 +62,12 @@ pub async fn close_window(
     window: tauri::WebviewWindow,
     close_to_tray: Option<bool>,
 ) -> Result<(), String> {
-    let should_close_to_tray = close_to_tray.unwrap_or_else(|| {
-        save_current_window_metrics_and_get_close_to_tray(&app)
-    });
+    // The elevated instance has no tray icon (its tray/global-shortcut setup
+    // is skipped because it has no user session bus), so hiding to tray would
+    // leave an invisible, unclosable process. Close means exit while elevated.
+    let elevated_linux = cfg!(target_os = "linux") && crate::elevation::is_current_process_elevated();
+    let should_close_to_tray = !elevated_linux
+        && close_to_tray.unwrap_or_else(|| save_current_window_metrics_and_get_close_to_tray(&app));
     if should_close_to_tray {
         save_current_window_metrics(&app);
         // Hide child/docked webviews so nothing floats or intercepts clicks

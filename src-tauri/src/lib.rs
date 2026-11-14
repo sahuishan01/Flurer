@@ -217,9 +217,21 @@ pub fn run() {
             // — an empty string here can only mean the user explicitly
             // cleared it to turn the shortcut off, which register() treats
             // as a no-op rather than silently falling back to the default.
-            shortcuts::register(&app.handle(), &settings.global_shortcut);
-            tray::sync_autostart(&app.handle(), settings.launch_at_startup, settings.launch_as_admin);
-            tray::setup(&app.handle())?;
+            //
+            // An elevated Linux instance runs in system.slice, outside the
+            // user's D-Bus session. libayatana-appindicator (the tray) then
+            // fails to get the session bus and spins the GTK main loop at
+            // 100% CPU, freezing the window. Skip the session-dependent
+            // integrations in that mode; the file-manager window itself
+            // needs none of them.
+            let elevated_linux = cfg!(target_os = "linux") && is_current_process_elevated();
+            if elevated_linux {
+                log::info!("elevated: skipping tray/global-shortcut/autostart setup (no user session bus)");
+            } else {
+                shortcuts::register(&app.handle(), &settings.global_shortcut);
+                tray::sync_autostart(&app.handle(), settings.launch_at_startup, settings.launch_as_admin);
+                tray::setup(&app.handle())?;
+            }
             let config = Config::load();
             let window_width = settings.window_width.clamp(400, 3840);
             let window_height = settings.window_height.clamp(300, 2160);
