@@ -259,7 +259,9 @@ export function FileList(props: FileListProps) {
   async function relaunchAsAdmin() {
     setAdminRelaunchError("");
     try {
-      await invoke("relaunch_as_admin");
+      // Pass the folder being viewed so the elevated instance opens here
+      // instead of at root's home (it runs with a separate profile).
+      await invoke("relaunch_as_admin", { path: props.path });
     } catch (err) {
       setAdminRelaunchError(String(err));
     }

@@ -5,6 +5,7 @@ mod dirwatch;
 mod disks;
 mod drag_out;
 mod duplicates;
+mod elevation;
 mod fs;
 mod helpers;
 mod logging;
@@ -56,16 +57,38 @@ use plugins::{
 };
 
 use crate::{configs::Config, state::AppState};
+use elevation::{is_current_process_elevated, relaunch_as_admin};
 use trash_bin::{delete_trash_items_forever, empty_trash, list_trash, restore_trash_items};
-use updater::{check_for_updates, download_and_install_update, relaunch_as_admin};
+use updater::{check_for_updates, download_and_install_update};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Must be first: installs the panic hook and file logger so any failure
-    // during setup below (or any panic for the rest of the process's life)
-    // is captured to %LOCALAPPDATA%/.flurer/{logs,crashes} instead of being
-    // lost to a terminal the packaged app doesn't have.
+    // First, before anything can exit this process: pkexec leaves a
+    // parent-death signal armed across its exec, and the unelevated instance
+    // exits as soon as we report ready.
+    elevation::prepare_elevated_process();
+    // Installs the panic hook and file logger so any failure during setup
+    // below (or any panic for the rest of the process's life) is captured to
+    // %LOCALAPPDATA%/.flurer/{logs,crashes} instead of being lost to a
+    // terminal the packaged app doesn't have.
     logging::init();
+    // pkexec makes every uid root; keep file access root but give the session
+    // its user identity back so D-Bus/portals see the user who authorized it.
+    elevation::restore_real_uid();
+    // Before anything can touch GTK/WebKit: an elevated Linux launch gets a
+    // stripped environment from pkexec, so the display/session variables the
+    // GUI needs arrive as --elevated-env arguments and must be applied first.
+    elevation::apply_cli_env();
+    // The elevated instance runs with root's HOME, so its settings would
+    // otherwise be a fresh profile with the default theme and no last path.
+    // The unelevated instance hands over its settings file so the admin
+    // window looks like the one the user just left.
+    helpers::settings::seed_elevated_settings_from_cli();
+    // Tell the instance that spawned us (and is waiting) that polkit
+    // authentication succeeded. Done before the takeover wait below, because
+    // that wait deliberately blocks until the unelevated instance exits —
+    // and it only exits after seeing this marker.
+    elevation::write_ready_marker();
     // Full argv/cwd for EVERY process start: on a warm start (single-instance
     // handoff) this is the only log line in the short-lived second instance's
     // own file, and it's what proves exactly what was forwarded — see the
@@ -149,10 +172,10 @@ pub fn run() {
             let settings = load_settings(&app.handle());
             // "Always run as admin": if the setting is on and this instance
             // isn't elevated, hand off to an elevated copy before building
-            // any window state. Declining the UAC prompt is not fatal — the
+            // any window state. Declining the prompt is not fatal — the
             // instance stays unelevated for this run instead of exiting.
-            #[cfg(target_os = "windows")]
-            if settings.launch_as_admin && !updater::is_current_process_elevated() {
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            if settings.launch_as_admin && !is_current_process_elevated() {
                 // Resolve the CLI launch path BEFORE the handoff: the
                 // elevated copy is spawned without our context, so without
                 // forwarding, `flurer.exe <path>` + "Always run as admin"
@@ -171,8 +194,9 @@ pub fn run() {
                     }
                     forwarded
                 };
+                let settings_source = helpers::settings::settings_path(&app.handle()).ok();
                 match std::env::current_exe() {
-                    Ok(exe) => match updater::elevate_and_wait(&exe, &handoff_args) {
+                    Ok(exe) => match elevation::elevate_and_wait(&exe, &handoff_args, settings_source.as_deref()) {
                         Ok(true) => {
                             log::info!(
                                 "launch_as_admin: elevated instance started (forwarded args {:?}), exiting unelevated one",
@@ -182,7 +206,7 @@ pub fn run() {
                             return Ok(());
                         }
                         Ok(false) => {
-                            log::warn!("launch_as_admin: UAC prompt declined, continuing unelevated");
+                            log::warn!("launch_as_admin: elevation prompt declined, continuing unelevated");
                         }
                         Err(e) => {
                             log::error!("launch_as_admin: elevation attempt failed: {e}");
@@ -474,5 +498,21 @@ fn wait_for_process_exit(pid: u32, timeout: std::time::Duration) {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+fn wait_for_process_exit(pid: u32, timeout: std::time::Duration) {
+    // No pidfd/waitid here: the process is not our child (it is another
+    // instance), so poll /proc. A zombie lingers until its parent reaps it;
+    // the timeout covers that case without risking a permanent hang.
+    let proc_path = format!("/proc/{pid}");
+    let deadline = std::time::Instant::now() + timeout;
+    while std::time::Instant::now() < deadline {
+        if !std::path::Path::new(&proc_path).exists() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    log::warn!("takeover-from={pid}: previous instance still alive after {timeout:?}");
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn wait_for_process_exit(_pid: u32, _timeout: std::time::Duration) {}

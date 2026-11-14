@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import type { FolderSizeCacheStats } from "../lib/fs";
+import { isWindows, type FolderSizeCacheStats } from "../lib/fs";
 import { THEMES, type BackgroundSettings, type BackgroundType, type MetricKind, type Theme, type TopBarMetrics } from "../lib/settings";
 import {
   FONT_FAMILY_PRESETS,
@@ -1267,7 +1267,11 @@ export function CustomizationSettings(props: CustomizationSettingsProps) {
           <FieldRow
             id="customization.startup.launchAsAdmin"
             label="Always run as administrator"
-            description="Prompts for UAC and relaunches elevated when enabled, and on every future launch. Turning it off takes effect the next time Flurer is started normally."
+            description={
+              isWindows
+                ? "Prompts for UAC and relaunches elevated when enabled, and on every future launch. Turning it off takes effect the next time Flurer is started normally."
+                : "Prompts for administrator authentication (polkit) and relaunches elevated when enabled, and on every future launch. Turning it off takes effect the next time Flurer is started normally."
+            }
           >
             <input
               type="checkbox"

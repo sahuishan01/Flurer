@@ -66,12 +66,90 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     fs::rename(&temp, path)
 }
 
-fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     let root = config_root()?;
     let dir = version_dir(&root, &app.package_info().version.to_string());
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("settings.json"))
 }
+
+/// Copies the unelevated profile's settings (and cached wallpaper) into the
+/// elevated process's profile before `load_settings` runs.
+///
+/// The elevated instance is deliberately run with root's HOME: writing into
+/// the user's `~/.config/flurer` as root would leave root-owned files behind
+/// that the next normal (unelevated) launch could no longer save. Seeding a
+/// copy gives the admin window the same theme, tabs, and window geometry
+/// without touching the user's files, while changes made while elevated stay
+/// in root's profile.
+///
+/// Only honored when `pkexec`/`sudo` elevated us (PKEXEC_UID/SUDO_UID is
+/// set) and the handed-over file is owned by that same user, so a root
+/// invocation cannot be tricked into copying an arbitrary file.
+#[cfg(target_os = "linux")]
+pub fn seed_elevated_settings_from_cli() {
+    use std::os::unix::fs::MetadataExt;
+
+    if unsafe { libc::geteuid() } != 0 {
+        return;
+    }
+    let Some(source) = std::env::args().find_map(|arg| {
+        arg.strip_prefix("--seed-settings-from=").map(PathBuf::from)
+    }) else {
+        return;
+    };
+    let Ok(metadata) = fs::metadata(&source) else {
+        log::warn!("elevated: seed settings file {} is not readable", source.display());
+        return;
+    };
+    let Some(uid) = crate::elevation::invoking_uid() else {
+        log::warn!("elevated: no invoking uid; not seeding settings");
+        return;
+    };
+    if metadata.uid() != uid {
+        log::warn!("elevated: refusing to seed settings from a file not owned by uid {uid}");
+        return;
+    }
+
+    let Some(home) = dirs::home_dir() else {
+        return;
+    };
+    let elevated_root = home.join(".config").join("flurer");
+    let target_dir = elevated_root.join(env!("CARGO_PKG_VERSION"));
+    // Defensive: if HOME did not resolve to a different profile (pkexec
+    // normally sets it to /root), seeding would just rewrite the user's own
+    // settings as root and cause the ownership problem this avoids.
+    if source.parent() == Some(target_dir.as_path()) {
+        log::info!("elevated: seed source is the active profile; not copying");
+        return;
+    }
+    if let Err(e) = fs::create_dir_all(&target_dir) {
+        log::warn!("elevated: could not create settings dir {}: {e}", target_dir.display());
+        return;
+    }
+    let Ok(contents) = fs::read(&source) else {
+        log::warn!("elevated: could not read seed settings {}", source.display());
+        return;
+    };
+    if let Err(e) = atomic_write(&target_dir.join("settings.json"), &contents) {
+        log::warn!("elevated: could not write seeded settings: {e}");
+        return;
+    }
+
+    // The wallpaper cache lives one level above the versioned settings dir.
+    if let Some(source_root) = source.parent().and_then(Path::parent) {
+        for name in ["wallpaper.jpg", "wallpaper_meta.json"] {
+            let from = source_root.join(name);
+            if let Ok(contents) = fs::read(&from) {
+                let _ = atomic_write(&elevated_root.join(name), &contents);
+            }
+        }
+    }
+    log::info!("elevated: seeded settings from {}", source.display());
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn seed_elevated_settings_from_cli() {}
 
 // Parses a "0.2.0"-style directory name into a comparable (major, minor,
 // patch) tuple. Anything else (a stray non-version folder) yields None and

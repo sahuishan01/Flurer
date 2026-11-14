@@ -1207,7 +1207,7 @@ dependencies = [
 
 [[package]]
 name = "flurer"
-version = "0.4.249"
+version = "0.4.250"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1216,6 +1216,7 @@ dependencies = [
  "http 1.4.2",
  "indexmap 2.14.0",
  "keyring",
+ "libc",
  "log",
  "notify",
  "notify-debouncer-mini",

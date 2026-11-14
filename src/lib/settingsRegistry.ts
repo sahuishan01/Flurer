@@ -316,7 +316,7 @@ const CUSTOMIZATION_SECTIONS: SettingsSectionDef[] = [
             {
                 id: "customization.startup.launchAsAdmin",
                 label: "Always run as administrator",
-                keywords: ["administrator", "admin", "elevated", "uac", "privileges", "startup"],
+                keywords: ["administrator", "admin", "elevated", "uac", "polkit", "root", "privileges", "startup"],
             },
             {
                 id: "customization.startup.path",

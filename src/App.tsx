@@ -593,7 +593,7 @@ function App() {
       // debounced save before it fires — persist synchronously first so
       // the flag is on disk when the elevated instance starts.
       invoke("set_settings", { settings: unwrap(settings) })
-        .then(() => invoke("relaunch_as_admin"))
+        .then(() => invoke("relaunch_as_admin", { path: currentPath() }))
         .catch((err) => console.error("Failed to relaunch as admin", err));
     }
   }
