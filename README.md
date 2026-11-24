@@ -1,96 +1,122 @@
-# Flurer
+# 📁 Flurer
 
-A lightweight, fast, cross-platform file manager built with [Tauri v2](https://tauri.app) (Rust) and [SolidJS](https://solidjs.com). By leveraging native OS webviews (WebKitGTK on Linux, WebView2 on Windows) without bundling Chromium, Flurer maintains a minimal memory footprint and fast startup times.
+![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-backend-DEA584?logo=rust&logoColor=white)
+![SolidJS](https://img.shields.io/badge/SolidJS-frontend-2C4F7C?logo=solid&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-MSI%20%7C%20NSIS-0078D4?logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-deb%20%7C%20rpm%20%7C%20AppImage-FCC624?logo=linux&logoColor=black)
+![Version](https://img.shields.io/badge/version-0.4.254-2ea44f)
 
----
-
-## 🌟 Core Features & Capabilities
-
-- **Cross-Platform Support**: Full native support for **Linux** (`deb`, `rpm`, `AppImage`) and **Windows** (`MSI`, `NSIS` installers).
-- **Fast Directory Browsing**: Asynchronous Rust backend file operations with chunked directory streaming, metadata caching, and folder-size calculation.
-- **System PATH Integration**: Add `flurer` directly to your system path (`PATH`) on both Linux (`.bashrc`, `.zshrc`, `.profile`) and Windows registry with a single click in Settings.
-- **Terminal Emulator Integration**: Launch your preferred terminal (`foot`, `ghostty`, `alacritty`, `kitty`, `konsole`, `gnome-terminal`, `xterm`, or `cmd.exe`) in the currently selected directory.
-- **System & Metric Monitoring**: Integrated hardware metrics monitoring (CPU, RAM, GPU, network interfaces) in the customizable top bar.
-- **Native Symlink Handling**: Symlinks are safely handled without infinite loop recursion or triggering false-positive access-denied warnings.
-- **AI Agent-First Development**: Built-in integration with **GitNexus** graph-based code intelligence for AI agent code navigation (`agy`, `codex`, `claude-code`).
+A lightweight, fast file manager built with [Tauri v2](https://tauri.app) (Rust) and [SolidJS](https://solidjs.com). It uses the OS's own webview (WebView2 on Windows, WebKitGTK on Linux) instead of bundling Chromium, so it starts quickly and uses little memory. The look follows Windows 11 Fluent Design, with acrylic and mica style translucent surfaces.
 
 ---
 
-## 🛠️ Installation & Building
+## ✨ Features
+
+| | Feature |
+|---|---|
+| ⚡ | **Fast browsing.** Async Rust file operations, chunked directory streaming, metadata caching and background folder-size calculation. Details and grid views. |
+| 🗂️ | **Tabs and dual pane.** Browse in tabs, or open a second independent pane side by side and send the selection across. |
+| 🔎 | **Search.** Filename search, plus content search by starting the query with `>`. An optional search index speeds it up. |
+| 🧰 | **Everyday tools.** Bulk rename, duplicate finder, Quick Look and preview panel, properties dialog, trash view, and zip compress and extract. |
+| ⌨️ | **Keyboard first.** A command palette (`Ctrl+K`) and rebindable shortcuts, such as `F2` rename, `Ctrl+L` address bar, `Ctrl+T` new tab and `Ctrl+Shift+D` new pane. |
+| 📊 | **Live system metrics** in a customizable top bar: CPU, RAM, GPU and network. |
+| 🔌 | **Plugins** installed from GitHub releases (see below). |
+| 🖥️ | **Terminal and PATH integration.** Open your terminal in the current folder (`foot`, `ghostty`, `alacritty`, `kitty`, `konsole`, `gnome-terminal`, `xterm` or `cmd.exe`), and add `flurer` to your `PATH` from Settings. |
+| 🛡️ | **Run as admin.** Windows elevation, and `pkexec` on Linux, with the elevated app detached into its own service so it stays responsive. |
+| 🔗 | **Safe symlink handling.** No infinite recursion and no false access-denied warnings. |
+| 🎨 | **Themes and customization.** Six themes (Light, Dark, Midnight, Ocean, Nord, Paper), custom backgrounds (including rotating Unsplash images), and per-plugin translucency. |
+| 🔄 | **Auto-update.** The app finds new releases and can install them for you. |
+
+---
+
+## 🔌 Plugins
+
+Plugins extend Flurer in four places: a button on the left **view rail**, a replacement **sidebar**, a **main panel** or **full panel** view, and their own **settings page**. They ask for permission before using sensitive features.
+
+Install them from **Settings → Plugin Marketplace** with a GitHub repo (`owner/repo`, which fetches the latest release's `.zip`) or a `.zip` file from disk. Plugins live in `~/.config/flurer/plugins/<id>/`.
+
+| Plugin | What it does |
+|---|---|
+| [flurer-plugin-git](https://github.com/sahuishan01/flurer-plugin-git) | Git status, stage and unstage, commit, push and pull |
+| [flurer-graph-plugin](https://github.com/sahuishan01/flurer-graph-plugin) | Treemap-style storage graph for exploring disk usage |
+| [flurer-web-loader](https://github.com/sahuishan01/flurer-web-loader) | Loads web pages and local web apps in a window |
+
+Writing your own? See [plugin-spec.md](plugin-spec.md) for the manifest, build requirements and API.
+
+---
+
+## 🗺️ Architecture
+
+```mermaid
+flowchart LR
+    UI["🎨 SolidJS UI<br/>src/"] -- "Tauri IPC commands" --> RS["🦀 Rust backend<br/>src-tauri/src"]
+    RS --> FS["📂 fs, archive, trash, duplicates"]
+    RS --> SI["🔎 search index, size cache"]
+    RS --> DW["👀 directory watcher"]
+    RS --> MT["📊 metrics: CPU, RAM, GPU, network"]
+    RS --> PL["🔌 plugin installer and permissions"]
+    DW -. "Windows, optional" .-> WD["🛡️ flurer-watchd<br/>NTFS USN journal service"]
+    PL --> GH["🐙 GitHub releases"]
+```
+
+Filesystem work, background size caching and native bindings live in Rust and are exposed to the frontend as Tauri commands. `src-tauri/watchd` is a small elevated helper that reads the NTFS USN journal for volume-wide change detection, so the main app can stay unprivileged. See the [design note](docs/superpowers/specs/2026-08-16-usn-journal-watcher-design.md) for why, and for its verification status.
+
+---
+
+## 🚀 Getting started
 
 ### Prerequisites
 
-Ensure you have the required system dependencies installed:
+- **Rust** and Cargo ([rustup](https://rustup.rs))
+- **Node.js** and **Bun**
+- **Linux:** WebKitGTK and GTK3 development libraries
+  - Ubuntu/Debian: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
+  - Arch: `sudo pacman -S webkit2gtk-4.1 base-devel curl wget openssl gtk3 libappindicator-gtk3 librsvg`
+- **Windows:** the `x86_64-pc-windows-msvc` Rust toolchain and the WiX Toolset (for `.msi` installers)
 
-#### Linux (Debian/Ubuntu/Arch)
-- **Node.js** & **Bun** (`bun`)
-- **Rust** & **Cargo** (`rustup`)
-- **WebKitGTK** & **GTK3** development libraries:
-  - *Ubuntu/Debian*: `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
-  - *Arch Linux*: `sudo pacman -S webkit2gtk-4.1 base-devel curl wget openssl gtk3 libappindicator-gtk3 librsvg`
+### Run in development
 
-#### Windows
-- **Rust toolchain**: `x86_64-pc-windows-msvc`
-- **Node.js** & **Bun** (`bun`)
-- **WiX Toolset** (for building `.msi` installers)
+```bash
+git clone https://github.com/sahuishan01/Flurer.git
+cd Flurer
+bun install
+bun run tauri dev
+```
 
----
-
-### Development Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/sahuishan01/Flurer.git
-   cd Flurer
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   bun install
-   ```
-
-3. **Run in development mode**:
-   ```bash
-   bun run tauri dev
-   ```
-
----
-
-### Production Build
-
-To build release packages locally:
+### Build installers
 
 ```bash
 bun run tauri build
 ```
 
-The output installers will be generated under `src-tauri/target/release/bundle/`:
-- **Linux**: `.deb`, `.rpm`, `.AppImage`
-- **Windows**: `.msi`, `.exe` (NSIS)
+Installers are written to `src-tauri/target/release/bundle/`:
+
+| Platform | Output |
+|---|---|
+| 🪟 Windows | `.msi` (per-machine) and `.exe` NSIS (per-user or per-machine, your choice at install time) |
+| 🐧 Linux | `.deb`, `.rpm` and `.AppImage` |
+
+See [build.md](build.md) for versioning and packaging details.
 
 ---
 
-## 📑 Architecture & Code Intelligence
+## 🤝 CI and releases
 
-Filesystem operations, background size caching, and native system bindings reside in Rust (`src-tauri/`), exposed to the SolidJS frontend (`src/`) via Tauri IPC commands.
+- `.github/workflows/build.yml` validates the Linux and Windows builds on push.
+- `.github/workflows/release.yml` builds on Windows and Ubuntu when a `v*` tag is pushed, creates the GitHub Release with a changelog, and attaches the installers.
 
-This project is indexed with **GitNexus**. For code navigation and impact analysis:
+---
+
+## 🧭 For contributors and AI agents
+
+- [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) and [HANDOFF.md](HANDOFF.md) hold project conventions, roadmap and recent history.
+- [DESIGN.md](DESIGN.md) has the visual design tokens.
+- Design specs for larger features are in [docs/superpowers/specs](docs/superpowers/specs).
+- The repo is indexed with **GitNexus** for code navigation and impact analysis:
 
 ```bash
-# Re-index repository
-gitnexus analyze
-
-# Query concept/execution flow
-gitnexus query "<concept>"
-
-# Trace blast radius before refactoring
-gitnexus impact --target "<symbol>"
+gitnexus analyze                       # re-index
+gitnexus query "<concept>"             # find a concept or execution flow
+gitnexus impact --target "<symbol>"    # blast radius before refactoring
 ```
-
----
-
-## 🤝 CI/CD & Automated Releases
-
-Cross-platform builds and GitHub releases are managed via GitHub Actions:
-- `.github/workflows/build.yml`: Validates Linux and Windows builds on push.
-- `.github/workflows/release.yml`: Automatically packages binaries, creates GitHub Releases, and attaches platform installer assets upon tagging (`v*`).
